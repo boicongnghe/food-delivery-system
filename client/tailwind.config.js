@@ -23,9 +23,18 @@ export default {
           hover: '#059669',
           light: '#ECFDF5',
         },
+        // Partner portal palette (restaurant owner screens)
+        brand: {
+          DEFAULT: '#C2381F',
+          hover: '#A92E18',
+          light: '#FDF3EE',
+          soft: '#F8E4DA',
+        },
+        cream: '#FFFBF8',
       },
       fontFamily: {
         sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['Lora', 'Georgia', 'serif'],
       },
     },
   },
