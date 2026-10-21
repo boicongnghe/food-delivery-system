@@ -137,6 +137,17 @@ export default function Navbar() {
                     </Link>
                   )}
 
+                  {user.role === 'restaurant_owner' && (
+                    <Link
+                      to="/restaurant/profile"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-50 font-bold transition-colors"
+                    >
+                      <Store className="w-4 h-4 text-amber-600" />
+                      Hồ Sơ Quán
+                    </Link>
+                  )}
+
                   {user.role === 'shipper' && (
                     <Link
                       to="/shipper"
