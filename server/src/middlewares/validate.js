@@ -21,7 +21,8 @@ export const validate = (schema, source = 'body') => {
       throw new ApiError(400, 'Dữ liệu không hợp lệ', errorDetails);
     }
 
-    req[source] = value;
+    // Express 5 exposes req.query as a getter, so plain assignment would throw
+    Object.defineProperty(req, source, { value, writable: true, configurable: true, enumerable: true });
     next();
   };
 };
