@@ -1,9 +1,9 @@
 import axiosClient from './axiosClient.js'
 
 const uploadApi = {
-  // folder: 'common' | 'restaurants' | 'menu-items' | 'avatars'
+  // folder: 'restaurants' | 'menu-items'
   // Returns { success, data: { url, publicId }, message } - url is a Cloudinary https URL
-  uploadImage: async (file, folder = 'common') => {
+  uploadImage: async (file, folder) => {
     const formData = new FormData()
     formData.append('image', file)
 
@@ -11,6 +11,12 @@ const uploadApi = {
       params: { folder },
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    return response.data
+  },
+
+  // Delete an image you uploaded but did not save (server refuses images still in use)
+  deleteUnusedImage: async (url) => {
+    const response = await axiosClient.delete('/uploads/images', { data: { url } })
     return response.data
   },
 }
