@@ -64,7 +64,14 @@ TODO: nhóm chốt thiết kế.
 | `category` | String | ví dụ: món chính, đồ uống... |
 | `isAvailable` | Boolean | còn bán hay hết |
 
-TODO: nhóm chốt thiết kế – category là chuỗi hay collection riêng?
+**Đã triển khai (UC20):** danh mục là collection riêng `menuCategories`; model thực tế xem `server/src/models/MenuItem.js` (có `optionGroups`, `isAvailable`, `isVisible`, `soldOutAt`, `imagePublicId`, xóa mềm `isDeleted`).
+
+**Quy tắc bắt buộc khi viết API cho khách hàng (menu, giỏ hàng, đặt món):**
+
+- Mọi truy vấn món phải có `{ restaurant: restaurantId, isVisible: true, isDeleted: false }` – nếu thiếu, món đã ẩn/xóa sẽ lộ ra hoặc bị thêm vào giỏ.
+- Món `isAvailable: false` vẫn hiển thị nhưng **không cho thêm vào giỏ** (hiện "Hết món").
+- Khi tạo đơn: kiểm tra lại các điều kiện trên ở server và **lưu snapshot** tên, giá, tùy chọn đã chọn, ảnh vào đơn – không tham chiếu giá hiện tại của món.
+- Không xóa cứng món: dùng xóa mềm (`isDeleted`) để đơn cũ vẫn hiển thị được.
 
 ## 4. `orders`
 

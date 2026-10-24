@@ -17,6 +17,7 @@ cd server && npm run dev     # API http://localhost:5000, kiểm tra: GET /api/h
 cd client && npm run dev     # UI http://localhost:5173
 cd client && npm run build   # phải pass trước khi mở PR
 cd client && npm run lint    # oxlint
+cd server && npm run seed:menu [email]   # thực đơn mẫu cho chủ quán (mặc định chuquan@fooddelivery.vn), GHI ĐÈ thực đơn cũ
 ```
 
 Yêu cầu Node `^20.19 || >=22.12` (do Vite 8). File môi trường: copy `server/.env.example` và `client/.env.example` thành `.env`.
