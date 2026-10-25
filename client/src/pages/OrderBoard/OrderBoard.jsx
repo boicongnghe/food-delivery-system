@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { BellRing, ChefHat, CircleCheckBig, CookingPot, Store, WifiOff } from 'lucide-react'
 import orderApi from '../../api/orderApi.js'
@@ -49,8 +49,40 @@ export default function OrderBoard() {
   const [busyIds, setBusyIds] = useState(() => new Set()) // orders with an action running
   const [rejectTarget, setRejectTarget] = useState(null)
   const [rejectState, setRejectState] = useState({ submitting: false, error: '' })
-  const [detailOrderId, setDetailOrderId] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(readSoundSetting)
+  const [lastOwnChange, setLastOwnChange] = useState(null) // { orderId, status } of the owner's last action
+
+  // Open order detail lives in the URL (?order=<id>): survives F5, can be shared, Back closes it
+  const [searchParams, setSearchParams] = useSearchParams()
+  const detailOrderId = searchParams.get('order')
+
+  const openDetail = useCallback(
+    (orderId) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('order', orderId)
+        return next
+      })
+    },
+    [setSearchParams],
+  )
+
+  const closeDetail = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('order')
+        return next
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
+
+  // applyBoard is created once: it reaches the latest openDetail through this ref
+  const openDetailRef = useRef(openDetail)
+  useEffect(() => {
+    openDetailRef.current = openDetail
+  }, [openDetail])
 
   const now = useNow(1000) // one clock for every timer on the page
   // Every board request gets a number; only the response of the NEWEST request may update the screen
@@ -70,7 +102,25 @@ export default function OrderBoard() {
     const knownIds = knownPendingIdsRef.current
     const newOrders = knownIds ? data.pending.filter((order) => !knownIds.has(order._id)) : []
     if (newOrders.length > 0) {
-      toast(`Có ${newOrders.length} đơn mới cần nhận`, { icon: <BellRing className="h-4 w-4 text-amber-400" /> })
+      const newestOrderId = newOrders[newOrders.length - 1]._id // board is sorted oldest first
+      toast(
+        (t) => (
+          <span className="flex items-center gap-3">
+            Có {newOrders.length} đơn mới cần nhận
+            <button
+              type="button"
+              onClick={() => {
+                openDetailRef.current(newestOrderId)
+                toast.dismiss(t.id)
+              }}
+              className="rounded bg-white px-2 py-0.5 text-xs font-bold text-slate-900"
+            >
+              Xem
+            </button>
+          </span>
+        ),
+        { icon: <BellRing className="h-4 w-4 text-amber-400" />, duration: 8000 },
+      )
       if (soundEnabledRef.current) playNotificationSound()
     }
     knownPendingIdsRef.current = new Set(data.pending.map((order) => order._id))
@@ -127,12 +177,28 @@ export default function OrderBoard() {
     setBusy(order._id, true)
     try {
       const response = await request()
+      setLastOwnChange({ orderId: order._id, status: response.data.status })
       toast.success(response.message)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Thao tác không thành công'))
     } finally {
       setBusy(order._id, false)
       fetchBoard()
+    }
+  }
+
+  const acceptOrder = (order) => runAction(order, () => orderApi.acceptOrder(order._id))
+  const markReady = (order) => runAction(order, () => orderApi.markReady(order._id))
+
+  // "GN-0042" -> open its detail. Returns true when found (the input is then cleared).
+  const lookupOrder = async (code) => {
+    try {
+      const response = await orderApi.lookupOrder(code)
+      openDetail(response.data._id)
+      return true
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Không tìm thấy đơn hàng'))
+      return false
     }
   }
 
@@ -145,6 +211,7 @@ export default function OrderBoard() {
     setRejectState({ submitting: true, error: '' })
     try {
       const response = await orderApi.rejectOrder(rejectTarget._id, data)
+      setLastOwnChange({ orderId: rejectTarget._id, status: response.data.status })
       toast.success(response.message)
       closeRejectDialog()
       fetchBoard()
@@ -172,8 +239,6 @@ export default function OrderBoard() {
     if (next) playNotificationSound() // preview + unlocks audio in the browser
   }
 
-  const closeDetail = useCallback(() => setDetailOrderId(null), [])
-
   if (!restaurant) {
     return <NoRestaurantNotice message="Hãy tạo hồ sơ nhà hàng trước, sau đó quay lại đây để nhận đơn." />
   }
@@ -192,6 +257,7 @@ export default function OrderBoard() {
         onToggleSound={toggleSound}
         refreshing={refreshing}
         onRefresh={handleManualRefresh}
+        onLookup={lookupOrder}
       />
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6">
@@ -247,7 +313,7 @@ export default function OrderBoard() {
               emptyText="Chưa có đơn mới. Bảng tự cập nhật mỗi 15 giây."
             >
               {board.recentlyCancelled.map((order) => (
-                <CancelledOrderCard key={order._id} order={order} onView={() => setDetailOrderId(order._id)} />
+                <CancelledOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
               ))}
               {board.pending.map((order) => (
                 <PendingOrderCard
@@ -256,9 +322,9 @@ export default function OrderBoard() {
                   now={now}
                   busy={busyIds.has(order._id)}
                   acceptBlockedReason={acceptBlockedReason}
-                  onAccept={() => runAction(order, () => orderApi.acceptOrder(order._id))}
+                  onAccept={() => acceptOrder(order)}
                   onReject={() => setRejectTarget(order)}
-                  onView={() => setDetailOrderId(order._id)}
+                  onView={() => openDetail(order._id)}
                 />
               ))}
             </OrderColumn>
@@ -277,8 +343,8 @@ export default function OrderBoard() {
                   order={order}
                   now={now}
                   busy={busyIds.has(order._id)}
-                  onReady={() => runAction(order, () => orderApi.markReady(order._id))}
-                  onView={() => setDetailOrderId(order._id)}
+                  onReady={() => markReady(order)}
+                  onView={() => openDetail(order._id)}
                 />
               ))}
             </OrderColumn>
@@ -292,7 +358,7 @@ export default function OrderBoard() {
               emptyText="Chưa có đơn chờ shipper."
             >
               {board.readyForPickup.map((order) => (
-                <ReadyOrderCard key={order._id} order={order} onView={() => setDetailOrderId(order._id)} />
+                <ReadyOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
               ))}
             </OrderColumn>
           </div>
@@ -316,7 +382,23 @@ export default function OrderBoard() {
         />
       )}
 
-      {detailOrderId && <OrderDetailDrawer orderId={detailOrderId} onClose={closeDetail} />}
+      {detailOrderId && (
+        <OrderDetailDrawer
+          key={detailOrderId}
+          orderId={detailOrderId}
+          now={now}
+          refreshKey={lastSyncedAt}
+          lastOwnChange={lastOwnChange}
+          busy={busyIds.has(detailOrderId)}
+          acceptBlockedReason={acceptBlockedReason}
+          shortcutsEnabled={!rejectTarget}
+          restaurantName={restaurant.name}
+          onClose={closeDetail}
+          onAccept={acceptOrder}
+          onReject={setRejectTarget}
+          onReady={markReady}
+        />
+      )}
     </>
   )
 }

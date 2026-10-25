@@ -1,7 +1,8 @@
 import { Bell, BellOff, RefreshCw } from 'lucide-react'
 import { formatClock } from '../../../utils/formatTime.js'
+import OrderLookup from './OrderLookup.jsx'
 
-// Sub header under the shared Header: kitchen status, today's stats, bell toggle, manual refresh
+// Sub header under the shared Header: kitchen status, order lookup, today's stats, bell toggle, manual refresh
 export default function BoardHeaderBar({
   isOpen,
   stats,
@@ -10,6 +11,7 @@ export default function BoardHeaderBar({
   onToggleSound,
   refreshing,
   onRefresh,
+  onLookup,
 }) {
   return (
     <div className="border-b border-brand-soft/60 bg-brand-light/60">
@@ -22,6 +24,7 @@ export default function BoardHeaderBar({
           <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-emerald-600' : 'bg-slate-400'}`} />
           Trạng thái bếp: {isOpen ? 'Đang mở cửa' : 'Đã đóng cửa'}
         </span>
+        <OrderLookup onLookup={onLookup} />
         <p className="hidden text-sm text-slate-600 2xl:block">Bảng theo dõi và tiếp nhận đơn hàng nhà bếp trực tiếp</p>
 
         <div className="ml-auto flex flex-wrap items-center gap-2 text-sm">
