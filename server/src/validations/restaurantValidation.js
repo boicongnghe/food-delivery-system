@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { cloudinaryImageUrl } from './commonValidation.js';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PHONE_PATTERN = /^(0|\+84)\d{9,10}$/;
@@ -61,15 +62,9 @@ export const updateRestaurantProfileSchema = Joi.object({
   categories: Joi.array().items(Joi.string().trim().max(30)).max(5).unique().default([]).messages({
     'array.max': 'Chọn tối đa 5 phân loại',
   }),
-  // Image URLs returned by POST /api/uploads/images (Cloudinary)
-  logo: Joi.string().trim().uri({ scheme: ['https'] }).max(500).allow('').default('').messages({
-    'string.uri': 'Logo phải là đường dẫn ảnh hợp lệ',
-    'string.uriCustomScheme': 'Logo phải là đường dẫn https',
-  }),
-  coverImage: Joi.string().trim().uri({ scheme: ['https'] }).max(500).allow('').default('').messages({
-    'string.uri': 'Ảnh bìa phải là đường dẫn ảnh hợp lệ',
-    'string.uriCustomScheme': 'Ảnh bìa phải là đường dẫn https',
-  }),
+  // Image URLs returned by POST /api/uploads/images (our Cloudinary account only)
+  logo: cloudinaryImageUrl('Logo').allow('').default(''),
+  coverImage: cloudinaryImageUrl('Ảnh bìa').allow('').default(''),
   openingHours: Joi.array().items(openingHourSchema).length(7).unique('dayOfWeek').required().messages({
     'array.length': 'Giờ mở cửa phải đủ 7 ngày trong tuần',
     'array.unique': 'Mỗi ngày chỉ được khai báo một lần',
