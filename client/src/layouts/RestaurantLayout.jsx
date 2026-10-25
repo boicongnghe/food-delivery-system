@@ -51,6 +51,24 @@ export default function RestaurantLayout() {
     <div className="min-h-screen flex flex-col bg-cream">
       <Header subtitle="Bếp & Phố" navItems={RESTAURANT_NAV_ITEMS} status={status} />
 
+      {restaurant?.status === 'pending' && (
+        <div className="bg-amber-500 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-xs text-center animate-in fade-in">
+          <span>⏳</span>
+          <span>
+            Hồ sơ quán ăn của bạn đang ở trạng thái <strong>CHỜ DUYỆT</strong>. Quản trị viên đang kiểm tra thông tin giấy phép trước khi cho phép mở bán chính thức trên ứng dụng.
+          </span>
+        </div>
+      )}
+
+      {restaurant?.status === 'rejected' && (
+        <div className="bg-red-600 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-xs text-center animate-in fade-in">
+          <span>❌</span>
+          <span>
+            Hồ sơ quán ăn của bạn <strong>ĐÃ BỊ TỪ CHỐI DUYỆT</strong>. Vui lòng cập nhật lại thông tin hoặc liên hệ ban quản trị.
+          </span>
+        </div>
+      )}
+
       <main className="flex-1">
         {loading ? (
           <div className="py-32 flex justify-center">

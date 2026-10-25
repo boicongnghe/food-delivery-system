@@ -1,6 +1,7 @@
 import cloudinary, { isCloudinaryConfigured } from '../config/cloudinary.js';
 import MenuItem from '../models/MenuItem.js';
 import Restaurant from '../models/Restaurant.js';
+import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { ROOT_FOLDER, getPublicIdFromUrl } from '../utils/cloudinaryUrl.js';
 
@@ -67,11 +68,12 @@ export const uploadImage = async (buffer, folder, userId) => {
 
 const isImageInUse = async (url, publicId) => {
   const urlRegex = new RegExp(escapeRegex(publicId));
-  const [usedByMenuItem, usedByRestaurant] = await Promise.all([
+  const [usedByMenuItem, usedByRestaurant, usedByUser] = await Promise.all([
     MenuItem.exists({ $or: [{ imagePublicId: publicId }, { image: url }] }),
     Restaurant.exists({ $or: [{ logo: urlRegex }, { coverImage: urlRegex }] }),
+    User.exists({ avatar: url }),
   ]);
-  return Boolean(usedByMenuItem || usedByRestaurant);
+  return Boolean(usedByMenuItem || usedByRestaurant || usedByUser);
 };
 
 /**

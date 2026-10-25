@@ -1,7 +1,7 @@
 import Joi from 'joi';
 import { cloudinaryImageUrl } from './commonValidation.js';
 
-export const UPLOAD_FOLDERS = ['restaurants', 'menu-items'];
+export const UPLOAD_FOLDERS = ['restaurants', 'menu-items', 'avatars'];
 
 export const uploadQuerySchema = Joi.object({
   folder: Joi.string()

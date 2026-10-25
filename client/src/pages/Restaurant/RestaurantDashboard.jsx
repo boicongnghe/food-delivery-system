@@ -13,12 +13,17 @@ import {
   ToggleLeft,
   ToggleRight,
   LogOut,
+  MapPin,
+  FileText,
+  ShieldCheck,
+  Camera,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
+import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
 
 export default function RestaurantDashboard() {
   const { user, logout } = useAuth()
-
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('orders') // 'orders' | 'menu'
   const [menuItems, setMenuItems] = useState([
     { id: 1, name: 'Cơm Tấm Sườn Bì Chả Đặc Biệt', price: 65000, category: 'Cơm tấm', inStock: true, orders: 142 },
@@ -82,11 +87,20 @@ export default function RestaurantDashboard() {
         {/* Top Header Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4 sm:gap-6">
-            <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'}
-              alt={user?.fullName || 'Quán ăn'}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-amber-400/20 shadow-md"
-            />
+            <div
+              className="relative group cursor-pointer flex-shrink-0"
+              onClick={() => setAvatarModalOpen(true)}
+              title="Bấm để đổi ảnh đại diện quán"
+            >
+              <img
+                src={user?.avatar || 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'}
+                alt={user?.fullName || 'Quán ăn'}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-amber-400/20 shadow-md group-hover:opacity-90 transition-opacity"
+              />
+              <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                <Camera className="w-5 h-5" />
+              </div>
+            </div>
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1.5">
@@ -97,11 +111,30 @@ export default function RestaurantDashboard() {
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                {user?.fullName || 'Cơm Tấm Ba Ghiền'}
+                {user?.restaurantDetails?.restaurantName || user?.fullName || 'Cơm Tấm Ba Ghiền'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Chủ quán: {user?.email} | SĐT: {user?.phone || '0912345678'}
+                Chủ quán: {user?.fullName || user?.email} | SĐT: {user?.phone || '0912345678'}
               </p>
+              {user?.restaurantDetails?.restaurantAddress && (
+                <p className="text-xs text-slate-600 mt-1 flex items-center gap-1 font-medium">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  {user.restaurantDetails.restaurantAddress}
+                </p>
+              )}
+
+              {/* Chỉnh ảnh trực tiếp ở trang quản lý */}
+              <div className="mt-2.5">
+                <button
+                  type="button"
+                  id="restaurant-edit-avatar-btn"
+                  onClick={() => setAvatarModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-xs"
+                >
+                  <Camera className="w-3.5 h-3.5 text-amber-600" />
+                  📸 Chỉnh sửa ảnh quán
+                </button>
+              </div>
             </div>
           </div>
 
@@ -126,6 +159,65 @@ export default function RestaurantDashboard() {
             </button>
           </div>
         </div>
+
+        {/* Thông tin hồ sơ & Giấy phép kinh doanh đã đăng ký */}
+        {user?.restaurantDetails && (user?.restaurantDetails?.businessItems || user?.restaurantDetails?.businessLicense?.fileName) && (
+          <div className="bg-amber-50/80 border border-amber-200/90 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5 bg-amber-200/60 px-3 py-1 rounded-full">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" /> Hồ Sơ Pháp Lý Nhà Hàng Đã Xác Minh
+                </span>
+                {user.restaurantDetails.ownerCitizenId && (
+                  <span className="text-xs px-2.5 py-0.5 rounded-lg bg-white border border-amber-200 text-slate-700 font-mono font-bold">
+                    CCCD Chủ Quán: {user.restaurantDetails.ownerCitizenId}
+                  </span>
+                )}
+              </div>
+              {user.restaurantDetails.businessItems && (
+                <p className="text-xs text-slate-700">
+                  <span className="font-bold text-slate-900">Mặt hàng kinh doanh:</span> {user.restaurantDetails.businessItems}
+                </p>
+              )}
+            </div>
+
+            {user.restaurantDetails.businessLicense?.fileName && (
+              <div className="flex items-center gap-2 flex-shrink-0 bg-white p-2.5 rounded-2xl border border-amber-200">
+                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div className="text-left text-xs pr-2">
+                  <p className="font-bold text-slate-900 max-w-[160px] truncate">
+                    {user.restaurantDetails.businessLicense.fileName}
+                  </p>
+                  <span className="text-[10px] text-slate-400">Giấy phép kinh doanh (PDF)</span>
+                </div>
+                {user.restaurantDetails.businessLicense.fileData && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const win = window.open('')
+                      if (win) {
+                        win.document.write(`
+                          <!DOCTYPE html>
+                          <html>
+                            <head><title>Giấy phép KD: ${user.restaurantDetails.businessLicense.fileName}</title></head>
+                            <body style="margin:0; height:100vh; overflow:hidden;">
+                              <iframe src="${user.restaurantDetails.businessLicense.fileData}" style="width:100%; height:100%; border:none;"></iframe>
+                            </body>
+                          </html>
+                        `)
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Mở File PDF
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -335,6 +427,12 @@ export default function RestaurantDashboard() {
           </div>
         )}
       </div>
+
+      {/* Modal Đổi Ảnh Đại Diện Quán */}
+      <AvatarModal
+        isOpen={avatarModalOpen}
+        onClose={() => setAvatarModalOpen(false)}
+      />
     </div>
   )
 }
