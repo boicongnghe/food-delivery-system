@@ -9,7 +9,10 @@ import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 import MenuItem from '../models/MenuItem.js';
 import Order from '../models/Order.js';
-import { generateOrderCode } from '../services/counterService.js';
+import Counter from '../models/Counter.js';
+import { generateOrderCode, getNextKitchenTicketNo, kitchenTicketCounterKey } from '../services/counterService.js';
+import { calculateKitchenDueAt } from '../services/orderTiming.js';
+import { startOfTodayInVietnam } from '../utils/date.js';
 
 const ownerEmail = process.env.OWNER_EMAIL || 'chuquan@fooddelivery.vn';
 const onlyNewOrder = process.argv.includes('--new');
@@ -49,9 +52,12 @@ const PAYMENTS = {
  * Demo scenarios matching the kitchen board design.
  * picks: [menuIndex, options] - menuIndex wraps around the restaurant's menu.
  */
+const DAY_MIN = 24 * 60;
+
+// customer: 'regular' -> the "khách quen" account (has 3 delivered orders in HISTORY), otherwise another customer
 const SCENARIOS = [
   // ----- Đơn mới (pending)
-  { status: 'pending', createdMin: 7, name: 'Anh Hoàng', phone: '0901234456', type: 'express', payment: 'momoPaid',
+  { status: 'pending', createdMin: 7, customer: 'regular', name: 'Anh Hoàng', phone: '0901234456', type: 'express', payment: 'momoPaid',
     note: 'Xin nhiều ớt tươi và chanh thái lát, không lấy hành tây.',
     picks: [[0, { quantity: 2, withTopping: true, note: 'Nhiều bánh phở, nước béo riêng' }], [7, { quantity: 1 }], [8, { quantity: 2 }]] },
   { status: 'pending', createdMin: 2.5, name: 'Chị Thảo', phone: '0981234112', type: 'standard', payment: 'cod',
@@ -65,12 +71,13 @@ const SCENARIOS = [
   { status: 'pending', createdMin: 1, name: 'Khách Chưa Trả', phone: '0909000111', type: 'standard', payment: 'momoUnpaid',
     note: '', picks: [[3, { quantity: 1 }]] },
   // ----- Đang chuẩn bị (preparing)
-  { status: 'preparing', createdMin: 12, acceptedMin: 8.5, name: 'Trịnh Thu Trang', phone: '0971234654', type: 'standard',
-    payment: 'momoPaid', expectedInMin: 25, note: 'Đóng 2 hộp riêng biệt, kèm 2 đôi đũa tre & ớt ngâm giấm.',
+  { status: 'preparing', createdMin: 12, acceptedMin: 8.5, customer: 'regular', name: 'Trịnh Thu Trang', phone: '0971234654',
+    type: 'standard', payment: 'momoPaid', expectedInMin: 25, note: 'Đóng 2 hộp riêng biệt, kèm 2 đôi đũa tre & ớt ngâm giấm.',
     address: '18 Tam Trinh, Hoàng Mai, Hà Nội',
     picks: [[0, { quantity: 2, withTopping: true }], [7, { quantity: 1 }], [9, { quantity: 2 }]] },
-  { status: 'preparing', createdMin: 6, acceptedMin: 3, name: 'Phạm Quốc Huy', phone: '0961234777', type: 'express',
-    payment: 'cod', expectedInMin: 15, note: '', picks: [[5, { quantity: 2 }], [8, { quantity: 1 }]] },
+  // Express accepted 12 minutes ago (prep time 10) -> already late for the shipper handover
+  { status: 'preparing', createdMin: 15, acceptedMin: 12, name: 'Phạm Quốc Huy', phone: '0961234777', type: 'express',
+    payment: 'cod', expectedInMin: 10, note: '', picks: [[5, { quantity: 2 }], [8, { quantity: 1 }]] },
   // ----- Sẵn sàng lấy hàng (ready_for_pickup)
   { status: 'ready_for_pickup', createdMin: 25, acceptedMin: 22, readyMin: 4, name: 'Đỗ Minh Châu', phone: '0931234222',
     type: 'standard', payment: 'cod', note: '', picks: [[2, { quantity: 3 }], [7, { quantity: 2 }]] },
@@ -83,7 +90,15 @@ const SCENARIOS = [
     phone: '0991234202', type: 'express', payment: 'momoPaid', note: '', picks: [[0, { quantity: 1 }]] },
 ];
 
-const buildOrder = async (scenario, { restaurant, customer, shipper, menuItems }) => {
+// Delivered orders on previous days: make the 'regular' customer a "khách quen" (3 orders in 90 days)
+const HISTORY = [3, 10, 30].map((days) => ({
+  status: 'delivered', createdMin: days * DAY_MIN, acceptedMin: days * DAY_MIN - 2, readyMin: days * DAY_MIN - 15,
+  withShipper: true, customer: 'regular', name: 'Anh Hoàng', phone: '0901234456', type: 'standard', payment: 'cod',
+  note: '', picks: [[0, { quantity: 1 }]],
+}));
+
+const buildOrder = async (scenario, { restaurant, customers, shipper, menuItems }) => {
+  const customer = scenario.customer === 'regular' ? customers.regular : customers.other;
   const createdAt = minutesAgo(scenario.createdMin);
   const items = scenario.picks.map(([index, options]) => buildItem(menuItems[index % menuItems.length], options));
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -118,6 +133,7 @@ const buildOrder = async (scenario, { restaurant, customer, shipper, menuItems }
 
   if (scenario.acceptedMin) {
     order.acceptedAt = minutesAgo(scenario.acceptedMin);
+    order.kitchenDueAt = calculateKitchenDueAt(order.acceptedAt, scenario.type);
     history.push({ status: 'preparing', at: order.acceptedAt, byRole: 'restaurant' });
   }
   if (scenario.readyMin) {
@@ -161,16 +177,18 @@ const run = async () => {
   if (menuItems.length === 0) {
     throw new Error('The restaurant has no visible menu items. Run "npm run seed:menu" first.');
   }
-  const customer =
+  const regularCustomer =
     (await User.findOne({ email: 'khachhang@fooddelivery.vn', role: 'customer' })) ||
     (await User.findOne({ role: 'customer' }));
-  if (!customer) {
+  if (!regularCustomer) {
     throw new Error('No customer account found. Run "node src/seed.js" or register a customer first.');
   }
+  // A second customer keeps the other orders from also being "khách quen" (falls back to the same one)
+  const otherCustomer = (await User.findOne({ role: 'customer', _id: { $ne: regularCustomer._id } })) || regularCustomer;
   const shipper =
     (await User.findOne({ email: 'taixe@fooddelivery.vn', role: 'shipper' })) || (await User.findOne({ role: 'shipper' }));
 
-  const context = { restaurant, customer, shipper, menuItems };
+  const context = { restaurant, customers: { regular: regularCustomer, other: otherCustomer }, shipper, menuItems };
 
   if (onlyNewOrder) {
     const order = await buildOrder({ ...SCENARIOS[2], createdMin: 0, name: 'Khách Mới' }, context);
@@ -188,10 +206,24 @@ const run = async () => {
 
   await Order.syncIndexes();
   await Order.deleteMany({ restaurant: restaurant._id });
-  for (const scenario of SCENARIOS) {
+  for (const scenario of [...HISTORY, ...SCENARIOS]) {
     await buildOrder(scenario, context);
   }
-  console.log(`Seeded ${SCENARIOS.length} orders for ${restaurant.name}${shipper ? '' : ' (no shipper account: shipper names hidden)'}`);
+
+  // Kitchen ticket numbers for orders accepted today, in the order they were accepted (#01, #02...)
+  await Counter.deleteOne({ _id: kitchenTicketCounterKey(restaurant._id) });
+  const acceptedToday = await Order.find({ restaurant: restaurant._id, acceptedAt: { $gte: startOfTodayInVietnam() } })
+    .sort({ acceptedAt: 1 })
+    .select('_id');
+  for (const order of acceptedToday) {
+    await Order.updateOne({ _id: order._id }, { $set: { kitchenTicketNo: await getNextKitchenTicketNo(restaurant._id) } });
+  }
+
+  console.log(
+    `Seeded ${SCENARIOS.length} orders + ${HISTORY.length} past orders for ${restaurant.name}` +
+      `${shipper ? '' : ' (no shipper account: shipper names hidden)'}` +
+      `${otherCustomer === regularCustomer ? ' (only 1 customer account: every order shows "Khách quen")' : ''}`,
+  );
 };
 
 run()
