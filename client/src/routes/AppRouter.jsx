@@ -2,6 +2,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import MainLayout from '../layouts/MainLayout.jsx'
 import AdminLayout from '../layouts/AdminLayout.jsx'
+import RestaurantLayout from '../layouts/RestaurantLayout.jsx'
+import RestaurantProfile from '../pages/RestaurantProfile/RestaurantProfile.jsx'
+import MenuManagement from '../pages/MenuManagement/MenuManagement.jsx'
 import Home from '../pages/Home/Home.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
@@ -52,6 +55,15 @@ function AppRouter() {
           </Route>
 
           <Route path="*" element={<NotFound />} />
+        </Route>
+
+        {/* Restaurant owner partner portal (shared Header/Footer) */}
+        <Route element={<ProtectedRoute allowedRoles={['restaurant_owner']} />}>
+          <Route element={<RestaurantLayout />}>
+            <Route path="/restaurant/profile" element={<RestaurantProfile />} />
+            <Route path="/restaurant/menu" element={<MenuManagement />} />
+            <Route path="/restaurant/*" element={<NotFound />} />
+          </Route>
         </Route>
 
         {/* Independent Admin Portal Area: Isolated from customer/storefront */}

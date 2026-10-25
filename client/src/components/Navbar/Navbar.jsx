@@ -175,8 +175,17 @@ export default function Navbar() {
                 )}
               </div>
             ) : user.role === 'restaurant_owner' ? (
-              /* NHÀ HÀNG: ẤN VÀO ẢNH ĐẠI DIỆN LÀ CHUYỂN LUÔN ĐẾN PHẦN QUẢN LÝ (ĐÃ XÓA NÚT THỪA) */
+              /* NHÀ HÀNG: CÓ NÚT HỒ SƠ QUÁN VÀ ẤN VÀO ẢNH ĐẠI DIỆN ĐỂ VÀO QUẢN LÝ */
               <div className="flex items-center gap-2 sm:gap-3">
+                <Link
+                  to="/restaurant/profile"
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-200 hover:border-amber-300 text-amber-800 hover:bg-amber-50 text-xs font-bold transition-colors"
+                  title="Hồ Sơ Quán"
+                >
+                  <Store className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Hồ Sơ Quán</span>
+                </Link>
+
                 <Link
                   to="/restaurant"
                   id="restaurant-avatar-nav-btn"
