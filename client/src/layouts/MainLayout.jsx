@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Navbar from '../components/Navbar/Navbar.jsx'
 import CartDrawer from '../components/CartDrawer.jsx'
+import useAuth from '../hooks/useAuth.js'
 
 function MainLayout() {
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const { user, isAuthenticated } = useAuth()
+  const isCustomer = isAuthenticated && user?.role === 'customer'
 
   return (
     <div className="layout-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -12,7 +15,9 @@ function MainLayout() {
       <main style={{ flex: 1, paddingBottom: '48px' }}>
         <Outlet />
       </main>
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      {isCustomer && (
+        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      )}
       <footer style={{
         textAlign: 'center',
         padding: '24px',

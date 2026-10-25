@@ -79,21 +79,24 @@ export default function Navbar({ onOpenCart }) {
 
         {/* Right Actions & Menus */}
         <div className="flex items-center gap-3">
-          {/* Cart Button */}
-          <button
-            type="button"
-            onClick={onOpenCart}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-colors"
-            title="Giỏ hàng"
-          >
-            <ShoppingBag className="w-4 h-4 text-primary" />
-            <span className="hidden sm:inline">Giỏ hàng</span>
-            {itemCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-primary text-white text-[11px] font-bold">
-                {itemCount}
-              </span>
-            )}
-          </button>
+          {/* Cart Button - Chỉ hiển thị khi đã đăng nhập với vai trò khách hàng */}
+          {isAuthenticated && user?.role === 'customer' && (
+            <button
+              type="button"
+              id="navbar-cart-btn"
+              onClick={onOpenCart}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-colors shadow-sm"
+              title="Giỏ hàng"
+            >
+              <ShoppingBag className="w-4 h-4 text-primary" />
+              <span className="hidden sm:inline">Giỏ hàng</span>
+              {itemCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-primary text-white text-[11px] font-bold">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {isAuthenticated && user ? (
             user.role === 'customer' ? (

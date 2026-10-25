@@ -1,11 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
+import { authApi } from '../../api/authApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import { orderApi } from '../../api/orderApi.js'
 import { useCart } from '../../context/CartContext.jsx'
+import useAuth from '../../hooks/useAuth.js'
 
 function Checkout() {
+  const { user } = useAuth()
   const { cart, subtotal, clearCart } = useCart()
   const navigate = useNavigate()
   const isOrderPlaced = useRef(false)
@@ -13,15 +17,15 @@ function Checkout() {
   // Addresses (UC12)
   const [addresses, setAddresses] = useState([])
   const [selectedAddressId, setSelectedAddressId] = useState('')
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false)
-  const [newAddress, setNewAddress] = useState({
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
+  const [newAddressForm, setNewAddressForm] = useState({
     recipientName: '',
     phone: '',
     addressLine: '',
     note: '',
-    isDefault: false,
+    isDefault: true,
   })
-  const [saveToAddressBook, setSaveToAddressBook] = useState(true)
+  const [savingAddress, setSavingAddress] = useState(false)
 
   // Promotions (UC14)
   const [promoCodeInput, setPromoCodeInput] = useState('')
@@ -51,36 +55,76 @@ function Checkout() {
   useEffect(() => {
     const fetchCheckoutData = async () => {
       try {
-        const [addrRes, promoRes] = await Promise.all([
+        const [addrRes, promoRes] = await Promise.allSettled([
           addressApi.getAddresses(),
           promotionApi.getPromotions({ activeOnly: true }),
         ])
-        const addrs = addrRes.data.data || []
+        let addrs = []
+        if (addrRes.status === 'fulfilled' && addrRes.value?.data?.data) {
+          addrs = addrRes.value.data.data
+        }
+        // If empty in Address collection, check user's saved addresses in authApi
+        if (addrs.length === 0) {
+          try {
+            const userAddrsRes = await authApi.getAddresses()
+            const userAddrs = userAddrsRes?.data || []
+            if (Array.isArray(userAddrs) && userAddrs.length > 0) {
+              addrs = userAddrs.map((ua) => ({
+                _id: ua._id,
+                recipientName: ua.receiverName || user?.fullName || 'Khách hàng',
+                phone: ua.receiverPhone || user?.phone || '',
+                addressLine: [ua.street, ua.ward, ua.district, ua.city].filter(Boolean).join(', '),
+                isDefault: ua.isDefault,
+                note: '',
+              }))
+            }
+          } catch {
+            // ignore
+          }
+        }
         setAddresses(addrs)
         if (addrs.length > 0) {
           const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0]
           setSelectedAddressId(defaultAddr._id)
-          setShowNewAddressForm(false)
-        } else {
-          setShowNewAddressForm(true)
         }
-        setActivePromotions(promoRes.data.data || [])
+        if (promoRes.status === 'fulfilled' && promoRes.value?.data?.data) {
+          setActivePromotions(promoRes.value.data.data)
+        }
       } catch (err) {
         console.error('Failed to load checkout data', err)
       }
     }
     fetchCheckoutData()
-  }, [])
+  }, [user])
+
+  const handleOpenAddAddressModal = () => {
+    setNewAddressForm({
+      recipientName: user?.fullName || '',
+      phone: user?.phone || '',
+      addressLine: '',
+      note: '',
+      isDefault: addresses.length === 0,
+    })
+    setIsAddressModalOpen(true)
+  }
 
   // Thêm địa chỉ mới vào sổ địa chỉ (UC12)
-  const handleCreateAddress = async (e) => {
+  const handleSaveNewAddress = async (e) => {
     if (e) e.preventDefault()
-    if (!newAddress.recipientName || !newAddress.phone || !newAddress.addressLine) {
-      alert('Vui lòng điền đầy đủ tên, số điện thoại và địa chỉ nhận hàng')
+    if (!newAddressForm.recipientName.trim() || !newAddressForm.phone.trim() || !newAddressForm.addressLine.trim()) {
+      toast.error('Vui lòng điền đầy đủ tên người nhận, số điện thoại và địa chỉ nhận hàng')
       return null
     }
+
+    setSavingAddress(true)
     try {
-      const res = await addressApi.createAddress(newAddress)
+      const res = await addressApi.createAddress({
+        recipientName: newAddressForm.recipientName.trim(),
+        phone: newAddressForm.phone.trim(),
+        addressLine: newAddressForm.addressLine.trim(),
+        note: newAddressForm.note.trim(),
+        isDefault: newAddressForm.isDefault,
+      })
       const created = res.data.data
       const updated = created.isDefault
         ? [created, ...addresses.map((a) => ({ ...a, isDefault: false }))]
@@ -88,12 +132,14 @@ function Checkout() {
 
       setAddresses(updated)
       setSelectedAddressId(created._id)
-      setShowNewAddressForm(false)
-      setNewAddress({ recipientName: '', phone: '', addressLine: '', note: '', isDefault: false })
+      setIsAddressModalOpen(false)
+      toast.success('Đã lưu địa chỉ nhận hàng thành công!')
       return created
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi khi tạo địa chỉ')
+      toast.error(err.response?.data?.message || 'Lỗi khi lưu địa chỉ')
       return null
+    } finally {
+      setSavingAddress(false)
     }
   }
 
@@ -109,8 +155,9 @@ function Checkout() {
         }))
       )
       setSelectedAddressId(addressId)
+      toast.success('Đã đặt làm địa chỉ mặc định')
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi khi đặt địa chỉ mặc định')
+      toast.error(err.response?.data?.message || 'Lỗi khi đặt địa chỉ mặc định')
     }
   }
 
@@ -124,10 +171,10 @@ function Checkout() {
       setAddresses(updated)
       if (selectedAddressId === addressId) {
         setSelectedAddressId(updated[0]?._id || '')
-        if (updated.length === 0) setShowNewAddressForm(true)
       }
+      toast.success('Đã xóa địa chỉ')
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi khi xóa địa chỉ')
+      toast.error(err.response?.data?.message || 'Lỗi khi xóa địa chỉ')
     }
   }
 
@@ -161,45 +208,23 @@ function Checkout() {
     setErrorMsg('')
     let deliveryAddress = null
 
-    // 1. Nếu đang ở form nhập mới địa chỉ
-    if (showNewAddressForm || addresses.length === 0) {
-      if (!newAddress.recipientName || !newAddress.phone || !newAddress.addressLine) {
-        setErrorMsg('Vui lòng hoàn tất thông tin địa chỉ giao hàng (Tên, SĐT, Địa chỉ chi tiết)')
-        return
-      }
+    if (addresses.length === 0) {
+      setErrorMsg('Vui lòng thêm địa chỉ nhận hàng để tiếp tục đặt hàng.')
+      handleOpenAddAddressModal()
+      return
+    }
 
-      // Tự động lưu vào sổ địa chỉ để các lần sau không phải nhập lại
-      if (saveToAddressBook) {
-        try {
-          const res = await addressApi.createAddress(newAddress)
-          const created = res.data.data
-          setAddresses((prev) => [created, ...prev])
-          setSelectedAddressId(created._id)
-        } catch (saveErr) {
-          console.warn('Lỗi khi tự động lưu địa chỉ:', saveErr)
-        }
-      }
+    const chosenAddress = addresses.find((a) => a._id === selectedAddressId) || addresses[0]
+    if (!chosenAddress) {
+      setErrorMsg('Vui lòng chọn một địa chỉ nhận hàng từ danh sách.')
+      return
+    }
 
-      deliveryAddress = {
-        recipientName: newAddress.recipientName,
-        phone: newAddress.phone,
-        addressLine: newAddress.addressLine,
-        note: newAddress.note || '',
-      }
-    } else {
-      // 2. Chọn từ danh sách địa chỉ đã lưu
-      const chosenAddress = addresses.find((a) => a._id === selectedAddressId)
-      if (!chosenAddress) {
-        setErrorMsg('Vui lòng chọn một địa chỉ nhận hàng từ danh sách')
-        return
-      }
-
-      deliveryAddress = {
-        recipientName: chosenAddress.recipientName,
-        phone: chosenAddress.phone,
-        addressLine: chosenAddress.addressLine,
-        note: chosenAddress.note || '',
-      }
+    deliveryAddress = {
+      recipientName: chosenAddress.recipientName,
+      phone: chosenAddress.phone,
+      addressLine: chosenAddress.addressLine,
+      note: chosenAddress.note || '',
     }
 
     try {
@@ -272,29 +297,39 @@ function Checkout() {
               alignItems: 'center',
               justifyContent: 'space-between',
               marginBottom: 16,
+              flexWrap: 'wrap',
+              gap: 10,
             }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
-                  📍 1. Địa chỉ nhận hàng
+                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>📍</span> 1. Địa chỉ nhận hàng
                 </h2>
                 {addresses.length > 0 && (
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    Đã lưu {addresses.length} địa chỉ trong danh bạ
+                    Chọn địa chỉ giao hàng từ danh sách ({addresses.length} địa chỉ đã lưu)
                   </span>
                 )}
               </div>
-              {addresses.length > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setShowNewAddressForm(!showNewAddressForm)}
-                >
-                  {showNewAddressForm ? '← Chọn địa chỉ đã lưu' : '+ Thêm địa chỉ mới'}
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleOpenAddAddressModal}
+                style={{
+                  fontSize: '0.85rem',
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>➕</span>
+                <span>Thêm địa chỉ mới</span>
+              </button>
             </div>
 
-            {!showNewAddressForm && addresses.length > 0 ? (
+            {/* If addresses.length > 0: Show list of selectable addresses */}
+            {addresses.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {addresses.map((addr) => {
                   const isSelected = selectedAddressId === addr._id
@@ -303,52 +338,77 @@ function Checkout() {
                       key={addr._id}
                       onClick={() => setSelectedAddressId(addr._id)}
                       style={{
-                        padding: 14,
+                        padding: '16px',
                         border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
                         borderRadius: 'var(--radius-md)',
                         background: isSelected ? 'var(--primary-light)' : '#ffffff',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
+                        transition: 'all 0.2s ease',
+                        boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                         <input
                           type="radio"
                           name="deliveryAddress"
                           checked={isSelected}
                           onChange={() => setSelectedAddressId(addr._id)}
-                          style={{ marginTop: 4 }}
+                          style={{
+                            marginTop: 4,
+                            accentColor: 'var(--primary)',
+                            width: 18,
+                            height: 18,
+                            cursor: 'pointer',
+                          }}
                         />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                            {addr.recipientName} • <span style={{ color: 'var(--text-muted)' }}>{addr.phone}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>
+                              {addr.recipientName}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                              • {addr.phone}
+                            </span>
                             {addr.isDefault && (
-                              <span className="badge badge-confirmed" style={{ marginLeft: 8 }}>
+                              <span
+                                style={{
+                                  background: '#ecfdf5',
+                                  color: '#059669',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '9999px',
+                                  border: '1px solid #a7f3d0',
+                                }}
+                              >
                                 Mặc định
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: 4 }}>
+
+                          <div style={{ fontSize: '0.92rem', color: 'var(--text-main)', marginTop: 6, lineHeight: 1.4 }}>
                             {addr.addressLine}
                           </div>
+
                           {addr.note && (
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                              Ghi chú: {addr.note}
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                              💬 Ghi chú: {addr.note}
                             </div>
                           )}
 
                           {/* Action links */}
-                          <div style={{ display: 'flex', gap: 12, marginTop: 8, paddingTop: 8, borderTop: '1px dashed rgba(0,0,0,0.06)' }}>
+                          <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
                             {!addr.isDefault && (
                               <button
                                 type="button"
                                 onClick={(e) => handleSetDefaultAddress(e, addr._id)}
                                 style={{
-                                  fontSize: '0.78rem',
+                                  fontSize: '0.8rem',
                                   color: 'var(--primary)',
                                   fontWeight: 600,
                                   background: 'none',
                                   padding: 0,
+                                  cursor: 'pointer',
                                 }}
                               >
                                 ⭐ Đặt làm mặc định
@@ -358,14 +418,15 @@ function Checkout() {
                               type="button"
                               onClick={(e) => handleDeleteAddress(e, addr._id)}
                               style={{
-                                fontSize: '0.78rem',
+                                fontSize: '0.8rem',
                                 color: 'var(--danger)',
                                 fontWeight: 600,
                                 background: 'none',
                                 padding: 0,
+                                cursor: 'pointer',
                               }}
                             >
-                              🗑️ Xóa
+                              🗑️ Xóa địa chỉ
                             </button>
                           </div>
                         </div>
@@ -375,90 +436,38 @@ function Checkout() {
                 })}
               </div>
             ) : (
-              <form onSubmit={handleCreateAddress} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  {addresses.length === 0 ? 'Bạn chưa có địa chỉ nào được lưu. Hãy nhập thông tin bên dưới:' : 'Nhập thông tin địa chỉ mới:'}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Tên người nhận (*)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Ví dụ: Nguyễn Văn A"
-                    value={newAddress.recipientName}
-                    onChange={(e) => setNewAddress({ ...newAddress, recipientName: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Số điện thoại liên hệ (*)</label>
-                  <input
-                    type="tel"
-                    className="form-input"
-                    placeholder="Ví dụ: 0987654321"
-                    value={newAddress.phone}
-                    onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Địa chỉ chi tiết (Số nhà, ngõ, đường, phường/xã) (*)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Ví dụ: Số 25, Ngõ 10 Tạ Quang Bửu, Hai Bà Trưng, Hà Nội"
-                    value={newAddress.addressLine}
-                    onChange={(e) => setNewAddress({ ...newAddress, addressLine: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Ghi chú giao hàng</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Ví dụ: Gọi trước khi đến, gửi bảo vệ tầng 1"
-                    value={newAddress.note}
-                    onChange={(e) => setNewAddress({ ...newAddress, note: e.target.value })}
-                  />
-                </div>
-
-                {/* Checkbox tự động lưu vào sổ địa chỉ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '4px 0' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={saveToAddressBook}
-                      onChange={(e) => setSaveToAddressBook(e.target.checked)}
-                    />
-                    <span>💾 <strong>Lưu vào danh bạ địa chỉ</strong> để tự động dùng cho các lần đặt sau</span>
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={newAddress.isDefault}
-                      onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
-                    />
-                    <span>⭐ Đặt làm địa chỉ mặc định ưu tiên</span>
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                  <button type="submit" className="btn btn-secondary btn-sm">
-                    💾 Lưu vào sổ địa chỉ
-                  </button>
-                  {addresses.length > 0 && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setShowNewAddressForm(false)}
-                    >
-                      Hủy
-                    </button>
-                  )}
-                </div>
-              </form>
+              /* If addresses.length === 0: Clean empty state box with prominent button */
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '36px 20px',
+                  background: 'var(--bg-main)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '2px dashed var(--border)',
+                }}
+              >
+                <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>📍</div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px' }}>
+                  Bạn chưa có địa chỉ nhận hàng nào được lưu
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 18px', maxWidth: 420, marginInline: 'auto' }}>
+                  Vui lòng thêm địa chỉ nhận hàng của bạn để hoàn tất đơn hàng. Bạn có thể lưu lại để dùng cho các lần đặt sau.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleOpenAddAddressModal}
+                  style={{
+                    padding: '12px 28px',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    borderRadius: 'var(--radius-full)',
+                    boxShadow: 'var(--shadow-md)',
+                  }}
+                >
+                  + Thêm địa chỉ nhận hàng ngay
+                </button>
+              </div>
             )}
           </div>
 
@@ -669,6 +678,178 @@ function Checkout() {
           </div>
         </div>
       </div>
+      {/* Box / Modal Popup for adding new address */}
+      {isAddressModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddressModalOpen(false)
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '28px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>
+                  📍 Thêm địa chỉ nhận hàng mới
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                  Nhập thông tin bên dưới và bấm Lưu để chọn địa chỉ này
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddressModalOpen(false)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  backgroundColor: '#f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.1rem',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  border: 'none',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveNewAddress} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+                  Tên người nhận (*)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Ví dụ: Nguyễn Văn A"
+                  value={newAddressForm.recipientName}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, recipientName: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+                  Số điện thoại liên hệ (*)
+                </label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="Ví dụ: 0987654321"
+                  value={newAddressForm.phone}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+                  Địa chỉ chi tiết (Số nhà, đường, phường/xã, quận/huyện) (*)
+                </label>
+                <textarea
+                  className="form-input"
+                  rows={3}
+                  placeholder="Ví dụ: Số 25, Ngõ 10 Tạ Quang Bửu, Phường Bách Khoa, Quận Hai Bà Trưng, Hà Nội"
+                  value={newAddressForm.addressLine}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, addressLine: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'vertical' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+                  Ghi chú cho tài xế giao hàng
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Ví dụ: Gọi trước khi đến, gửi bảo vệ tầng 1"
+                  value={newAddressForm.note}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, note: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', cursor: 'pointer', marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={newAddressForm.isDefault}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, isDefault: e.target.checked })}
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+                />
+                <span style={{ fontWeight: 600, color: '#334155' }}>⭐ Đặt làm địa chỉ mặc định ưu tiên</span>
+              </label>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAddress}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: 'var(--primary)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: savingAddress ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 6px -1px rgba(249, 115, 22, 0.3)',
+                    opacity: savingAddress ? 0.7 : 1,
+                  }}
+                >
+                  {savingAddress ? 'Đang lưu...' : '💾 Lưu địa chỉ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

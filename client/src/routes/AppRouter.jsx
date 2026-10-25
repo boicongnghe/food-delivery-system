@@ -43,10 +43,13 @@ function AppRouter() {
           {/* Main Public & Customer Area */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/payment-result" element={<PaymentResult />} />
-            <Route path="/orders" element={<OrderHistory />} />
-            <Route path="/orders/:id" element={<OrderTracking />} />
+            {/* Customer Only Area */}
+            <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/payment-result" element={<PaymentResult />} />
+              <Route path="/orders" element={<OrderHistory />} />
+              <Route path="/orders/:id" element={<OrderTracking />} />
+            </Route>
 
             {/* Guest only routes: logged-in users redirected to their dashboards */}
             <Route element={<PublicOnlyRoute />}>

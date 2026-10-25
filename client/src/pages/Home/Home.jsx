@@ -147,6 +147,21 @@ export default function Home() {
   // Quick Add to cart
   const handleQuickAddToCart = (e, dish) => {
     e.stopPropagation()
+    if (!isAuthenticated) {
+      toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
+        icon: '🔒',
+        duration: 3000,
+      })
+      navigate('/login')
+      return
+    }
+    if (user?.role !== 'customer') {
+      toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
+        icon: '⚠️',
+        duration: 3000,
+      })
+      return
+    }
     addToCart(dish, 1, '')
     toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
       icon: '🛒',
@@ -503,6 +518,21 @@ export default function Home() {
           dish={activeDish}
           onClose={() => setActiveDish(null)}
           onOrderSuccess={(orderData) => {
+            if (!isAuthenticated) {
+              toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
+                icon: '🔒',
+                duration: 3000,
+              })
+              navigate('/login')
+              return
+            }
+            if (user?.role !== 'customer') {
+              toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
+                icon: '⚠️',
+                duration: 3000,
+              })
+              return
+            }
             addToCart(orderData.dish, orderData.quantity, orderData.note)
             toast.success(`Đã thêm ${orderData.quantity}x "${orderData.dish.name}" vào giỏ hàng!`, {
               icon: '🛒',

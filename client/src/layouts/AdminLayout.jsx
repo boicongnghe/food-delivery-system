@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom'
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -9,12 +9,14 @@ import {
   Settings,
   LogOut,
   Bell,
+  Sparkles,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleLogout = () => {
     logout()
@@ -38,13 +40,29 @@ export default function AdminLayout() {
 
         {/* Navigation Menu */}
         <nav className="p-4 space-y-1.5 flex-1">
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-purple-600/20 text-purple-300 font-bold text-sm border border-purple-500/30"
+          <Link
+            to="/admin"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-colors ${
+              location.pathname === '/admin'
+                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
           >
             <LayoutDashboard className="w-4 h-4 text-purple-400" />
             Tổng quan hệ thống
-          </button>
+          </Link>
+
+          <Link
+            to="/admin/promotions"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-colors ${
+              location.pathname === '/admin/promotions'
+                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            Quản lý khuyến mãi
+          </Link>
 
           <button
             type="button"
