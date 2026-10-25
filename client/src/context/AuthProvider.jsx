@@ -20,6 +20,17 @@ const DEMO_ACCOUNTS = {
     phone: '0912345678',
     avatar: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80',
     createdAt: new Date().toISOString(),
+    restaurantDetails: {
+      restaurantName: 'Cơm Tấm Ba Ghiền',
+      restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+      businessItems: 'Cơm tấm sườn bì chả, sườn cây nướng, canh rong biển thịt bằm',
+      ownerCitizenId: '079201007788',
+      businessLicense: {
+        fileName: 'giay_phep_kinh_doanh_baghien.pdf',
+        fileSize: 1245000,
+        fileData: 'data:application/pdf;base64,JVBERi0xLjQKJcTl8uXr...',
+      },
+    },
   },
   'taixe@fooddelivery.vn': {
     _id: 'demo-shipper-1',
@@ -29,6 +40,16 @@ const DEMO_ACCOUNTS = {
     phone: '0923456789',
     avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
     createdAt: new Date().toISOString(),
+    shipperDetails: {
+      dateOfBirth: '1996-10-12',
+      citizenId: '079200008899',
+      vehicleInfo: 'Honda Wave Alpha - Biển số: 59-P1 888.88',
+      vehicleInsurance: {
+        hasInsurance: true,
+        submitLater: false,
+        insuranceInfo: 'Bảo hiểm TNDS Bưu Điện (PTI) - Hạn đến 12/2027',
+      },
+    },
   },
   'admin@fooddelivery.vn': {
     _id: 'demo-admin-1',
@@ -173,6 +194,43 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  const updateProfile = async (profileData) => {
+    try {
+      const savedToken = localStorage.getItem('token')
+
+      if (savedToken && savedToken.startsWith('mock-token-')) {
+        const updated = {
+          ...user,
+          ...profileData,
+        }
+        localStorage.setItem('demo_user', JSON.stringify(updated))
+        setUser(updated)
+        return {
+          success: true,
+          user: updated,
+          message: 'Cập nhật thông tin cá nhân thành công',
+        }
+      }
+
+      const response = await authApi.updateProfile(profileData)
+      const updatedUser = response.data
+
+      setUser(updatedUser)
+      return {
+        success: true,
+        user: updatedUser,
+        message: response.message || 'Cập nhật thông tin cá nhân thành công',
+      }
+    } catch (error) {
+      const message =
+        error.response?.data?.message || 'Cập nhật không thành công. Vui lòng thử lại.'
+      return {
+        success: false,
+        message,
+      }
+    }
+  }
+
   const value = {
     user,
     token,
@@ -181,6 +239,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    updateProfile,
+    setUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

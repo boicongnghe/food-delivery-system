@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import MainLayout from '../layouts/MainLayout.jsx'
 import AdminLayout from '../layouts/AdminLayout.jsx'
@@ -8,7 +8,6 @@ import MenuManagement from '../pages/MenuManagement/MenuManagement.jsx'
 import Home from '../pages/Home/Home.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
-import RestaurantDashboard from '../pages/Restaurant/RestaurantDashboard.jsx'
 import ShipperDashboard from '../pages/Shipper/ShipperDashboard.jsx'
 import AdminDashboard from '../pages/Admin/AdminDashboard.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
@@ -44,9 +43,9 @@ function AppRouter() {
             <Route path="/register" element={<Register />} />
           </Route>
 
-          {/* Restaurant Owner Dashboard (also has button to view Homepage) */}
+          {/* Restaurant Owner Partner Portal redirect */}
           <Route element={<ProtectedRoute allowedRoles={['restaurant_owner']} />}>
-            <Route path="/restaurant" element={<RestaurantDashboard />} />
+            <Route path="/restaurant" element={<Navigate to="/restaurant/profile" replace />} />
           </Route>
 
           {/* Shipper Dashboard (also has button to view Homepage) */}

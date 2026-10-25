@@ -3,6 +3,7 @@ dotenv.config();
 
 import mongoose from 'mongoose';
 import User from './models/User.js';
+import Restaurant from './models/Restaurant.js';
 
 const seedUsers = async () => {
   try {
@@ -59,6 +60,29 @@ const seedUsers = async () => {
         exists.password = u.password; // will be hashed by pre('save')
         await exists.save();
         console.log(`Updated demo user: ${u.email} (${u.role})`);
+      }
+    }
+
+    // Đảm bảo nhà hàng mẫu cho chuquan@fooddelivery.vn tồn tại
+    const chuquan = await User.findOne({ email: 'chuquan@fooddelivery.vn' });
+    if (chuquan) {
+      const existsRestaurant = await Restaurant.findOne({ owner: chuquan._id });
+      if (!existsRestaurant) {
+        await Restaurant.create({
+          owner: chuquan._id,
+          name: 'Phở Bò Gia Truyền 1986',
+          description: 'Hương vị phở bò gia truyền 40 năm tại phố cổ.',
+          address: '48 Hàng Đồng, P. Hàng Bồ, Q. Hoàn Kiếm, Hà Nội',
+          phone: '0912345678',
+          categories: ['Phở Bò', 'Món Ăn Kèm', 'Đồ Uống'],
+          status: 'approved',
+          openingHours: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+            dayOfWeek,
+            isOpen: true,
+            shifts: [{ open: '06:00', close: '22:00' }],
+          })),
+        });
+        console.log('Created demo restaurant for chuquan@fooddelivery.vn');
       }
     }
 

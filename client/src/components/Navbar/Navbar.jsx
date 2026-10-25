@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   UtensilsCrossed,
@@ -7,17 +7,31 @@ import {
   ChevronDown,
   LogOut,
   Store,
-  Bike,
   ShieldCheck,
+  UserCog,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
+import ProfileModal from '../ProfileModal/ProfileModal.jsx'
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const dropdownRef = useRef(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -32,20 +46,7 @@ export default function Navbar() {
     }
   }
 
-  const getRoleLabel = (role) => {
-    switch (role) {
-      case 'restaurant_owner':
-        return { label: 'Chủ quán', className: 'bg-amber-100 text-amber-800 border-amber-200' }
-      case 'shipper':
-        return { label: 'Tài xế', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
-      case 'admin':
-        return { label: 'Quản trị viên', className: 'bg-purple-100 text-purple-800 border-purple-200' }
-      default:
-        return { label: 'Khách hàng', className: 'bg-orange-100 text-primary border-orange-200' }
-    }
-  }
 
-  const roleInfo = user ? getRoleLabel(user.role) : null
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
@@ -72,126 +73,187 @@ export default function Navbar() {
           />
         </form>
 
-        {/* Center / Role Quick Links */}
-        <div className="flex items-center gap-2">
-          {isAuthenticated && user?.role === 'restaurant_owner' && (
-            <Link
-              to="/restaurant"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-bold transition-colors"
-            >
-              <Store className="w-3.5 h-3.5 text-amber-600" />
-              Bảng Quản Lý Quán
-            </Link>
-          )}
-
-          {isAuthenticated && user?.role === 'shipper' && (
-            <Link
-              to="/shipper"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold transition-colors"
-            >
-              <Bike className="w-3.5 h-3.5 text-emerald-600" />
-              Bảng Nhận Đơn Shipper
-            </Link>
-          )}
-        </div>
-
-        {/* Right Actions */}
+        {/* Right Actions & Menus */}
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-3 p-1.5 pr-3 rounded-full hover:bg-slate-100 transition-colors"
-              >
-                <img
-                  src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
-                  alt={user.fullName}
-                  className="w-9 h-9 rounded-full object-cover ring-2 ring-primary/20"
-                />
-                <div className="hidden sm:block text-left">
-                  <p className="text-sm font-semibold text-slate-800 leading-tight">{user.fullName}</p>
-                  <span className={`text-[11px] font-bold px-2 py-0.2 rounded-full inline-block mt-0.5 border ${roleInfo.className}`}>
-                    {roleInfo.label}
-                  </span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-sm font-semibold text-slate-900">{user.fullName}</p>
-                    <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            user.role === 'customer' ? (
+              /* KHÁCH HÀNG: CÓ DROPDOWN DƯỚI ẢNH ĐẠI DIỆN VỚI THANH "THÔNG TIN" */
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  id="customer-avatar-dropdown-btn"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  className="flex items-center gap-2.5 sm:gap-3 p-1.5 pr-3 rounded-full hover:bg-slate-100 transition-colors focus:outline-none"
+                  aria-expanded={dropdownOpen}
+                >
+                  <img
+                    src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                    alt={user.fullName}
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-primary/20"
+                  />
+                  <div className="hidden sm:block text-left">
+                    <p className="text-sm font-semibold text-slate-800 leading-tight">{user.fullName}</p>
+                    <span className="text-[10px] font-bold px-2 py-0.2 rounded-full inline-block mt-0.5 bg-orange-100 text-primary border border-orange-200">
+                      Khách hàng
+                    </span>
                   </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-                  {/* Role Specific Shortcuts */}
-                  {user.role === 'restaurant_owner' && (
-                    <Link
-                      to="/restaurant"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-50 font-bold transition-colors"
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
+                    {/* Header tóm tắt hồ sơ khách hàng */}
+                    <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-3">
+                      <img
+                        src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                        alt={user.fullName}
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 flex-shrink-0"
+                      />
+                      <div className="truncate">
+                        <p className="text-sm font-bold text-slate-900 truncate">{user.fullName}</p>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 bg-orange-100 text-primary border border-orange-200">
+                          Khách hàng
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 my-1"></div>
+
+                    {/* Mục Thông tin cá nhân: kích thước và style y hệt như Trang chủ món ăn, không có chữ Chỉnh sửa */}
+                    <button
+                      type="button"
+                      id="dropdown-info-btn"
+                      onClick={() => {
+                        setProfileModalOpen(true)
+                        setDropdownOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg transition-colors text-left"
                     >
-                      <Store className="w-4 h-4 text-amber-600" />
-                      Trang Quản Lý Quán Ăn
-                    </Link>
-                  )}
+                      <UserCog className="w-4 h-4 text-slate-400" />
+                      <span>Thông tin cá nhân</span>
+                    </button>
 
-                  {user.role === 'restaurant_owner' && (
+                    {/* Quick navigation */}
                     <Link
-                      to="/restaurant/profile"
+                      to="/"
                       onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-50 font-bold transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
                     >
-                      <Store className="w-4 h-4 text-amber-600" />
-                      Hồ Sơ Quán
+                      <HomeIcon className="w-4 h-4 text-slate-400" />
+                      <span>Trang chủ món ăn</span>
                     </Link>
-                  )}
 
-                  {user.role === 'shipper' && (
-                    <Link
-                      to="/shipper"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-800 hover:bg-emerald-50 font-bold transition-colors"
+                    <div className="border-t border-slate-100 my-1"></div>
+
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
                     >
-                      <Bike className="w-4 h-4 text-emerald-600" />
-                      Trang Nhận Đơn Tài Xế
-                    </Link>
-                  )}
+                      <LogOut className="w-4 h-4 text-red-500" />
+                      <span>Đăng xuất</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : user.role === 'restaurant_owner' ? (
+              /* NHÀ HÀNG: CÓ NÚT HỒ SƠ QUÁN VÀ ẤN VÀO ẢNH ĐẠI DIỆN ĐỂ VÀO QUẢN LÝ */
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Link
+                  to="/restaurant/profile"
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-200 hover:border-amber-300 text-amber-800 hover:bg-amber-50 text-xs font-bold transition-colors"
+                  title="Hồ Sơ Quán"
+                >
+                  <Store className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Hồ Sơ Quán</span>
+                </Link>
 
-                  {user.role === 'admin' && (
-                    <Link
-                      to="/admin"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-purple-800 hover:bg-purple-50 font-bold transition-colors"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-purple-600" />
-                      Trang Quản Trị Admin
-                    </Link>
-                  )}
+                <Link
+                  to="/restaurant/profile"
+                  id="restaurant-avatar-nav-btn"
+                  className="flex items-center gap-2.5 p-1 sm:p-1.5 pr-2.5 sm:pr-3 rounded-full hover:bg-amber-50 border border-amber-200/80 transition-all hover:scale-[1.02] group"
+                  title="Bấm để vào Hồ Sơ Quán Ăn"
+                >
+                  <img
+                    src={user.avatar || 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'}
+                    alt={user.fullName}
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-400/40 group-hover:ring-amber-500 transition-all"
+                  />
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight group-hover:text-amber-800 transition-colors">
+                      {user.restaurantDetails?.restaurantName || user.fullName}
+                    </p>
+                    <span className="text-[10px] font-bold px-2 py-0.2 rounded-full inline-block mt-0.5 bg-amber-100 text-amber-800 border border-amber-200">
+                      Chủ quán
+                    </span>
+                  </div>
+                </Link>
 
-                  <Link
-                    to="/"
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <HomeIcon className="w-4 h-4 text-slate-400" />
-                    Trang chủ món ăn
-                  </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
+                  title="Đăng xuất"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-red-500" />
+                  <span className="hidden md:inline">Đăng xuất</span>
+                </button>
+              </div>
+            ) : user.role === 'shipper' ? (
+              /* TÀI XẾ: ẤN VÀO ẢNH ĐẠI DIỆN LÀ CHUYỂN LUÔN ĐẾN PHẦN QUẢN LÝ (ĐÃ XÓA NÚT THỪA) */
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Link
+                  to="/shipper"
+                  id="shipper-avatar-nav-btn"
+                  className="flex items-center gap-2.5 p-1 sm:p-1.5 pr-2.5 sm:pr-3 rounded-full hover:bg-emerald-50 border border-emerald-200/80 transition-all hover:scale-[1.02] group"
+                  title="Bấm để vào Trang Nhận Đơn Shipper"
+                >
+                  <img
+                    src={user.avatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'}
+                    alt={user.fullName}
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-emerald-500/40 group-hover:ring-emerald-600 transition-all"
+                  />
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 leading-tight group-hover:text-emerald-800 transition-colors">
+                      {user.fullName}
+                    </p>
+                    <span className="text-[10px] font-bold px-2 py-0.2 rounded-full inline-block mt-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Tài xế
+                    </span>
+                  </div>
+                </Link>
 
-                  <div className="border-t border-slate-100 my-1"></div>
-
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
-                  >
-                    <LogOut className="w-4 h-4 text-red-500" />
-                    Đăng xuất
-                  </button>
-                </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors"
+                  title="Đăng xuất"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-red-500" />
+                  <span className="hidden md:inline">Đăng xuất</span>
+                </button>
+              </div>
+            ) : (
+              /* ADMIN / KHÁC */
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                  Quản Trị Admin
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200 hover:bg-red-50 text-red-600 text-xs font-bold transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Đăng xuất
+                </button>
+              </div>
+            )
           ) : (
             <div className="flex items-center gap-2">
               <Link
@@ -210,6 +272,12 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Modal Cập Nhật Thông Tin Cá Nhân / Đổi Ảnh Đại Diện */}
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+      />
     </header>
   )
 }
