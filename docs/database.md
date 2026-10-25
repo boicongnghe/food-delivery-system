@@ -89,6 +89,8 @@ TODO: nhóm chốt thiết kế.
 | `status` | String | xem bên dưới |
 | `statusHistory` | Array | `[{ status, at, byRole }]` – dòng thời gian của đơn |
 | `acceptedAt`, `readyAt` | Date | quán nhận đơn / bếp làm xong |
+| `kitchenTicketNo` | Number | Số phiếu bếp trong ngày (`#04`), cấp khi quán nhận đơn, đếm lại từ 1 mỗi ngày theo từng quán (bộ đếm `kitchen:<restaurantId>:<yyyymmdd>` trong `counters`) |
+| `kitchenDueAt` | Date | Hạn bàn giao shipper = giờ nhận + thời gian chuẩn bị (Giao nhanh 10 phút / Tiêu chuẩn 20 phút, xem `services/orderTiming.js`) |
 | `cancellation` | Object | `{ by: 'customer' \| 'restaurant' \| 'shipper' \| 'system', reason, note, at }` |
 
 ### Trạng thái đơn hàng
@@ -121,7 +123,11 @@ stateDiagram-v2
 - **Trạng thái nhà hàng khi xử lý đơn** (khác quy tắc sửa thực đơn):
   - **Nhận đơn mới**: chỉ nhà hàng `approved`.
   - **Từ chối (hoàn tiền) và báo "Đã xong"**: được phép ở mọi trạng thái, kể cả `suspended`, để đơn đã nhận không bị kẹt và khách luôn được hoàn tiền.
-  - Hiện **chưa có màn admin duyệt nhà hàng**; `npm run seed:orders` tự đặt nhà hàng demo thành `approved`.
+  - Admin duyệt nhà hàng qua `PATCH /api/admin/restaurants/:id/status` (module Admin). Với dữ liệu demo, `npm run seed:orders` tự đặt nhà hàng thành `approved`.
+- **Chi tiết đơn / phiếu bếp (UC23):**
+  - `GET /api/restaurants/me/orders/:id` trả thêm `customerInsight: { completedOrders, isRegular }`. **Khách quen** = ≥ 3 đơn giao thành công tại quán trong 90 ngày; không trả thêm thông tin nào khác của khách.
+  - `GET /api/restaurants/me/orders/lookup?code=GN-0042` tra cứu đơn của quán mình theo mã (mọi trạng thái).
+  - Số phiếu bếp được cấp **sau khi** nhận đơn thành công, nên request thua khi 2 người bấm cùng lúc không làm nhảy số.
 - Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `ready_for_pickup`, `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn: gán `shipper` (trạng thái vẫn `ready_for_pickup`); khi lấy hàng: chuyển `delivering`.
 
 ## 5. `reviews`
