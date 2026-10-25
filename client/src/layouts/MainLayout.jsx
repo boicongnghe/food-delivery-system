@@ -1,17 +1,28 @@
-import { Link, Outlet } from 'react-router-dom'
+import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
+import Navbar from '../components/Navbar.jsx'
+import CartDrawer from '../components/CartDrawer.jsx'
 
 function MainLayout() {
+  const [isCartOpen, setIsCartOpen] = useState(false)
+
   return (
-    <>
-      <header style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb' }}>
-        <Link to="/" style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit' }}>
-          Food Delivery
-        </Link>
-      </header>
-      <main style={{ padding: '24px' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Navbar onOpenCart={() => setIsCartOpen(true)} />
+      <main style={{ flex: 1, padding: '32px 0 64px' }}>
         <Outlet />
       </main>
-    </>
+      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <footer style={{
+        textAlign: 'center',
+        padding: '24px',
+        color: 'var(--text-light)',
+        borderTop: '1px solid var(--border)',
+        fontSize: '0.85rem',
+      }}>
+        Food Delivery Management © 2026 – WDP301 Group Project
+      </footer>
+    </div>
   )
 }
 
