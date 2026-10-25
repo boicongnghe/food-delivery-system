@@ -13,7 +13,7 @@ import CategorySidebar from './components/CategorySidebar.jsx'
 import CategoryFormDialog from './components/CategoryFormDialog.jsx'
 import MenuItemTable from './components/MenuItemTable.jsx'
 import MenuItemFormModal from './components/MenuItemFormModal.jsx'
-import NoRestaurantNotice from './components/NoRestaurantNotice.jsx'
+import NoRestaurantNotice from '../../components/NoRestaurantNotice/NoRestaurantNotice.jsx'
 
 const EMPTY_COUNTS = { all: 0, selling: 0, soldOut: 0, hidden: 0 }
 const EMPTY_MENU = {
@@ -215,7 +215,9 @@ export default function MenuManagement() {
     }
   }
 
-  if (!restaurant) return <NoRestaurantNotice />
+  if (!restaurant) {
+    return <NoRestaurantNotice message="Hãy tạo hồ sơ nhà hàng trước, sau đó quay lại đây để xây dựng thực đơn." />
+  }
 
   const activeCategory = categories.find((category) => category._id === filters.category)
   const isFiltered = Boolean(keyword) || filters.status !== 'all' || filters.category !== 'all'

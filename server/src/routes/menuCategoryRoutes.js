@@ -3,7 +3,8 @@ import * as menuCategoryController from '../controllers/menuCategoryController.j
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { loadOwnerRestaurant, requireEditableRestaurant } from '../middlewares/restaurantMiddleware.js';
 import validate from '../middlewares/validate.js';
-import { idParamSchema, menuCategorySchema } from '../validations/menuValidation.js';
+import { idParamSchema } from '../validations/commonValidation.js';
+import { menuCategorySchema } from '../validations/menuValidation.js';
 
 // Mounted at /api/restaurants/me/menu-categories (UC20.7)
 const router = Router();

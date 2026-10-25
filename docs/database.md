@@ -75,40 +75,54 @@ TODO: nhóm chốt thiết kế.
 
 ## 4. `orders`
 
+**Đã triển khai** (luồng xử lý đơn phía bếp): model thực tế xem `server/src/models/Order.js`. Module Cart & Order **dùng lại model này**, không tạo model đơn hàng khác.
+
 | Trường | Kiểu | Ghi chú |
 | --- | --- | --- |
-| `customer` | ObjectId → `users` | |
-| `restaurant` | ObjectId → `restaurants` | mỗi đơn thuộc một nhà hàng |
-| `shipper` | ObjectId → `users` | null cho đến khi có shipper nhận |
-| `items` | Array | `[{ menuItem, name, price, quantity }]` – **lưu snapshot** tên và giá tại thời điểm đặt |
-| `subtotal` | Number | |
-| `shippingFee` | Number | |
-| `totalPrice` | Number | |
-| `deliveryAddress` | Object/String | |
-| `note` | String | |
-| `paymentMethod` | String | gợi ý: `cod` |
+| `orderCode` | String | `GN-0042`, duy nhất, sinh bằng `counterService.generateOrderCode()` (collection `counters`) |
+| `customer` / `restaurant` / `shipper` | ObjectId | `shipper` = null cho đến khi có shipper nhận đơn |
+| `items` | Array | **Snapshot lúc đặt**: `{ menuItem, name, image, unitPrice, quantity, options: [{ groupName, name, price }], note, lineTotal }` |
+| `subtotal`, `packagingFee`, `shippingFee`, `discount`, `total` | Number | VND |
+| `delivery` | Object | `{ recipientName, phone, address, type: 'express' \| 'standard', expectedAt }` |
+| `customerNote` | String | |
+| `payment` | Object | `{ method: 'cod' \| 'momo' \| 'vnpay', status: 'unpaid' \| 'paid' \| 'refunded' \| 'cancelled', paidAt, refundedAt, refundAmount }` |
 | `status` | String | xem bên dưới |
-| `statusHistory` | Array | `[{ status, changedBy, changedAt }]` |
-| `cancelReason` | String | |
+| `statusHistory` | Array | `[{ status, at, byRole }]` – dòng thời gian của đơn |
+| `acceptedAt`, `readyAt` | Date | quán nhận đơn / bếp làm xong |
+| `cancellation` | Object | `{ by: 'customer' \| 'restaurant' \| 'shipper' \| 'system', reason, note, at }` |
 
 ### Trạng thái đơn hàng
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending
-    pending --> confirmed : nhà hàng xác nhận
-    confirmed --> preparing : nhà hàng chuẩn bị món
-    preparing --> delivering : shipper nhận và lấy món
+    [*] --> pending : khách đặt món
+    pending --> preparing : quán NHẬN đơn
+    pending --> cancelled : quán TỪ CHỐI / khách hủy (hoàn tiền nếu đã trả online)
+    preparing --> ready_for_pickup : bếp bấm "Đã xong"
+    ready_for_pickup --> delivering : shipper xác nhận đã lấy hàng
     delivering --> delivered : giao thành công
-    pending --> cancelled
-    confirmed --> cancelled
     delivered --> [*]
     cancelled --> [*]
 ```
 
-`pending` → `confirmed` → `preparing` → `delivering` → `delivered`, và `cancelled`.
+`pending` → `preparing` → `ready_for_pickup` → `delivering` → `delivered`, và `cancelled`. **Không còn trạng thái `confirmed`**: quán nhận đơn là chuyển thẳng sang chuẩn bị món.
 
-TODO: nhóm chốt thiết kế – ai được hủy đơn ở trạng thái nào; shipper nhận đơn ở `preparing` hay `confirmed`.
+**Quy tắc bắt buộc khi đổi trạng thái** (module Cart & Order và Shipper cũng phải theo):
+
+- Luôn cập nhật **có điều kiện trạng thái cũ**, ví dụ `findOneAndUpdate({ _id, status: 'pending' }, ...)`, để 2 thao tác cùng lúc không đè nhau; không cập nhật được thì trả **409**.
+- Mỗi lần đổi trạng thái phải `$push` một dòng vào `statusHistory`.
+- Hủy đơn đã trả online → `payment.status = refunded` + `refundedAt` + `refundAmount` (hiện là **mô phỏng**, chưa nối cổng thanh toán). Đơn COD chưa thu → `payment.status = cancelled`.
+- Khách chỉ được hủy khi đơn còn `pending`. Bảng bếp hiển thị đơn khách vừa hủy trong 10 phút.
+- Chủ quán chỉ thấy số điện thoại khách đã che (`090***456`).
+- **Điều kiện thanh toán** (bộ lọc dùng chung trong `server/src/services/orderPolicy.js`):
+  - Đơn online (MoMo/VNPay) **chưa thanh toán** (`unpaid`) là đơn khách đang trả tiền: quán **không thấy** và không thao tác được.
+  - Nhận đơn và chuyển "sẵn sàng" chỉ khi: COD đang `unpaid` (shipper thu tiền) **hoặc** online đã `paid`. Điều kiện này nằm ngay trong câu lệnh cập nhật atomic.
+  - Danh sách cho shipper cũng chỉ gồm đơn có thanh toán hợp lệ.
+- **Trạng thái nhà hàng khi xử lý đơn** (khác quy tắc sửa thực đơn):
+  - **Nhận đơn mới**: chỉ nhà hàng `approved`.
+  - **Từ chối (hoàn tiền) và báo "Đã xong"**: được phép ở mọi trạng thái, kể cả `suspended`, để đơn đã nhận không bị kẹt và khách luôn được hoàn tiền.
+  - Hiện **chưa có màn admin duyệt nhà hàng**; `npm run seed:orders` tự đặt nhà hàng demo thành `approved`.
+- Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `ready_for_pickup`, `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn: gán `shipper` (trạng thái vẫn `ready_for_pickup`); khi lấy hàng: chuyển `delivering`.
 
 ## 5. `reviews`
 

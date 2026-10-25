@@ -1,17 +1,8 @@
 import Joi from 'joi';
 import { MENU_ITEM_TAGS } from '../models/MenuItem.js';
-import { cloudinaryImageUrl } from './commonValidation.js';
+import { cloudinaryImageUrl, objectId } from './commonValidation.js';
 
 export const MENU_ITEM_STATUSES = ['all', 'selling', 'sold_out', 'hidden'];
-
-const objectId = Joi.string().hex().length(24).messages({
-  'string.hex': 'ID không hợp lệ',
-  'string.length': 'ID không hợp lệ',
-});
-
-export const idParamSchema = Joi.object({
-  id: objectId.required(),
-});
 
 // ---------- Categories ----------
 

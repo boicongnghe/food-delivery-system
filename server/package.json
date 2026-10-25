@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed:menu": "node src/seeds/menuSeed.js"
+    "seed:menu": "node src/seeds/menuSeed.js",
+    "seed:orders": "node src/seeds/orderSeed.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
