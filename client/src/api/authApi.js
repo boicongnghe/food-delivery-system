@@ -30,6 +30,36 @@ const authApi = {
     const response = await axiosClient.put('/users/profile', profileData)
     return response.data
   },
+
+  changePassword: async (passwordData) => {
+    const response = await axiosClient.put('/auth/change-password', passwordData)
+    return response.data
+  },
+
+  getAddresses: async () => {
+    const response = await axiosClient.get('/users/addresses')
+    return response.data
+  },
+
+  addAddress: async (addressData) => {
+    const response = await axiosClient.post('/users/addresses', addressData)
+    return response.data
+  },
+
+  updateAddress: async (addressId, addressData) => {
+    const response = await axiosClient.put(`/users/addresses/${addressId}`, addressData)
+    return response.data
+  },
+
+  deleteAddress: async (addressId) => {
+    const response = await axiosClient.delete(`/users/addresses/${addressId}`)
+    return response.data
+  },
+
+  setDefaultAddress: async (addressId) => {
+    const response = await axiosClient.patch(`/users/addresses/${addressId}/default`)
+    return response.data
+  },
 }
 
 export default authApi

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Camera, Upload, CheckCircle2, X, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+import uploadApi from '../../api/uploadApi.js'
 
 const PRESET_AVATARS = {
   restaurant_owner: [
@@ -25,6 +26,7 @@ export default function AvatarModal({ isOpen, onClose }) {
   const fileInputRef = useRef(null)
   const [avatar, setAvatar] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const isRestaurant = user?.role === 'restaurant_owner'
 
@@ -36,7 +38,7 @@ export default function AvatarModal({ isOpen, onClose }) {
 
   if (!isOpen || !user) return null
 
-  const handleImageFileChange = (e) => {
+  const handleImageFileChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -50,12 +52,33 @@ export default function AvatarModal({ isOpen, onClose }) {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      setAvatar(reader.result)
-      toast.success('Đã tải ảnh lên thành công!')
+    setUploadingAvatar(true)
+    const toastId = toast.loading('Đang tải ảnh đại diện lên Cloudinary...')
+    try {
+      const res = await uploadApi.uploadImage(file, 'avatars')
+      if (res?.data?.url) {
+        setAvatar(res.data.url)
+        toast.success('Đã tải ảnh lên Cloudinary thành công! ☁️', { id: toastId })
+      } else {
+        throw new Error('Không nhận được URL từ máy chủ')
+      }
+    } catch (err) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setAvatar(reader.result)
+      }
+      reader.readAsDataURL(file)
+
+      const errMsg = err.response?.data?.message || err.message || 'Lỗi kết nối'
+      if (errMsg.includes('Cloudinary')) {
+        toast('Đã chọn ảnh (Lưu ý: ' + errMsg + ')', { id: toastId, icon: '⚠️' })
+      } else {
+        toast.error('Tải lên Cloudinary thất bại: ' + errMsg, { id: toastId })
+      }
+    } finally {
+      setUploadingAvatar(false)
+      if (e.target) e.target.value = ''
     }
-    reader.readAsDataURL(file)
   }
 
   const handleSubmit = async (e) => {
@@ -133,12 +156,23 @@ export default function AvatarModal({ isOpen, onClose }) {
               />
               <button
                 type="button"
+                disabled={uploadingAvatar}
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-primary text-slate-700 hover:text-primary text-xs font-bold transition-all shadow-xs"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-primary text-slate-700 hover:text-primary text-xs font-bold transition-all shadow-xs disabled:opacity-50"
               >
-                <Upload className="w-3.5 h-3.5" /> Tải ảnh từ thiết bị
+                {uploadingAvatar ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <span>Đang tải lên Cloudinary...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Tải ảnh lên Cloudinary</span>
+                  </>
+                )}
               </button>
-              <p className="text-[11px] text-slate-400">Hỗ trợ JPG, PNG, WEBP tối đa 5MB</p>
+              <p className="text-[11px] text-slate-400">Lưu trữ trên Cloudinary CDN (JPG, PNG, WEBP tối đa 5MB)</p>
             </div>
           </div>
 

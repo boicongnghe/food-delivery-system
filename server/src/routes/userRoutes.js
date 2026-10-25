@@ -11,4 +11,11 @@ router.get('/me', protect, authController.getMe);
 router.put('/profile', protect, authController.updateProfile);
 router.put('/me', protect, authController.updateProfile);
 
+// Delivery Addresses management
+router.get('/addresses', protect, authController.getAddresses);
+router.post('/addresses', protect, authController.addAddress);
+router.put('/addresses/:addressId', protect, authController.updateAddress);
+router.delete('/addresses/:addressId', protect, authController.deleteAddress);
+router.patch('/addresses/:addressId/default', protect, authController.setDefaultAddress);
+
 export default router;

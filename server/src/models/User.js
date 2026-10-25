@@ -1,6 +1,20 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+const addressSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: 'Nhà riêng', trim: true },
+    receiverName: { type: String, default: '', trim: true },
+    receiverPhone: { type: String, default: '', trim: true },
+    street: { type: String, required: true, trim: true },
+    ward: { type: String, default: '', trim: true },
+    district: { type: String, default: '', trim: true },
+    city: { type: String, default: 'TP.HCM', trim: true },
+    isDefault: { type: Boolean, default: false },
+  },
+  { _id: true, timestamps: true }
+);
+
 const userSchema = new mongoose.Schema(
   {
     fullName: {
@@ -27,8 +41,8 @@ const userSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
+      required: [true, 'Số điện thoại là bắt buộc'],
       trim: true,
-      default: '',
     },
     role: {
       type: String,
@@ -40,15 +54,7 @@ const userSchema = new mongoose.Schema(
       default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
     },
     addresses: {
-      type: [
-        {
-          street: { type: String, default: '' },
-          city: { type: String, default: '' },
-          district: { type: String, default: '' },
-          ward: { type: String, default: '' },
-          isDefault: { type: Boolean, default: false },
-        },
-      ],
+      type: [addressSchema],
       default: [],
     },
     deliveryAddress: {

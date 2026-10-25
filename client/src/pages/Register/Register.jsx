@@ -277,6 +277,18 @@ export default function Register() {
       return
     }
 
+    const cleanPhone = formData.phone.trim().replace(/[\s.-]/g, '')
+    if (!cleanPhone) {
+      toast.error('Vui lòng nhập số điện thoại liên hệ.')
+      return
+    }
+
+    const phoneRegex = /^(0|\+84)[0-9]{9}$/
+    if (!phoneRegex.test(cleanPhone)) {
+      toast.error('Số điện thoại không hợp lệ (gồm 10 số, ví dụ: 0912345678).')
+      return
+    }
+
     if (formData.password.length < 6) {
       toast.error('Mật khẩu phải có ít nhất 6 ký tự.')
       return
@@ -296,7 +308,7 @@ export default function Register() {
     const payload = {
       fullName: formData.fullName.trim(),
       email: formData.email.trim(),
-      phone: formData.phone.trim(),
+      phone: cleanPhone,
       password: formData.password,
       role: formData.role,
     }
@@ -369,7 +381,7 @@ export default function Register() {
       toast.success(result.message || 'Đăng ký tài khoản thành công!')
       setTimeout(() => {
         if (formData.role === 'restaurant_owner') {
-          navigate('/restaurant', { replace: true })
+          navigate('/restaurant/profile', { replace: true })
         } else if (formData.role === 'shipper') {
           navigate('/shipper', { replace: true })
         } else {

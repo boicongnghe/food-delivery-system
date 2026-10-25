@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Calendar,
   CreditCard,
-  Clock,
   Camera,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -85,6 +84,30 @@ export default function ShipperDashboard() {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        {user?.shipperDetails?.status === 'pending' && (
+          <div className="bg-amber-500 text-white p-4 rounded-2xl text-xs sm:text-sm font-medium flex items-center gap-3 shadow-sm animate-in fade-in">
+            <span className="text-xl">⏳</span>
+            <div>
+              <p className="font-bold">Hồ sơ đối tác tài xế đang CHỜ XÉT DUYỆT</p>
+              <p className="text-xs text-amber-100 mt-0.5">
+                Ban quản trị đang tiến hành xác minh giấy đăng ký xe và CCCD của bạn. Sau khi được duyệt, bạn sẽ có thể nhận đơn và giao hàng.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {user?.shipperDetails?.status === 'rejected' && (
+          <div className="bg-red-600 text-white p-4 rounded-2xl text-xs sm:text-sm font-medium flex items-center gap-3 shadow-sm animate-in fade-in">
+            <span className="text-xl">❌</span>
+            <div>
+              <p className="font-bold">Hồ sơ đối tác tài xế ĐÃ BỊ TỪ CHỐI</p>
+              <p className="text-xs text-red-100 mt-0.5">
+                Giấy tờ đăng ký xe hoặc CCCD chưa hợp lệ. Vui lòng liên hệ tổng đài để được hỗ trợ kiểm tra lại.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4 sm:gap-6">

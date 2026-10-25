@@ -83,23 +83,19 @@ export const registerUser = async ({
 
   const newUser = await User.create(userDataToCreate);
 
-  // 2. Lưu trực tiếp vào collection 'restaurants' nếu là tài khoản nhà hàng
+  // 2. Lưu trực tiếp vào collection 'restaurants' nếu là tài khoản nhà hàng (chờ kiểm duyệt)
   if (userRole === 'restaurant_owner' && restaurantDetails) {
     await Restaurant.create({
       owner: newUser._id,
-      user: newUser._id,
-      name: restaurantDetails.restaurantName || fullName.trim(),
-      address: restaurantDetails.restaurantAddress || '',
-      phone: phone ? phone.trim() : '',
-      description: restaurantDetails.businessItems || '',
-      businessItems: restaurantDetails.businessItems || '',
-      ownerCitizenId: restaurantDetails.ownerCitizenId || '',
-      businessLicense: restaurantDetails.businessLicense || null,
-      status: 'approved',
+      name: (restaurantDetails.restaurantName || fullName.trim()).slice(0, 60),
+      address: restaurantDetails.restaurantAddress || 'Đang cập nhật địa chỉ',
+      phone: (phone ? phone.trim() : '0900000000'),
+      description: (restaurantDetails.businessItems || '').slice(0, 150),
+      status: 'pending',
     });
   }
 
-  // 3. Lưu trực tiếp vào collection 'shippers' nếu là tài khoản shipper
+  // 3. Lưu trực tiếp vào collection 'shippers' nếu là tài khoản shipper (chờ kiểm duyệt)
   if (userRole === 'shipper' && shipperDetails) {
     await Shipper.create({
       user: newUser._id,
@@ -111,7 +107,7 @@ export const registerUser = async ({
       vehicleRegistration: shipperDetails.vehicleRegistration || null,
       vehicleInsurance: shipperDetails.vehicleInsurance || null,
       isOnline: true,
-      status: 'approved',
+      status: 'pending',
     });
   }
 
@@ -254,4 +250,127 @@ export const updateUserProfile = async (userId, updateData) => {
 
   await user.save();
   return await enrichUserData(user);
+};
+
+export const changePassword = async (userId, { currentPassword, newPassword }) => {
+  const user = await User.findById(userId).select('+password');
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy thông tin tài khoản người dùng');
+  }
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw new ApiError(400, 'Mật khẩu hiện tại không chính xác. Vui lòng kiểm tra lại');
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  return {
+    message: 'Đổi mật khẩu thành công! Bạn có thể sử dụng mật khẩu mới cho các lần đăng nhập tiếp theo.',
+  };
+};
+
+export const getUserAddresses = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
+  return user.addresses || [];
+};
+
+export const addUserAddress = async (userId, addressData) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
+
+  const shouldBeDefault = Boolean(addressData.isDefault) || !user.addresses || user.addresses.length === 0;
+
+  if (shouldBeDefault && user.addresses) {
+    user.addresses.forEach((addr) => {
+      addr.isDefault = false;
+    });
+  }
+
+  const newAddress = {
+    title: (addressData.title || 'Nhà riêng').trim(),
+    receiverName: (addressData.receiverName || user.fullName).trim(),
+    receiverPhone: (addressData.receiverPhone || user.phone).trim(),
+    street: (addressData.street || '').trim(),
+    ward: (addressData.ward || '').trim(),
+    district: (addressData.district || '').trim(),
+    city: (addressData.city || 'TP.HCM').trim(),
+    isDefault: shouldBeDefault,
+  };
+
+  user.addresses.push(newAddress);
+
+  if (shouldBeDefault) {
+    user.deliveryAddress = newAddress.street;
+  }
+
+  await user.save();
+  return user.addresses;
+};
+
+export const updateUserAddress = async (userId, addressId, addressData) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
+
+  const address = user.addresses.id(addressId);
+  if (!address) throw new ApiError(404, 'Không tìm thấy địa chỉ cần cập nhật');
+
+  if (addressData.isDefault) {
+    user.addresses.forEach((addr) => {
+      addr.isDefault = false;
+    });
+    address.isDefault = true;
+    user.deliveryAddress = addressData.street || address.street;
+  }
+
+  if (addressData.title !== undefined) address.title = addressData.title.trim();
+  if (addressData.receiverName !== undefined) address.receiverName = addressData.receiverName.trim();
+  if (addressData.receiverPhone !== undefined) address.receiverPhone = addressData.receiverPhone.trim();
+  if (addressData.street !== undefined) address.street = addressData.street.trim();
+  if (addressData.ward !== undefined) address.ward = addressData.ward.trim();
+  if (addressData.district !== undefined) address.district = addressData.district.trim();
+  if (addressData.city !== undefined) address.city = addressData.city.trim();
+
+  await user.save();
+  return user.addresses;
+};
+
+export const deleteUserAddress = async (userId, addressId) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
+
+  const addrToDelete = user.addresses.id(addressId);
+  if (!addrToDelete) throw new ApiError(404, 'Không tìm thấy địa chỉ');
+
+  const wasDefault = addrToDelete.isDefault;
+  user.addresses.pull({ _id: addressId });
+
+  if (wasDefault && user.addresses.length > 0) {
+    user.addresses[0].isDefault = true;
+    user.deliveryAddress = user.addresses[0].street;
+  } else if (user.addresses.length === 0) {
+    user.deliveryAddress = '';
+  }
+
+  await user.save();
+  return user.addresses;
+};
+
+export const setDefaultUserAddress = async (userId, addressId) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
+
+  const targetAddr = user.addresses.id(addressId);
+  if (!targetAddr) throw new ApiError(404, 'Không tìm thấy địa chỉ');
+
+  user.addresses.forEach((addr) => {
+    addr.isDefault = addr._id.toString() === addressId.toString();
+  });
+
+  user.deliveryAddress = targetAddr.street;
+
+  await user.save();
+  return user.addresses;
 };

@@ -7,12 +7,8 @@ import {
   ChevronDown,
   LogOut,
   Store,
-  Bike,
   ShieldCheck,
   UserCog,
-  Camera,
-  Phone,
-  MapPin,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import ProfileModal from '../ProfileModal/ProfileModal.jsx'
@@ -50,20 +46,7 @@ export default function Navbar() {
     }
   }
 
-  const getRoleLabel = (role) => {
-    switch (role) {
-      case 'restaurant_owner':
-        return { label: 'Chủ quán', className: 'bg-amber-100 text-amber-800 border-amber-200' }
-      case 'shipper':
-        return { label: 'Tài xế', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
-      case 'admin':
-        return { label: 'Quản trị viên', className: 'bg-purple-100 text-purple-800 border-purple-200' }
-      default:
-        return { label: 'Khách hàng', className: 'bg-orange-100 text-primary border-orange-200' }
-    }
-  }
 
-  const roleInfo = user ? getRoleLabel(user.role) : null
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
@@ -187,10 +170,10 @@ export default function Navbar() {
                 </Link>
 
                 <Link
-                  to="/restaurant"
+                  to="/restaurant/profile"
                   id="restaurant-avatar-nav-btn"
                   className="flex items-center gap-2.5 p-1 sm:p-1.5 pr-2.5 sm:pr-3 rounded-full hover:bg-amber-50 border border-amber-200/80 transition-all hover:scale-[1.02] group"
-                  title="Bấm để vào Trang Quản Lý Quán Ăn"
+                  title="Bấm để vào Hồ Sơ Quán Ăn"
                 >
                   <img
                     src={user.avatar || 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'}

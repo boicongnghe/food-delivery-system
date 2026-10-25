@@ -16,7 +16,15 @@ export const registerSchema = Joi.object({
     'string.min': 'Mật khẩu phải có ít nhất 6 ký tự',
     'any.required': 'Mật khẩu là bắt buộc',
   }),
-  phone: Joi.string().allow('', null).optional(),
+  phone: Joi.string()
+    .trim()
+    .pattern(/^(0|\+84)[0-9]{9}$/)
+    .required()
+    .messages({
+      'string.empty': 'Số điện thoại không được để trống',
+      'string.pattern.base': 'Số điện thoại không hợp lệ (gồm 10 chữ số, ví dụ: 0912345678 hoặc +84912345678)',
+      'any.required': 'Số điện thoại là bắt buộc',
+    }),
   role: Joi.string()
     .valid('customer', 'restaurant_owner', 'shipper')
     .default('customer')
@@ -144,5 +152,21 @@ export const resetPasswordSchema = Joi.object({
     'string.empty': 'Mật khẩu mới không được để trống',
     'string.min': 'Mật khẩu mới phải có ít nhất 6 ký tự',
     'any.required': 'Mật khẩu mới là bắt buộc',
+  }),
+});
+
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    'string.empty': 'Mật khẩu hiện tại không được để trống',
+    'any.required': 'Mật khẩu hiện tại là bắt buộc',
+  }),
+  newPassword: Joi.string().min(6).max(128).required().messages({
+    'string.empty': 'Mật khẩu mới không được để trống',
+    'string.min': 'Mật khẩu mới phải có ít nhất 6 ký tự',
+    'any.required': 'Mật khẩu mới là bắt buộc',
+  }),
+  confirmPassword: Joi.string().valid(Joi.ref('newPassword')).required().messages({
+    'any.only': 'Xác nhận mật khẩu mới không khớp',
+    'any.required': 'Vui lòng xác nhận mật khẩu mới',
   }),
 });

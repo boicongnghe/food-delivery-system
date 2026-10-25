@@ -57,9 +57,9 @@ export default function Login() {
           return
         }
 
-        // 2. Restaurant Owner -> goes to /restaurant
+        // 2. Restaurant Owner -> goes to partner portal /restaurant/profile
         if (userRole === 'restaurant_owner') {
-          navigate('/restaurant', { replace: true })
+          navigate('/restaurant/profile', { replace: true })
           return
         }
 
