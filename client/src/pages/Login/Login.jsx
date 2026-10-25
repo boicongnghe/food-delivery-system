@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Clock, Sparkles, ShoppingBag } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+import ForgotPasswordModal from '../../components/ForgotPasswordModal/ForgotPasswordModal.jsx'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -17,6 +18,7 @@ export default function Login() {
 
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showForgotModal, setShowForgotModal] = useState(false)
 
   const pendingDish = location.state?.selectedDish
 
@@ -118,10 +120,6 @@ export default function Login() {
     }
   }
 
-  const handleForgotPassword = (e) => {
-    e.preventDefault()
-    toast('Vui lòng liên hệ ban quản trị để được cấp lại mật khẩu.', { icon: 'ℹ️' })
-  }
 
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-50">
@@ -277,18 +275,9 @@ export default function Login() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700" htmlFor="login-password">
-                    Mật khẩu
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="text-xs font-semibold text-primary hover:text-primary-hover"
-                  >
-                    Quên mật khẩu?
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="login-password">
+                  Mật khẩu
+                </label>
                 <div className="relative">
                   <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
@@ -310,19 +299,27 @@ export default function Login() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
 
-              <div className="flex items-center pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600">
-                  <input
-                    type="checkbox"
-                    name="rememberMe"
-                    checked={formData.rememberMe}
-                    onChange={handleChange}
-                    className="rounded border-slate-300 text-primary focus:ring-primary/20"
-                  />
-                  Ghi nhớ đăng nhập
-                </label>
+                {/* Vị trí dưới ô nhập mật khẩu: Ghi nhớ đăng nhập & Quên mật khẩu */}
+                <div className="flex items-center justify-between pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      name="rememberMe"
+                      checked={formData.rememberMe}
+                      onChange={handleChange}
+                      className="rounded border-slate-300 text-primary focus:ring-primary/20"
+                    />
+                    Ghi nhớ đăng nhập
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(true)}
+                    className="text-xs font-bold text-primary hover:text-primary-hover hover:underline transition-colors"
+                  >
+                    Quên mật khẩu?
+                  </button>
+                </div>
               </div>
 
               <button
@@ -350,6 +347,21 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* Modal Quên Mật Khẩu */}
+      <ForgotPasswordModal
+        isOpen={showForgotModal}
+        onClose={() => setShowForgotModal(false)}
+        initialEmail={formData.email}
+        onSuccess={(resetEmail, newPass) => {
+          setFormData((prev) => ({
+            ...prev,
+            email: resetEmail,
+            password: newPass,
+          }))
+          toast.success('Đã tự động điền thông tin mới. Bạn có thể bấm Đăng nhập ngay!')
+        }}
+      />
     </div>
   )
 }

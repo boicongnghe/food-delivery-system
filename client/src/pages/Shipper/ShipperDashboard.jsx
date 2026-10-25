@@ -8,13 +8,20 @@ import {
   LogOut,
   Power,
   Sparkles,
+  ShieldCheck,
+  Calendar,
+  CreditCard,
+  Clock,
+  Camera,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
 
 export default function ShipperDashboard() {
   const { user, logout } = useAuth()
   const [isOnline, setIsOnline] = useState(true)
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   const [availableOrders, setAvailableOrders] = useState([
     {
@@ -81,11 +88,20 @@ export default function ShipperDashboard() {
         {/* Header Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4 sm:gap-6">
-            <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'}
-              alt={user?.fullName || 'Tài xế'}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-emerald-500/20 shadow-md"
-            />
+            <div
+              className="relative group cursor-pointer flex-shrink-0"
+              onClick={() => setAvatarModalOpen(true)}
+              title="Bấm để đổi ảnh đại diện tài xế"
+            >
+              <img
+                src={user?.avatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'}
+                alt={user?.fullName || 'Tài xế'}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-4 ring-emerald-500/20 shadow-md group-hover:opacity-90 transition-opacity"
+              />
+              <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                <Camera className="w-5 h-5" />
+              </div>
+            </div>
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1.5">
@@ -105,8 +121,21 @@ export default function ShipperDashboard() {
                 {user?.fullName || 'Lê Văn Tài Xế'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Mã tài xế: TX-9921 | Biển số xe: 59-P1 888.88
+                SĐT: {user?.phone || '0923456789'} | Phương tiện: {user?.shipperDetails?.vehicleInfo || 'Honda Wave Alpha - 59-P1 888.88'}
               </p>
+
+              {/* Chỉnh ảnh trực tiếp ở trang quản lý */}
+              <div className="mt-2.5">
+                <button
+                  type="button"
+                  id="shipper-edit-avatar-btn"
+                  onClick={() => setAvatarModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-xs"
+                >
+                  <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                  📸 Chỉnh sửa ảnh tài xế
+                </button>
+              </div>
             </div>
           </div>
 
@@ -144,6 +173,57 @@ export default function ShipperDashboard() {
             </button>
           </div>
         </div>
+
+        {/* Thông tin giấy tờ tài xế & tình trạng bảo hiểm xe */}
+        {user?.shipperDetails && (user?.shipperDetails?.citizenId || user?.shipperDetails?.dateOfBirth) && (
+          <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 bg-emerald-200/60 px-3 py-1 rounded-full">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" /> Hồ Sơ Tài Xế Đã Kích Hoạt
+                </span>
+                {user.shipperDetails.citizenId && (
+                  <span className="text-xs px-2.5 py-0.5 rounded-lg bg-white border border-emerald-200 text-slate-700 font-mono font-bold flex items-center gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> CCCD: {user.shipperDetails.citizenId}
+                  </span>
+                )}
+                {user.shipperDetails.dateOfBirth && (
+                  <span className="text-xs px-2.5 py-0.5 rounded-lg bg-white border border-emerald-200 text-slate-700 font-medium flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" /> Ngày sinh: {user.shipperDetails.dateOfBirth}
+                  </span>
+                )}
+              </div>
+              {user.shipperDetails.vehicleInfo && (
+                <p className="text-xs text-slate-700">
+                  <span className="font-bold text-slate-900">Giấy tờ & Phương tiện:</span> {user.shipperDetails.vehicleInfo}
+                </p>
+              )}
+            </div>
+
+            {/* Trạng thái bảo hiểm xe */}
+            <div className="flex items-center gap-2 flex-shrink-0 bg-white p-2.5 rounded-2xl border border-emerald-200">
+              {user.shipperDetails.vehicleInsurance?.submitLater ? (
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <div className="text-left text-xs">
+                    <p className="font-bold text-amber-800">Chờ bổ sung bảo hiểm</p>
+                    <span className="text-[10px] text-slate-400">Cho phép nộp sau khi nhận việc</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <div className="text-left text-xs">
+                    <p className="font-bold text-emerald-800">Đã nộp bảo hiểm xe</p>
+                    <span className="text-[10px] text-slate-400">
+                      {user.shipperDetails.vehicleInsurance?.insuranceInfo || 'Đã xác thực hợp lệ'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Shipper Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -308,6 +388,12 @@ export default function ShipperDashboard() {
           )}
         </div>
       </div>
+
+      {/* Modal Đổi Ảnh Đại Diện Tài Xế */}
+      <AvatarModal
+        isOpen={avatarModalOpen}
+        onClose={() => setAvatarModalOpen(false)}
+      />
     </div>
   )
 }

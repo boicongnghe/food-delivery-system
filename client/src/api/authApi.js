@@ -15,6 +15,21 @@ const authApi = {
     const response = await axiosClient.get('/auth/me')
     return response.data
   },
+
+  forgotPassword: async (email) => {
+    const response = await axiosClient.post('/auth/forgot-password', { email })
+    return response.data
+  },
+
+  resetPassword: async ({ email, otp, newPassword }) => {
+    const response = await axiosClient.post('/auth/reset-password', { email, otp, newPassword })
+    return response.data
+  },
+
+  updateProfile: async (profileData) => {
+    const response = await axiosClient.put('/users/profile', profileData)
+    return response.data
+  },
 }
 
 export default authApi

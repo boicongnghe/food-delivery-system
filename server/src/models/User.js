@@ -51,9 +51,22 @@ const userSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    deliveryAddress: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    resetPasswordOtp: {
+      type: String,
+      default: null,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -77,11 +90,18 @@ userSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Compare entered password with hashed password
+// Compare entered password with hashed or plaintext password
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  return bcrypt.compare(enteredPassword, this.password);
+  if (this.password === enteredPassword) {
+    return true;
+  }
+  try {
+    return await bcrypt.compare(enteredPassword, this.password);
+  } catch {
+    return false;
+  }
 };
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema, 'users');
 
 export default User;

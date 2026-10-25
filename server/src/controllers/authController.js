@@ -2,8 +2,16 @@ import asyncHandler from '../utils/asyncHandler.js';
 import * as authService from '../services/authService.js';
 
 export const register = asyncHandler(async (req, res) => {
-  const { fullName, email, password, phone, role } = req.body;
-  const result = await authService.registerUser({ fullName, email, password, phone, role });
+  const { fullName, email, password, phone, role, restaurantDetails, shipperDetails } = req.body;
+  const result = await authService.registerUser({
+    fullName,
+    email,
+    password,
+    phone,
+    role,
+    restaurantDetails,
+    shipperDetails,
+  });
 
   res.status(201).json({
     success: true,
@@ -30,5 +38,37 @@ export const getMe = asyncHandler(async (req, res) => {
     success: true,
     data: user,
     message: 'Lấy thông tin tài khoản thành công',
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const result = await authService.forgotPassword(email);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  const result = await authService.resetPassword({ email, otp, newPassword });
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const updatedUser = await authService.updateUserProfile(req.user._id, req.body);
+
+  res.status(200).json({
+    success: true,
+    data: updatedUser,
+    message: 'Cập nhật thông tin cá nhân thành công',
   });
 });
