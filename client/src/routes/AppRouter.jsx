@@ -5,6 +5,7 @@ import AdminLayout from '../layouts/AdminLayout.jsx'
 import RestaurantLayout from '../layouts/RestaurantLayout.jsx'
 import RestaurantProfile from '../pages/RestaurantProfile/RestaurantProfile.jsx'
 import MenuManagement from '../pages/MenuManagement/MenuManagement.jsx'
+import OrderBoard from '../pages/OrderBoard/OrderBoard.jsx'
 import Home from '../pages/Home/Home.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
@@ -62,6 +63,7 @@ function AppRouter() {
           <Route element={<RestaurantLayout />}>
             <Route path="/restaurant/profile" element={<RestaurantProfile />} />
             <Route path="/restaurant/menu" element={<MenuManagement />} />
+            <Route path="/restaurant/orders" element={<OrderBoard />} />
             <Route path="/restaurant/*" element={<NotFound />} />
           </Route>
         </Route>
