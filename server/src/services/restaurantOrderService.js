@@ -2,7 +2,13 @@ import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import { startOfTodayInVietnam } from '../utils/date.js';
 import { maskPhone } from '../utils/maskPhone.js';
+import { getNextKitchenTicketNo } from './counterService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER, VISIBLE_TO_RESTAURANT_FILTER } from './orderPolicy.js';
+import {
+  REGULAR_CUSTOMER_MIN_ORDERS,
+  REGULAR_CUSTOMER_WINDOW_DAYS,
+  calculateKitchenDueAt,
+} from './orderTiming.js';
 
 const ACTIVE_STATUSES = ['pending', 'preparing', 'ready_for_pickup'];
 const RECENT_CANCEL_WINDOW_MS = 10 * 60 * 1000; // customer-cancelled orders stay visible 10 minutes
@@ -60,6 +66,18 @@ export const getBoard = async (restaurantId) => {
   };
 };
 
+// Only a count + flag leave the server: the restaurant learns nothing else about the customer
+const getCustomerInsight = async (restaurantId, customerId) => {
+  const since = new Date(Date.now() - REGULAR_CUSTOMER_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const completedOrders = await Order.countDocuments({
+    restaurant: restaurantId,
+    customer: customerId,
+    status: 'delivered',
+    createdAt: { $gte: since },
+  });
+  return { completedOrders, isRegular: completedOrders >= REGULAR_CUSTOMER_MIN_ORDERS };
+};
+
 export const getOrderDetail = async (restaurantId, orderId) => {
   const order = await Order.findOne({ _id: orderId, restaurant: restaurantId, ...VISIBLE_TO_RESTAURANT_FILTER })
     .populate('shipper', 'fullName')
@@ -67,7 +85,19 @@ export const getOrderDetail = async (restaurantId, orderId) => {
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
   }
-  return toRestaurantView(order);
+  const customerInsight = await getCustomerInsight(restaurantId, order.customer);
+  return { ...toRestaurantView(order), customerInsight };
+};
+
+// "GN-0042" -> order id, any status, only within the owner's restaurant
+export const findOrderIdByCode = async (restaurantId, orderCode) => {
+  const order = await Order.findOne({ orderCode, restaurant: restaurantId, ...VISIBLE_TO_RESTAURANT_FILTER })
+    .select('_id')
+    .lean();
+  if (!order) {
+    throw new ApiError(404, 'Không tìm thấy đơn hàng');
+  }
+  return { _id: order._id };
 };
 
 /**
@@ -103,17 +133,25 @@ const historyEntry = (status, at) => ({ statusHistory: { status, at, byRole: 're
 // Yes: start cooking. COD orders are accepted unpaid; online orders only when already paid.
 export const acceptOrder = async (restaurantId, orderId) => {
   const now = new Date();
-  return transitionOrder({
+  const pending = await Order.findOne({ _id: orderId, restaurant: restaurantId }).select('delivery.type').lean();
+  const kitchenDueAt = calculateKitchenDueAt(now, pending?.delivery.type);
+
+  const accepted = await transitionOrder({
     restaurantId,
     orderId,
     fromStatus: 'pending',
     conditions: PAYMENT_ALLOWS_FULFILLMENT_FILTER,
     conditionError: 'Thanh toán của đơn không hợp lệ, không thể nhận đơn',
     update: {
-      $set: { status: 'preparing', acceptedAt: now },
+      $set: { status: 'preparing', acceptedAt: now, kitchenDueAt },
       $push: historyEntry('preparing', now),
     },
   });
+
+  // Ticket number only after the accept really succeeded: a request that loses the race wastes no number
+  const kitchenTicketNo = await getNextKitchenTicketNo(restaurantId, now);
+  await Order.updateOne({ _id: accepted._id }, { $set: { kitchenTicketNo } });
+  return { ...accepted, kitchenTicketNo };
 };
 
 // No: cancel and refund if the customer already paid online (simulated, no payment gateway yet)

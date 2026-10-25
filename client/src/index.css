@@ -218,3 +218,33 @@ button, input, select, textarea {
     transform: rotate(360deg);
   }
 }
+
+/* Printing (kitchen ticket / delivery slip): only content rendered by PrintPortal is printed */
+.print-only {
+  display: none;
+}
+
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Thermal printers: pure black on white (overrides the grey text of global p/h styles) */
+  body {
+    background: #fff !important;
+  }
+
+  .print-only,
+  .print-only * {
+    color: #000 !important;
+  }
+
+  @page {
+    size: 80mm auto; /* thermal receipt paper */
+    margin: 4mm;
+  }
+}

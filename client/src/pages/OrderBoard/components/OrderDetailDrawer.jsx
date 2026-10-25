@@ -1,186 +1,178 @@
-import { useEffect, useState } from 'react'
-import { Activity, MapPin, User, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
+import { Activity, CircleAlert, RefreshCw } from 'lucide-react'
 import orderApi from '../../../api/orderApi.js'
-import { formatCurrency } from '../../../utils/formatCurrency.js'
-import { formatClock } from '../../../utils/formatTime.js'
-import { CANCELLED_BY_LABELS, ORDER_STATUS_LABELS, REJECT_REASONS } from '../constants.js'
-import CustomerNote from './CustomerNote.jsx'
+import PrintPortal from '../../../components/PrintPortal/PrintPortal.jsx'
+import useKeyboardShortcuts from '../../../hooks/useKeyboardShortcuts.js'
+import { ORDER_STATUS_LABELS } from '../constants.js'
+import BoardNotice from './BoardNotice.jsx'
+import CancellationInfo from './CancellationInfo.jsx'
+import CustomerAlert from './CustomerAlert.jsx'
+import DrawerActionBar from './DrawerActionBar.jsx'
 import OrderTimeline from './OrderTimeline.jsx'
-import PaymentBadge from './PaymentBadge.jsx'
+import PaymentSummary from './PaymentSummary.jsx'
+import PrintableDeliverySlip from './PrintableDeliverySlip.jsx'
+import PrintableKitchenTicket from './PrintableKitchenTicket.jsx'
+import TicketHeader from './TicketHeader.jsx'
+import TicketItems from './TicketItems.jsx'
 
-const sectionTitle = 'text-[11px] font-bold uppercase tracking-wide text-slate-600'
-const reasonLabel = (reason) => REJECT_REASONS.find((item) => item.value === reason)?.label
-
-// Right side panel with the full order (opened with the eye icon)
-export default function OrderDetailDrawer({ orderId, onClose }) {
+/**
+ * Kitchen ticket drawer (UC23). Mount with key={orderId} so switching orders starts fresh.
+ * - refreshKey: changes after every successful board load -> the drawer reloads the order too
+ * - lastOwnChange: { orderId, status } of the owner's own last action (no "changed elsewhere" banner for it)
+ * - actions (accept / reject / ready) are run by the board so both stay in sync
+ */
+export default function OrderDetailDrawer({
+  orderId,
+  now,
+  refreshKey,
+  lastOwnChange,
+  busy,
+  acceptBlockedReason,
+  shortcutsEnabled,
+  restaurantName,
+  onClose,
+  onAccept,
+  onReject,
+  onReady,
+}) {
   const [order, setOrder] = useState(null)
   const [error, setError] = useState('')
+  const [changedTo, setChangedTo] = useState('') // status changed by someone else while open
+  const [printJob, setPrintJob] = useState(null) // { kind: 'ticket' | 'slip', at: timestamp }
+
+  const latestRequestIdRef = useRef(0)
+  const previousStatusRef = useRef(null)
+  const lastOwnChangeRef = useRef(lastOwnChange)
 
   useEffect(() => {
-    let ignore = false
+    lastOwnChangeRef.current = lastOwnChange
+  })
+
+  // Load + reload with the board. Only the newest response is applied.
+  useEffect(() => {
+    latestRequestIdRef.current += 1
+    const requestId = latestRequestIdRef.current
+
     orderApi
       .getOrder(orderId)
-      .then((response) => {
-        if (!ignore) setOrder(response.data)
+      .then(({ data }) => {
+        if (requestId !== latestRequestIdRef.current) return
+        const previous = previousStatusRef.current
+        const own = lastOwnChangeRef.current
+        const isOwnChange = own?.orderId === data._id && own.status === data.status
+        if (previous && data.status !== previous && !isOwnChange) {
+          setChangedTo(data.status)
+        }
+        previousStatusRef.current = data.status
+        setOrder(data)
+        setError('')
       })
       .catch((err) => {
-        if (!ignore) setError(err.response?.data?.message || 'Không tải được chi tiết đơn hàng')
+        if (requestId !== latestRequestIdRef.current) return
+        setError(err.response?.data?.message || 'Không tải được chi tiết đơn hàng')
       })
-    return () => {
-      ignore = true
-    }
-  }, [orderId])
+  }, [orderId, refreshKey])
 
+  // Click / F4 -> render the sheet in the portal (time taken here, not during render) -> print
+  const startPrint = (kind) => setPrintJob({ kind, at: Date.now() })
+
+  // Print after the printable sheet is rendered in the portal
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose()
+    if (!printJob) return undefined
+    const reset = () => setPrintJob(null)
+    window.addEventListener('afterprint', reset, { once: true })
+    const timer = setTimeout(() => window.print(), 50)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('afterprint', reset)
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [printJob])
 
-  const itemCount = order?.items.reduce((sum, item) => sum + item.quantity, 0)
+  const canAccept = order?.status === 'pending' && !acceptBlockedReason && !busy
+  const canMarkReady = order?.status === 'preparing' && !busy
+
+  useKeyboardShortcuts(
+    {
+      Escape: onClose,
+      F4: () => order && startPrint('ticket'),
+      // Only non-destructive actions have a shortcut (reject needs a reason)
+      'Ctrl+Enter': () => {
+        if (canAccept) onAccept(order)
+        else if (canMarkReady) onReady(order)
+      },
+    },
+    shortcutsEnabled,
+  )
+
+  const copyOrderCode = () => {
+    navigator.clipboard
+      ?.writeText(order.orderCode)
+      .then(() => toast.success(`Đã sao chép mã ${order.orderCode}`))
+      .catch(() => toast.error('Không sao chép được mã đơn'))
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-[2px]" onClick={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
+        aria-label="Chi tiết đơn hàng"
         onClick={(event) => event.stopPropagation()}
-        className="flex h-full w-full max-w-md flex-col bg-cream shadow-2xl"
+        className="flex h-full w-full max-w-lg flex-col border-t-4 border-dashed border-brand-soft bg-cream shadow-2xl"
       >
-        <div className="flex items-start justify-between border-b border-brand-soft/60 bg-white px-5 py-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-brand">Chi tiết đơn hàng</p>
-            {order && (
-              <p className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-                #{order.orderCode}
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                    order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {ORDER_STATUS_LABELS[order.status]}
-                </span>
-              </p>
-            )}
-          </div>
-          <button type="button" onClick={onClose} title="Đóng (Esc)" className="rounded p-1.5 text-slate-500 hover:bg-brand-light">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {!order && !error && (
             <div className="space-y-3">
               {[1, 2, 3].map((key) => (
-                <div key={key} className="h-24 animate-pulse rounded-lg bg-brand-light" />
+                <div key={key} className="h-28 animate-pulse rounded-xl bg-brand-light" />
               ))}
+            </div>
+          )}
+
+          {!order && error && (
+            <div className="rounded-xl border border-red-200 bg-white p-6 text-center">
+              <CircleAlert className="mx-auto h-8 w-8 text-red-500" />
+              <p className="mt-2 font-semibold text-slate-900">{error}</p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-4 rounded-md bg-brand-light px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-brand-soft"
+              >
+                Đóng
+              </button>
             </div>
           )}
 
           {order && (
             <>
-              <section className="space-y-1 rounded-lg border border-brand-soft/60 bg-white p-4">
-                <p className={sectionTitle}>Thông tin người nhận</p>
-                <p className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-semibold text-slate-900">
-                    <User className="h-4 w-4 text-brand" />
-                    {order.delivery.recipientName}
-                  </span>
-                  <span className="font-semibold text-brand">{order.delivery.phone}</span>
-                </p>
-                <p className="flex items-start gap-1.5 text-sm text-slate-600">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                  {order.delivery.address}
-                </p>
-                {order.delivery.expectedAt && (
-                  <p className="text-sm text-slate-600">Hẹn giao: {formatClock(order.delivery.expectedAt)}</p>
-                )}
-              </section>
+              <TicketHeader
+                order={order}
+                now={now}
+                onClose={onClose}
+                onPrintTicket={() => startPrint('ticket')}
+                onPrintSlip={() => startPrint('slip')}
+                onCopyCode={copyOrderCode}
+              />
 
-              <CustomerNote note={order.customerNote} label="Ghi chú của khách hàng" />
-
-              {order.cancellation?.by && (
-                <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-                  <p className={`${sectionTitle} text-red-800`}>Thông tin hủy đơn</p>
-                  <p>
-                    Hủy bởi: <strong>{CANCELLED_BY_LABELS[order.cancellation.by]}</strong> lúc{' '}
-                    {formatClock(order.cancellation.at)}
-                  </p>
-                  {(reasonLabel(order.cancellation.reason) || order.cancellation.note) && (
-                    <p>
-                      Lý do: {reasonLabel(order.cancellation.reason)}
-                      {reasonLabel(order.cancellation.reason) && order.cancellation.note && ' – '}
-                      {order.cancellation.note}
-                    </p>
-                  )}
-                  {order.payment.status === 'refunded' && (
-                    <p>Đã hoàn tiền: <strong>{formatCurrency(order.payment.refundAmount)}</strong></p>
-                  )}
-                </section>
+              {changedTo && (
+                <BoardNotice tone="danger" icon={RefreshCw} title={`Đơn vừa chuyển sang: ${ORDER_STATUS_LABELS[changedTo]}`}>
+                  Trạng thái đơn đã thay đổi từ nơi khác (khách hàng hoặc shipper). Các thao tác đã được cập nhật theo.
+                </BoardNotice>
+              )}
+              {error && (
+                <BoardNotice tone="warning" icon={CircleAlert} title="Không cập nhật được chi tiết đơn">
+                  Đang hiển thị dữ liệu lần tải trước. ({error})
+                </BoardNotice>
               )}
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className={sectionTitle}>Danh sách món ăn &amp; topping</p>
-                  <span className="text-xs text-slate-500">{itemCount} món</span>
-                </div>
-                {order.items.map((item, index) => (
-                  <div key={index} className="flex gap-3 rounded-lg border border-brand-soft/60 bg-white p-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-brand-light text-sm font-extrabold text-brand">
-                      {item.quantity}x
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex justify-between gap-2">
-                        <p className="font-semibold text-slate-900">{item.name}</p>
-                        <p className="font-bold text-slate-900">{formatCurrency(item.lineTotal)}</p>
-                      </div>
-                      {item.options.map((option) => (
-                        <p key={`${option.groupName}-${option.name}`} className="text-xs text-slate-500">
-                          • {option.groupName}: {option.name}
-                          {option.price > 0 && ` (+${formatCurrency(option.price)})`}
-                        </p>
-                      ))}
-                      {item.note && <p className="text-xs italic text-slate-500">• Yêu cầu: {item.note}</p>}
-                      <p className="text-right font-mono text-[11px] text-slate-400">
-                        {formatCurrency(item.unitPrice)} / suất
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </section>
+              <CustomerAlert note={order.customerNote} insight={order.customerInsight} />
+              <TicketItems items={order.items} />
+              <CancellationInfo order={order} />
+              <PaymentSummary order={order} />
 
-              <section className="space-y-1.5 rounded-lg border border-brand-soft/60 bg-white p-4 text-sm">
-                <div className="flex items-center justify-between">
-                  <p className={sectionTitle}>Thanh toán</p>
-                  <PaymentBadge payment={order.payment} />
-                </div>
-                <p className="flex justify-between text-slate-600">
-                  <span>Tạm tính món ăn:</span>
-                  <span>{formatCurrency(order.subtotal)}</span>
-                </p>
-                <p className="flex justify-between text-slate-600">
-                  <span>Phí đóng gói:</span>
-                  <span>{formatCurrency(order.packagingFee)}</span>
-                </p>
-                <p className="flex justify-between text-slate-600">
-                  <span>Phí giao hàng:</span>
-                  <span>{formatCurrency(order.shippingFee)}</span>
-                </p>
-                <p className="flex justify-between text-slate-600">
-                  <span>Giảm giá:</span>
-                  <span>-{formatCurrency(order.discount)}</span>
-                </p>
-                <p className="flex justify-between border-t border-brand-soft/60 pt-2 font-bold text-slate-900">
-                  <span>Tổng tiền đơn hàng:</span>
-                  <span className="text-brand">{formatCurrency(order.total)}</span>
-                </p>
-              </section>
-
-              <section className="space-y-3 rounded-lg border border-brand-soft/60 bg-white p-4">
-                <p className={`${sectionTitle} flex items-center justify-between`}>
+              <section className="space-y-3 rounded-xl border border-brand-soft/60 bg-white p-4">
+                <p className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-600">
                   Tiến trình đơn hàng
                   <Activity className="h-4 w-4 text-slate-400" />
                 </p>
@@ -190,16 +182,30 @@ export default function OrderDetailDrawer({ orderId, onClose }) {
           )}
         </div>
 
-        <div className="border-t border-brand-soft/60 bg-white p-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-md bg-brand-light py-2.5 text-sm font-semibold text-slate-700 hover:bg-brand-soft"
-          >
-            Đóng
-          </button>
-        </div>
+        {order && (
+          <div className="border-t border-brand-soft/60 bg-white p-4 shadow-[0_-8px_20px_-12px_rgba(0,0,0,0.25)]">
+            <DrawerActionBar
+              order={order}
+              busy={busy}
+              acceptBlockedReason={acceptBlockedReason}
+              onAccept={() => onAccept(order)}
+              onReject={() => onReject(order)}
+              onReady={() => onReady(order)}
+              onPrintSlip={() => startPrint('slip')}
+            />
+          </div>
+        )}
       </aside>
+
+      {order && printJob && (
+        <PrintPortal>
+          {printJob.kind === 'ticket' ? (
+            <PrintableKitchenTicket order={order} restaurantName={restaurantName} printedAt={printJob.at} />
+          ) : (
+            <PrintableDeliverySlip order={order} restaurantName={restaurantName} printedAt={printJob.at} />
+          )}
+        </PrintPortal>
+      )}
     </div>
   )
 }

@@ -10,6 +10,12 @@ const orderApi = {
     return response.data
   },
 
+  // "GN-0042" -> { _id } (any status, own restaurant only)
+  lookupOrder: async (code) => {
+    const response = await axiosClient.get(`${RESTAURANT_ORDER_URL}/lookup`, { params: { code } })
+    return response.data
+  },
+
   getOrder: async (id) => {
     const response = await axiosClient.get(`${RESTAURANT_ORDER_URL}/${id}`)
     return response.data
