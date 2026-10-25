@@ -1,29 +1,13 @@
 import { useState } from 'react'
 
-const HOURLY_DATA = [
-  { hour: '6h',  base: 25, bonus: 0,  tip: 5,  surge: false },
-  { hour: '7h',  base: 45, bonus: 5,  tip: 10, surge: false },
-  { hour: '8h',  base: 60, bonus: 10, tip: 8,  surge: false },
-  { hour: '9h',  base: 30, bonus: 0,  tip: 5,  surge: false },
-  { hour: '10h', base: 35, bonus: 0,  tip: 8,  surge: false },
-  { hour: '11h', base: 80, bonus: 35, tip: 20, surge: true  },
-  { hour: '12h', base: 95, bonus: 45, tip: 28, surge: true  },
-  { hour: '13h', base: 75, bonus: 30, tip: 15, surge: true  },
-  { hour: '14h', base: 40, bonus: 5,  tip: 8,  surge: false },
-  { hour: '15h', base: 28, bonus: 0,  tip: 5,  surge: false },
-]
-
-const FORECAST = [
-  { hour: '18h', demand: 85 },
-  { hour: '19h', demand: 92 },
-  { hour: '20h', demand: 78 },
-]
-
-const MAX_TOTAL = Math.max(...HOURLY_DATA.map(d => d.base + d.bonus + d.tip)) + 10
 const MAX_BAR_H = 120
 
-function EarningsChart() {
+function EarningsChart({ earningsByHour, forecast, periodLabel }) {
   const [hovered, setHovered] = useState(null)
+  const maxTotal = Math.max(
+    1,
+    ...earningsByHour.map(item => item.base + item.bonus + item.tip),
+  )
 
   return (
     <div className="section-card" id="earnings-chart-section">
@@ -32,7 +16,7 @@ function EarningsChart() {
           <span className="section-card-title-icon">📊</span>
           Biểu đồ thu nhập theo khung giờ
         </div>
-        <span className="section-card-badge">Hôm nay, 20/10</span>
+        <span className="section-card-badge">{periodLabel}</span>
       </div>
 
       <div className="chart-container">
@@ -63,11 +47,11 @@ function EarningsChart() {
           </div>
 
           {/* Actual data */}
-          {HOURLY_DATA.map((d, i) => {
+          {earningsByHour.map((d, i) => {
             const total  = d.base + d.bonus + d.tip
-            const baseH  = (d.base  / MAX_TOTAL) * MAX_BAR_H
-            const bonusH = (d.bonus / MAX_TOTAL) * MAX_BAR_H
-            const tipH   = (d.tip   / MAX_TOTAL) * MAX_BAR_H
+            const baseH  = (d.base  / maxTotal) * MAX_BAR_H
+            const bonusH = (d.bonus / maxTotal) * MAX_BAR_H
+            const tipH   = (d.tip   / maxTotal) * MAX_BAR_H
             const totalH = baseH + bonusH + tipH
 
             return (
@@ -76,7 +60,7 @@ function EarningsChart() {
                 className={`chart-bar-group ${d.surge ? 'surge' : ''}`}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
-                aria-label={`${d.hour}: ${(total * 1000).toLocaleString('vi-VN')}đ`}
+                aria-label={`${d.hour}: ${total.toLocaleString('vi-VN')}đ`}
               >
                 {hovered === i && (
                   <div style={{
@@ -95,11 +79,11 @@ function EarningsChart() {
                     boxShadow: 'var(--shadow-md)',
                   }}>
                     <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>
-                      {d.hour} — {(total * 1000).toLocaleString('vi-VN')}đ
+                      {d.hour} — {total.toLocaleString('vi-VN')}đ
                     </div>
-                    <div>Cước: {(d.base * 1000).toLocaleString('vi-VN')}đ</div>
-                    {d.bonus > 0 && <div style={{ color: 'var(--brand)' }}>Thưởng: +{(d.bonus * 1000).toLocaleString('vi-VN')}đ</div>}
-                    {d.tip > 0   && <div style={{ color: 'var(--amber)' }}>Tip: +{(d.tip * 1000).toLocaleString('vi-VN')}đ</div>}
+                    <div>Cước: {d.base.toLocaleString('vi-VN')}đ</div>
+                    {d.bonus > 0 && <div style={{ color: 'var(--brand)' }}>Thưởng: +{d.bonus.toLocaleString('vi-VN')}đ</div>}
+                    {d.tip > 0   && <div style={{ color: 'var(--amber)' }}>Tip: +{d.tip.toLocaleString('vi-VN')}đ</div>}
                     {d.surge && <div style={{ color: 'var(--brand)', fontWeight: 700, marginTop: 3 }}>🔥 Surge x1.4</div>}
                   </div>
                 )}
@@ -115,7 +99,7 @@ function EarningsChart() {
           })}
 
           {/* Forecast bars */}
-          {FORECAST.map((f, i) => (
+          {forecast.map((f, i) => (
             <div key={`f-${i}`} className="chart-bar-group" style={{ opacity: 0.5 }} aria-label={`${f.hour} dự báo`}>
               <div className="chart-bars-inner">
                 <div style={{
@@ -129,22 +113,23 @@ function EarningsChart() {
               <span className="chart-x-label">{f.hour}</span>
             </div>
           ))}
+          {earningsByHour.length === 0 && forecast.length === 0 && (
+            <div className="chart-empty">Chưa có dữ liệu thu nhập theo giờ.</div>
+          )}
         </div>
 
         {/* Footer stats */}
         <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
-          <span>Độ dài chuyến trung bình: <strong style={{ color: 'var(--text-primary)' }}>2.4 km/đơn</strong></span>
-          <span>Thời gian trả đơn chuẩn: <strong style={{ color: 'var(--text-primary)' }}>4.5 phút/bếp</strong></span>
+          <span>{earningsByHour.length} khung giờ có dữ liệu thu nhập</span>
         </div>
 
         {/* Forecast note */}
-        <div className="chart-forecast" role="note">
-          <span>🌆</span>
-          <span>
-            <strong>Dự báo ca tối (18h–21h):</strong> Nhu cầu tăng cao khu vực Hoàn Kiếm &amp; Hai Bà Trưng —{' '}
-            <strong>Surge x1.6</strong> dự kiến. Di chuyển sớm để đón cuốc đầu tiên!
-          </span>
-        </div>
+        {forecast.length > 0 && (
+          <div className="chart-forecast" role="note">
+            <span>🌆</span>
+            <span><strong>Dự báo nhu cầu</strong> được đồng bộ từ dữ liệu dashboard.</span>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -7,7 +7,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "seed:driver-demo": "node src/seeds/driverDashboardDemoSeed.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

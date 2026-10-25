@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import driverRoutes from './driverRoutes.js';
 
 const router = Router();
 
@@ -10,6 +11,6 @@ router.get('/health', (req, res) => {
   });
 });
 
-// Mount feature routers here, e.g. router.use('/auth', authRoutes);
+router.use('/drivers', driverRoutes);
 
 export default router;

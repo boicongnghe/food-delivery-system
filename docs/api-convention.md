@@ -34,7 +34,12 @@ POST   /api/orders
 GET    /api/orders/:id
 PATCH  /api/orders/:id/status
 POST   /api/orders/:id/reviews
+GET    /api/drivers/me/dashboard?period=today
+PATCH  /api/drivers/me/status
 ```
+
+Driver dashboard schema, authentication requirements, and response data setup:
+[Driver dashboard API](./driver-dashboard-api.md).
 
 ## 3. HTTP method
 

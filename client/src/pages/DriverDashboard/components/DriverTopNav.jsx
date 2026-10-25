@@ -1,14 +1,23 @@
-import { useState } from 'react'
-
 const NAV_TABS = [
   { id: 'dashboard', label: 'Bảng điều khiển & Thu nhập', icon: '📊' },
   { id: 'history', label: 'Lịch sử chuyến xe', icon: '🗂️' },
   { id: 'wallet', label: 'Ví tài xế & Rút tiền', icon: '💳' },
   { id: 'ranking', label: 'Xếp hạng & Thưởng', icon: '🏆' },
   { id: 'support', label: 'Hỗ trợ 24/7', icon: '🎧' },
+  { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
 ]
 
-function DriverTopNav({ activeTab, setActiveTab, isOnline, setIsOnline }) {
+function DriverTopNav({
+  activeTab,
+  setActiveTab,
+  isOnline,
+  onToggleOnline,
+  statusUpdating,
+  driverName,
+  driverCode,
+  tier,
+  avatarUrl,
+}) {
   return (
     <nav className="driver-topnav" role="navigation" aria-label="Driver portal navigation">
       <div className="driver-topnav-inner">
@@ -49,8 +58,10 @@ function DriverTopNav({ activeTab, setActiveTab, isOnline, setIsOnline }) {
               <input
                 type="checkbox"
                 checked={isOnline}
-                onChange={e => setIsOnline(e.target.checked)}
+                onChange={e => onToggleOnline(e.target.checked)}
+                disabled={statusUpdating}
                 id="driver-online-toggle"
+                aria-label="Toggle online status"
               />
               <span className="toggle-slider" />
             </label>
@@ -60,8 +71,8 @@ function DriverTopNav({ activeTab, setActiveTab, isOnline, setIsOnline }) {
           <div className="driver-info">
             <div className="driver-avatar-wrap">
               <img
-                src="/driver-avatar.png"
-                alt="Nguyễn Văn Hùng"
+                src={avatarUrl || '/driver-avatar.png'}
+                alt={driverName || 'Tài xế'}
                 className="driver-avatar"
                 onError={e => {
                   e.target.style.display = 'none'
@@ -80,8 +91,10 @@ function DriverTopNav({ activeTab, setActiveTab, isOnline, setIsOnline }) {
               <span className={`driver-status-dot ${isOnline ? '' : 'offline'}`} />
             </div>
             <div className="driver-details">
-              <span className="driver-name">Nguyễn Văn Hùng</span>
-              <span className="driver-id">#TX-9281 · 💎 Kim Cương</span>
+              <span className="driver-name">{driverName || 'Tài xế'}</span>
+              <span className="driver-id">
+                {driverCode || 'Đang tải hồ sơ…'}{tier ? ` · 💎 ${tier}` : ''}
+              </span>
             </div>
           </div>
         </div>

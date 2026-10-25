@@ -1,109 +1,22 @@
-const TRIPS = [
-  {
-    id: 'GN-330201',
-    time: '10:52',
-    restaurant: 'Cơm Bình Dân Bà Nội',
-    address: 'Khu nhà trọ Đông Lỗ, Thạch Thất',
-    distance: '1.4 km',
-    baseFare: 18000,
-    bonus: 5000,
-    tip: 10000,
-    status: 'Đã giao',
-    surge: false,
-  },
-  {
-    id: 'GN-330202',
-    time: '11:08',
-    restaurant: 'Phở Gà Chú Sơn',
-    address: 'Km29 Đại lộ Thăng Long, Thạch Thất',
-    distance: '2.1 km',
-    baseFare: 24000,
-    bonus: 9000,
-    tip: 15000,
-    status: 'Đã giao',
-    surge: true,
-  },
-  {
-    id: 'GN-330203',
-    time: '11:35',
-    restaurant: 'Bánh Mì Hải – Cổng FPT',
-    address: 'Cổng chính ĐH FPT Hòa Lạc, Thạch Thất',
-    distance: '0.8 km',
-    baseFare: 15000,
-    bonus: 6000,
-    tip: 10000,
-    status: 'Đã giao',
-    surge: true,
-  },
-  {
-    id: 'GN-330204',
-    time: '11:58',
-    restaurant: 'Bún Bò Cô Hà',
-    address: 'Thị trấn Liên Quan, Thạch Thất',
-    distance: '3.2 km',
-    baseFare: 35000,
-    bonus: 14000,
-    tip: 20000,
-    status: 'Đã giao',
-    surge: true,
-  },
-  {
-    id: 'GN-330205',
-    time: '12:20',
-    restaurant: 'Cơm Tấm Cô Linh',
-    address: 'Khu nhà trọ Bắc Lỗ, Thạch Thất',
-    distance: '1.7 km',
-    baseFare: 22000,
-    bonus: 8000,
-    tip: 0,
-    status: 'Đã giao',
-    surge: true,
-  },
-  {
-    id: 'GN-330206',
-    time: '12:47',
-    restaurant: 'Bún Đậu Sinh Viên',
-    address: 'Ngõ 3 Đường Vành đai FPT, Hòa Lạc',
-    distance: '1.2 km',
-    baseFare: 18000,
-    bonus: 0,
-    tip: 15000,
-    status: 'Đã giao',
-    surge: false,
-  },
-  {
-    id: 'GN-330207',
-    time: '13:15',
-    restaurant: 'Trà Sữa TocoToco FPT',
-    address: 'Tòa nhà Alpha, Khu CNC Hòa Lạc',
-    distance: '2.4 km',
-    baseFare: 28000,
-    bonus: 5000,
-    tip: 10000,
-    status: 'Đã giao',
-    surge: false,
-  },
-]
-
 function formatVND(amount) {
-  return amount.toLocaleString('vi-VN') + 'đ'
+  return `${Number(amount || 0).toLocaleString('vi-VN')}đ`
 }
 
-function TripLedger() {
-  const total = TRIPS.reduce((s, t) => s + t.baseFare + t.bonus + t.tip, 0)
+function TripLedger({ trips, periodLabel }) {
+  const total = trips.reduce((sum, trip) => sum + trip.baseFare + trip.bonus + trip.tip, 0)
 
   return (
     <div className="section-card" id="trip-ledger-section">
       <div className="section-card-header">
         <div className="section-card-title">
           <span className="section-card-title-icon">🧾</span>
-          Biên lai chuyến xe hôm nay
+          Biên lai chuyến xe · {periodLabel.toLowerCase()}
         </div>
-        <span className="section-card-badge">{TRIPS.length} cuốc đã ghi nhận</span>
+        <span className="section-card-badge">{trips.length} cuốc đã ghi nhận</span>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table className="ledger-table" aria-label="Today's trip receipts">
+        <table className="ledger-table" aria-label="Trip receipts">
           <thead className="ledger-head">
             <tr>
               <th scope="col">Mã cuốc &amp; Giờ</th>
@@ -115,7 +28,7 @@ function TripLedger() {
             </tr>
           </thead>
           <tbody>
-            {TRIPS.map(trip => (
+            {trips.map(trip => (
               <tr key={trip.id} className="ledger-row">
                 <td>
                   <span className="trip-code">{trip.id}</span>
@@ -148,13 +61,20 @@ function TripLedger() {
                 </td>
               </tr>
             ))}
+            {trips.length === 0 && (
+              <tr>
+                <td colSpan="6" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Chưa có chuyến xe trong kỳ này.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="ledger-footer">
         <div>
-          <div className="ledger-total-label">Tổng {TRIPS.length} chuyến – Khu vực Thạch Thất &amp; Hòa Lạc</div>
+          <div className="ledger-total-label">Tổng {trips.length} chuyến</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cước gốc + Thưởng surge + Tiền tip</div>
         </div>
         <div className="ledger-total-value">{formatVND(total)}</div>
