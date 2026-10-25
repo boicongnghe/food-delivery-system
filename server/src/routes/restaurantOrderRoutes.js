@@ -4,7 +4,7 @@ import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { loadOwnerRestaurant, requireApprovedRestaurant } from '../middlewares/restaurantMiddleware.js';
 import validate from '../middlewares/validate.js';
 import { idParamSchema } from '../validations/commonValidation.js';
-import { rejectOrderSchema } from '../validations/orderValidation.js';
+import { orderLookupQuerySchema, rejectOrderSchema } from '../validations/orderValidation.js';
 
 // Mounted at /api/restaurants/me/orders - kitchen order processing
 // Order rules differ from menu rules (requireEditableRestaurant is NOT used here):
@@ -16,6 +16,7 @@ const validateId = validate(idParamSchema, 'params');
 router.use(protect, authorize('restaurant_owner'), loadOwnerRestaurant);
 
 router.get('/board', restaurantOrderController.getBoard);
+router.get('/lookup', validate(orderLookupQuerySchema, 'query'), restaurantOrderController.lookupOrder);
 router.get('/:id', validateId, restaurantOrderController.getOrderDetail);
 router.patch('/:id/accept', validateId, requireApprovedRestaurant, restaurantOrderController.acceptOrder);
 router.patch('/:id/reject', validateId, validate(rejectOrderSchema), restaurantOrderController.rejectOrder);

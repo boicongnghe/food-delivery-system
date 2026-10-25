@@ -21,13 +21,23 @@ export const getOrderDetail = asyncHandler(async (req, res) => {
   });
 });
 
+export const lookupOrder = asyncHandler(async (req, res) => {
+  const result = await restaurantOrderService.findOrderIdByCode(req.restaurant._id, req.query.code);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: 'Tìm thấy đơn hàng',
+  });
+});
+
 export const acceptOrder = asyncHandler(async (req, res) => {
   const order = await restaurantOrderService.acceptOrder(req.restaurant._id, req.params.id);
 
   res.status(200).json({
     success: true,
     data: order,
-    message: `Đã nhận đơn ${order.orderCode}, bắt đầu chuẩn bị món`,
+    message: `Đã nhận đơn ${order.orderCode} – phiếu bếp #${String(order.kitchenTicketNo).padStart(2, '0')}`,
   });
 });
 

@@ -20,6 +20,20 @@ export const rejectOrderSchema = Joi.object({
   }),
 });
 
+// GET /lookup?code=gn-0042 -> "GN-0042"
+export const orderLookupQuerySchema = Joi.object({
+  code: Joi.string()
+    .trim()
+    .uppercase()
+    .pattern(/^GN-\d{4,}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Mã đơn có dạng GN-0042',
+      'string.empty': 'Vui lòng nhập mã đơn',
+      'any.required': 'Vui lòng nhập mã đơn',
+    }),
+});
+
 export const paginationQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(50).default(10),

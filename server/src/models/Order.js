@@ -79,6 +79,8 @@ const orderSchema = new mongoose.Schema(
     statusHistory: { type: [statusHistorySchema], default: [] },
     acceptedAt: { type: Date, default: null },
     readyAt: { type: Date, default: null },
+    kitchenTicketNo: { type: Number, default: null }, // "Chit phiếu bếp #04": per restaurant, restarts daily
+    kitchenDueAt: { type: Date, default: null }, // hand the order to the shipper before this time
     cancellation: {
       by: { type: String, enum: [...ACTOR_ROLES, null], default: null },
       reason: { type: String, default: '' },
