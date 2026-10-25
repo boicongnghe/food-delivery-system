@@ -3,9 +3,9 @@ import * as menuItemController from '../controllers/menuItemController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { loadOwnerRestaurant, requireEditableRestaurant } from '../middlewares/restaurantMiddleware.js';
 import validate from '../middlewares/validate.js';
+import { idParamSchema } from '../validations/commonValidation.js';
 import {
   availabilitySchema,
-  idParamSchema,
   menuItemQuerySchema,
   menuItemSchema,
   visibilitySchema,
