@@ -6,8 +6,8 @@ Ngữ cảnh dự án cho Claude Code. Tài liệu viết bằng tiếng Việt;
 
 Food Delivery Management (WDP301) – monorepo MERN. Vai trò: `customer`, `restaurant_owner`, `shipper`, `admin`.
 
-- `client/` – React 19 + Vite (JavaScript, không dùng TypeScript), react-router-dom, axios
-- `server/` – Node.js + Express 5, **ES Modules** (`import`/`export`, import tương đối phải có đuôi `.js`), Mongoose
+- `client/` – React 19 + Vite (JavaScript, không dùng TypeScript), react-router-dom, axios, Tailwind CSS v3, lucide-react (icon), react-hot-toast
+- `server/` – Node.js + Express 5, **ES Modules** (`import`/`export`, import tương đối phải có đuôi `.js`), Mongoose, Joi (validate), multer + Cloudinary (upload ảnh)
 - `docs/` – quy ước chi tiết, đọc trước khi làm thay đổi lớn
 
 ## Lệnh chạy
@@ -17,6 +17,9 @@ cd server && npm run dev     # API http://localhost:5000, kiểm tra: GET /api/h
 cd client && npm run dev     # UI http://localhost:5173
 cd client && npm run build   # phải pass trước khi mở PR
 cd client && npm run lint    # oxlint
+cd server && npm run seed:menu [email]   # thực đơn mẫu cho chủ quán (mặc định chuquan@fooddelivery.vn), GHI ĐÈ thực đơn cũ
+cd server && npm run seed:orders         # đơn mẫu cho bảng bếp (cần seed:menu trước), GHI ĐÈ đơn của quán
+cd server && npm run seed:orders -- --new   # thêm 1 đơn mới để test tự cập nhật + chuông
 ```
 
 Yêu cầu Node `^20.19 || >=22.12` (do Vite 8). File môi trường: copy `server/.env.example` và `client/.env.example` thành `.env`.
@@ -48,6 +51,8 @@ Yêu cầu Node `^20.19 || >=22.12` (do Vite 8). File môi trường: copy `serv
 - `api/` – `axiosClient.js` (baseURL lấy từ `VITE_API_URL`, tự gắn Bearer token) + file API theo module (`restaurantApi.js`)
 - `pages/<Name>/<Name>.jsx`, component dùng chung ở `components/`, layout ở `layouts/`, route ở `routes/AppRouter.jsx`
 - `context/`, `hooks/` (`useXxx.js`), `utils/`
+- Cổng đối tác (chủ quán, shipper...): dùng chung `components/Header/Header.jsx` (prop `navItems`, `status`) và `components/Footer/Footer.jsx`; xem mẫu `layouts/RestaurantLayout.jsx`. Màu `brand`/`cream` và font `font-serif` khai báo trong `tailwind.config.js`.
+- Upload ảnh: lưu trên **Cloudinary**. Client gọi `uploadApi.uploadImage(file, folder)` → `POST /api/uploads/images?folder=...` trả `{ url, publicId }`; lưu `url` (https) vào DB và dùng trực tiếp trong `<img>`. Không lưu ảnh trên ổ đĩa server.
 
 ## Đặt tên
 

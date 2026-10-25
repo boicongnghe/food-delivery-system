@@ -45,6 +45,8 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
@@ -257,6 +259,7 @@ textarea {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -376,6 +379,7 @@ textarea {
   from {
     transform: translateX(100%);
   }
+
   to {
     transform: translateX(0);
   }

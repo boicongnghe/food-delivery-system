@@ -1,223 +1,515 @@
-import { useEffect, useState } from 'react'
-import { foodApi } from '../../api/foodApi.js'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
+import {
+  Search,
+  Star,
+  Clock,
+  ShoppingBag,
+  Sparkles,
+  SlidersHorizontal,
+  ChevronRight,
+  Plus,
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/CartContext.jsx'
+import { CATEGORIES, DISHES } from '../../data/dishesData.js'
+import { foodApi } from '../../api/foodApi.js'
+import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
 
-function Home() {
-  const [foods, setFoods] = useState([])
-  const [restaurants, setRestaurants] = useState([])
-  const [selectedCategory, setSelectedCategory] = useState('Tất cả')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const { addToCart, cart } = useCart()
+export default function Home() {
+  const { user, isAuthenticated } = useAuth()
+  const { addToCart, items: cartItems } = useCart() || { addToCart: () => {}, items: [] }
+  const navigate = useNavigate()
+  const location = useLocation()
 
+  // Redirect admin away from public homepage
   useEffect(() => {
-    const fetchData = async () => {
+    if (isAuthenticated && user?.role === 'admin') {
+      navigate('/admin', { replace: true })
+    }
+  }, [isAuthenticated, user, navigate])
+
+  // Filters & State
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [priceFilter, setPriceFilter] = useState('all') // 'all' | 'under50' | '50to100' | 'over100'
+  const [sortBy, setSortBy] = useState('popular') // 'popular' | 'rating' | 'priceAsc' | 'priceDesc'
+  const [apiDishes, setApiDishes] = useState([])
+
+  // Modal State for Order - initialized with dish if user just logged in from dish selection
+  const [activeDish, setActiveDish] = useState(() => location.state?.continueOrder || null)
+  const welcomedRef = useRef(false)
+
+  // Fetch foods from backend if available
+  useEffect(() => {
+    let isMounted = true
+    const fetchFoods = async () => {
       try {
-        setLoading(true)
-        const [foodsRes, restRes] = await Promise.all([
-          foodApi.getFoods(),
-          foodApi.getRestaurants(),
-        ])
-        setFoods(foodsRes.data.data || [])
-        setRestaurants(restRes.data.data || [])
+        const res = await foodApi.getFoods()
+        const foods = res.data?.data || []
+        if (isMounted && Array.isArray(foods) && foods.length > 0) {
+          const mapped = foods.map((f, idx) => ({
+            id: f._id || `food-${idx}`,
+            _id: f._id,
+            name: f.name,
+            restaurant: f.restaurant?.name || 'Quán Ăn Ngon',
+            restaurantId: f.restaurant?._id || f.restaurant,
+            price: f.price,
+            originalPrice: Math.round(f.price * 1.15),
+            image: f.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
+            category: 'com-mi',
+            rating: 4.8,
+            reviewsCount: 120,
+            deliveryTime: '15-25 phút',
+            distance: '1.5 km',
+            tag: idx === 0 ? 'Mới' : undefined,
+            description: f.description || 'Món ngon chuẩn vị với nguyên liệu tươi sạch.',
+          }))
+          setApiDishes(mapped)
+        }
       } catch (err) {
-        console.error('Error fetching foods:', err)
-        setError('Không thể tải danh sách món ăn từ máy chủ.')
-      } finally {
-        setLoading(false)
+        // Fallback gracefully to default DISHES
+        console.warn('Backend foods not loaded, using fallback catalog:', err?.message)
       }
     }
-    fetchData()
+    fetchFoods()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
-  const categories = ['Tất cả', ...new Set(foods.map((item) => item.category))]
+  // Combine dishes
+  const allDishes = useMemo(() => {
+    if (apiDishes.length > 0) {
+      // Ensure no duplicates by name
+      const apiNames = new Set(apiDishes.map((d) => d.name.toLowerCase()))
+      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase()))
+      return [...apiDishes, ...nonOverlappingStatic]
+    }
+    return DISHES
+  }, [apiDishes])
 
-  const filteredFoods = selectedCategory === 'Tất cả'
-    ? foods
-    : foods.filter((item) => item.category === selectedCategory)
+  // Handle welcome toast when returning from login
+  useEffect(() => {
+    if (location.state?.continueOrder && isAuthenticated && user?.role === 'customer' && !welcomedRef.current) {
+      welcomedRef.current = true
+      const dishToContinue = location.state.continueOrder
+      toast.success(
+        `Chào mừng ${user.fullName}! Tiếp tục đặt món "${dishToContinue.name}" nhé. 🎉`,
+        { duration: 4500, icon: '🍽️' }
+      )
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state, isAuthenticated, user])
 
-  const activeRestaurant = restaurants[0] || (foods[0]?.restaurant)
+  // Filtered and sorted dishes
+  const filteredDishes = useMemo(() => {
+    return allDishes
+      .filter((dish) => {
+        // Category filter
+        if (selectedCategory !== 'all' && dish.category !== selectedCategory) {
+          return false
+        }
+
+        // Search query
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase().trim()
+          const matchesName = dish.name.toLowerCase().includes(query)
+          const matchesRestaurant = dish.restaurant?.toLowerCase().includes(query)
+          const matchesDesc = dish.description?.toLowerCase().includes(query)
+          if (!matchesName && !matchesRestaurant && !matchesDesc) {
+            return false
+          }
+        }
+
+        // Price filter
+        if (priceFilter === 'under50' && dish.price >= 50000) return false
+        if (priceFilter === '50to100' && (dish.price < 50000 || dish.price > 100000)) return false
+        if (priceFilter === 'over100' && dish.price <= 100000) return false
+
+        return true
+      })
+      .sort((a, b) => {
+        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0)
+        if (sortBy === 'priceAsc') return a.price - b.price
+        if (sortBy === 'priceDesc') return b.price - a.price
+        // 'popular' default: by reviews count
+        return (b.reviewsCount || 0) - (a.reviewsCount || 0)
+      })
+  }, [allDishes, selectedCategory, searchQuery, priceFilter, sortBy])
+
+  // Click on a dish item
+  const handleDishClick = (dish) => {
+    setActiveDish(dish)
+  }
+
+  // Quick Add to cart
+  const handleQuickAddToCart = (e, dish) => {
+    e.stopPropagation()
+    addToCart(dish, 1, '')
+    toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
+      icon: '🛒',
+      duration: 2500,
+    })
+  }
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
+  }
 
   return (
-    <div className="container animate-fade-in">
-      {/* Restaurant Hero Banner */}
-      {activeRestaurant && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            color: '#ffffff',
-            borderRadius: 'var(--radius-lg)',
-            padding: '36px',
-            marginBottom: '36px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 24,
-            boxShadow: 'var(--shadow-lg)',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <span className="badge badge-delivered">Đang mở cửa</span>
-              <span style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.95rem' }}>
-                ★ {activeRestaurant.rating || 4.8} / 5.0
-              </span>
-            </div>
-            <h1 style={{ margin: '0 0 10px', fontSize: '2rem', fontWeight: 800 }}>
-              {activeRestaurant.name}
-            </h1>
-            <p style={{ margin: '0 0 16px', color: '#cbd5e1', maxWidth: 600 }}>
-              {activeRestaurant.description}
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: '0.88rem', color: '#94a3b8' }}>
-              <span>📍 {activeRestaurant.address}</span>
-              <span>📞 {activeRestaurant.phone || '02438889999'}</span>
-              <span>⚡ Giao hàng nhanh: 20 - 30 phút</span>
-            </div>
-          </div>
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            padding: '16px 24px',
-            borderRadius: 'var(--radius-md)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-          }}>
-            <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>Mã giảm giá hot hôm nay:</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f97316', margin: '4px 0' }}>
-              FREESHIP • GIAM20K
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-              Nhập mã ở bước thanh toán để được giảm
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Categories Filter (UC11) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>
-          Thực đơn món ngon
-        </h2>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              className={`btn btn-sm ${selectedCategory === cat ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setSelectedCategory(cat)}
+    <div className="min-h-screen bg-slate-50/60 pb-16">
+      {/* Role Navigation Notice (For Restaurant Owner or Shipper viewing Homepage) */}
+      {isAuthenticated && (user?.role === 'restaurant_owner' || user?.role === 'shipper') && (
+        <div className="bg-gradient-to-r from-amber-500 to-primary text-white py-2.5 px-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs sm:text-sm font-semibold">
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-200" />
+              Bạn đang xem Trang Chủ Khách Hàng với tài khoản{' '}
+              <strong className="underline">
+                {user.role === 'restaurant_owner' ? 'Chủ Quán Ăn' : 'Tài Xế Giao Hàng'}
+              </strong>
+            </span>
+            <Link
+              to={user.role === 'restaurant_owner' ? '/restaurant' : '/shipper'}
+              className="px-3 py-1 bg-white text-slate-900 rounded-lg font-bold hover:bg-slate-100 transition-colors inline-flex items-center gap-1"
             >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Loading & Error States */}
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: '2rem', marginBottom: 12 }}>🍜</div>
-          <p>Đang tải thực đơn từ MongoDB Atlas...</p>
+              Quay lại Bảng Quản Lý <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       )}
 
-      {error && (
-        <div style={{
-          padding: '20px',
-          background: 'var(--danger-light)',
-          color: 'var(--danger)',
-          borderRadius: 'var(--radius-md)',
-          textAlign: 'center',
-        }}>
-          {error}
-        </div>
-      )}
+      {/* Hero Banner Section */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950 text-white pt-10 pb-16 sm:pb-20 px-4 sm:px-6 lg:px-8">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-primary/20 blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 rounded-full bg-amber-500/15 blur-3xl pointer-events-none"></div>
 
-      {/* Foods Grid (UC11: Select food items) */}
-      {!loading && !error && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))',
-          gap: 24,
-        }}>
-          {filteredFoods.map((food) => {
-            const inCartItem = cart.items.find(
-              (item) => (item.food._id || item.food.id) === (food._id || food.id)
-            )
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Content */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-bold text-amber-300">
+                <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                Giao Đồ Ăn Thần Tốc Trong 15 - 25 Phút
+              </div>
 
-            return (
-              <div
-                key={food._id}
-                className="card"
-                style={{
-                  padding: 0,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div style={{ position: 'relative', height: 180, overflow: 'hidden' }}>
-                  <img
-                    src={food.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'}
-                    alt={food.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      transition: 'transform 0.3s ease',
-                    }}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.15]">
+                Thế giới món ngon <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-amber-300">
+                  giao ngay tận cửa!
+                </span>
+              </h1>
+
+              <p className="text-slate-300 text-sm sm:text-base max-w-xl leading-relaxed">
+                Hơn 1,000+ nhà hàng hàng đầu, từ cơm tấm sườn nướng, phở bò truyền thống đến burger, trà sữa. Đặt món tiện lợi chỉ trong 1 chạm.
+              </p>
+
+              {/* Big Search Bar inside Hero */}
+              <div className="bg-white p-2 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col sm:flex-row items-center gap-2 max-w-2xl">
+                <div className="flex items-center flex-1 w-full pl-3 pr-2 py-1.5">
+                  <Search className="w-5 h-5 text-slate-400 mr-3 flex-shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Tìm món ngon, quán ăn yêu thích..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full text-slate-900 placeholder:text-slate-400 text-sm font-medium focus:outline-none bg-transparent"
                   />
-                  <span
-                    className="badge badge-confirmed"
-                    style={{ position: 'absolute', top: 12, left: 12 }}
-                  >
-                    {food.category}
-                  </span>
-                </div>
-
-                <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 700 }}>
-                    {food.name}
-                  </h3>
-                  <p style={{
-                    margin: '0 0 16px',
-                    fontSize: '0.88rem',
-                    color: 'var(--text-muted)',
-                    flex: 1,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}>
-                    {food.description}
-                  </p>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginTop: 'auto',
-                  }}>
-                    <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>
-                      {food.price.toLocaleString('vi-VN')}đ
-                    </span>
-
+                  {searchQuery && (
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => addToCart(food, 1)}
+                      onClick={() => setSearchQuery('')}
+                      className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-md"
                     >
-                      {inCartItem ? `+ Thêm (${inCartItem.quantity})` : '+ Chọn món'}
+                      Xóa
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('dishes-section')
+                    el?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Search className="w-4 h-4" />
+                  Tìm món
+                </button>
+              </div>
+
+              {/* Highlights & Guarantees */}
+              <div className="grid grid-cols-3 gap-4 pt-2 max-w-lg text-slate-300">
+                <div className="border-l-2 border-primary/60 pl-3">
+                  <p className="text-lg sm:text-2xl font-black text-white">1.000+</p>
+                  <p className="text-xs text-slate-400">Quán ăn ngon</p>
+                </div>
+                <div className="border-l-2 border-amber-400/60 pl-3">
+                  <p className="text-lg sm:text-2xl font-black text-white">15 Phút</p>
+                  <p className="text-xs text-slate-400">Giao siêu tốc</p>
+                </div>
+                <div className="border-l-2 border-emerald-400/60 pl-3">
+                  <p className="text-lg sm:text-2xl font-black text-white">99.8%</p>
+                  <p className="text-xs text-slate-400">Hài lòng 5 sao</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Food Spotlight Card */}
+            <div className="lg:col-span-5 hidden lg:block">
+              <div className="relative">
+                <div className="relative mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10 group">
+                  <img
+                    src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80"
+                    alt="Món ăn nổi bật"
+                    className="w-full h-96 object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+
+                  {/* Floating Deal Card */}
+                  <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 text-slate-900 shadow-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        Món bán chạy nhất tuần
+                      </span>
+                      <h4 className="font-bold text-sm text-slate-900 mt-1">Cơm Tấm Sườn Bì Chả Đặc Biệt</h4>
+                      <p className="text-xs text-slate-500">Ba Ghiền - Đã bán 2.4k suất</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDishClick(allDishes[0])}
+                      className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-md shadow-primary/20 transition-all"
+                    >
+                      Đặt ngay
                     </button>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Main Content Area */}
+      <section id="dishes-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+        {/* Category Filter Pills */}
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-4 scrollbar-none">
+          {CATEGORIES.map((cat) => {
+            const isSelected = selectedCategory === cat.id
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shadow-sm ${
+                  isSelected
+                    ? 'bg-primary text-white shadow-md shadow-primary/25 scale-[1.02]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.name}</span>
+              </button>
             )
           })}
         </div>
+
+        {/* Section Header with Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 mb-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+              {selectedCategory === 'all'
+                ? 'Thực Đơn Đầy Đủ'
+                : CATEGORIES.find((c) => c.id === selectedCategory)?.name || 'Danh mục món ăn'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tìm thấy <strong className="text-primary">{filteredDishes.length}</strong> món ăn hấp dẫn sẵn sàng giao ngay
+            </p>
+          </div>
+
+          {/* Price & Sort Selectors */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Price Filter */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-2xl shadow-sm text-xs font-semibold text-slate-700">
+              <span className="text-slate-400">Giá:</span>
+              <select
+                value={priceFilter}
+                onChange={(e) => setPriceFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Tất cả mức giá</option>
+                <option value="under50">Dưới 50.000 đ</option>
+                <option value="50to100">50.000 - 100.000 đ</option>
+                <option value="over100">Trên 100.000 đ</option>
+              </select>
+            </div>
+
+            {/* Sort Selector */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-2xl shadow-sm text-xs font-semibold text-slate-700">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-400">Xếp theo:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                <option value="popular">Phổ biến nhất</option>
+                <option value="rating">Đánh giá cao nhất</option>
+                <option value="priceAsc">Giá thấp đến cao</option>
+                <option value="priceDesc">Giá cao đến thấp</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Dishes Grid */}
+        {filteredDishes.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-3">
+            <div className="w-16 h-16 rounded-full bg-orange-100 text-primary flex items-center justify-center mx-auto text-2xl">
+              🔍
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">Không tìm thấy món ăn phù hợp</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              Không có món ăn nào khớp với bộ lọc hoặc từ khóa tìm kiếm của bạn. Hãy thử chọn danh mục khác nhé!
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory('all')
+                setSearchQuery('')
+                setPriceFilter('all')
+              }}
+              className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
+            >
+              Đặt lại tất cả bộ lọc
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredDishes.map((dish) => (
+              <div
+                key={dish.id}
+                className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col group cursor-pointer"
+                onClick={() => handleDishClick(dish)}
+              >
+                {/* Image Container with Badge */}
+                <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={dish.image}
+                    alt={dish.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+
+                  {/* Badge */}
+                  {dish.tag && (
+                    <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-primary/95 text-white text-[11px] font-bold shadow-md backdrop-blur-sm">
+                      {dish.tag}
+                    </span>
+                  )}
+
+                  {/* Rating Badge */}
+                  <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-amber-300 text-xs font-bold">
+                    <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                    {dish.rating || 4.8} ({dish.reviewsCount || 40})
+                  </span>
+
+                  {/* Time Badge */}
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-white text-xs font-medium">
+                    <Clock className="w-3.5 h-3.5 text-slate-300" />
+                    {dish.deliveryTime || '15-25 phút'}
+                  </span>
+                </div>
+
+                {/* Details */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-400 block truncate">
+                      {dish.restaurant}
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 leading-snug group-hover:text-primary transition-colors line-clamp-1 mt-0.5">
+                      {dish.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                      {dish.description}
+                    </p>
+                  </div>
+
+                  {/* Price & Action Button */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-base sm:text-lg font-black text-primary block leading-none">
+                        {formatPrice(dish.price)}
+                      </span>
+                      {dish.originalPrice && (
+                        <span className="text-xs line-through text-slate-400 font-medium">
+                          {formatPrice(dish.originalPrice)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickAddToCart(e, dish)}
+                        className="p-2 rounded-xl bg-orange-50 hover:bg-primary text-primary hover:text-white transition-colors shadow-sm"
+                        title="Thêm nhanh vào giỏ hàng"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDishClick(dish)
+                        }}
+                        className="px-3 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:bg-primary-hover transition-colors shadow-sm"
+                      >
+                        Chọn món
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Promotional Deals Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+        <div className="bg-gradient-to-r from-orange-500 via-primary to-amber-500 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
+          <div className="relative z-10 max-w-2xl space-y-3">
+            <span className="px-3.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold uppercase tracking-wider">
+              🎁 Ưu Đãi Độc Quyền Hôm Nay
+            </span>
+            <h3 className="text-2xl sm:text-3xl font-black leading-tight">
+              Nhập mã <span className="text-amber-200">FREESHIP15K</span> để miễn phí giao hàng toàn quốc!
+            </h3>
+            <p className="text-sm text-orange-100 leading-relaxed">
+              Áp dụng cho mọi đơn hàng từ 100.000đ khi thanh toán trên hệ thống FoodDelivery.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Dish Detail / Order Modal */}
+      {activeDish && (
+        <DishDetailModal
+          dish={activeDish}
+          onClose={() => setActiveDish(null)}
+          onOrderSuccess={(orderData) => {
+            addToCart(orderData.dish, orderData.quantity, orderData.note)
+            toast.success(`Đã thêm ${orderData.quantity}x "${orderData.dish.name}" vào giỏ hàng!`, {
+              icon: '🛒',
+            })
+          }}
+        />
       )}
     </div>
   )
 }
-
-export default Home
