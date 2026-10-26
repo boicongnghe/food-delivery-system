@@ -31,10 +31,6 @@ export default function DishDetailModal({ dish, onClose, onOrderSuccess }) {
     setOrdering(true)
     setTimeout(() => {
       setOrdering(false)
-      toast.success(`Đặt món "${dish.name}" thành công! Quán đang chuẩn bị món.`, {
-        icon: '🎉',
-        duration: 4000,
-      })
       if (onOrderSuccess) {
         onOrderSuccess({
           dish,
@@ -46,7 +42,7 @@ export default function DishDetailModal({ dish, onClose, onOrderSuccess }) {
         })
       }
       onClose()
-    }, 600)
+    }, 200)
   }
 
   return (
@@ -268,7 +264,7 @@ export default function DishDetailModal({ dish, onClose, onOrderSuccess }) {
           >
             <span className="flex items-center gap-2">
               <ShoppingBag className="w-4 h-4" />
-              {ordering ? 'Đang gửi đơn...' : 'Xác nhận đặt món'}
+              {ordering ? 'Đang thêm vào giỏ...' : 'Thêm vào giỏ hàng'}
             </span>
             <span className="text-amber-200 font-extrabold">{formatPrice(totalPrice)}</span>
           </button>

@@ -374,3 +374,7 @@ export const setDefaultUserAddress = async (userId, addressId) => {
   await user.save();
   return user.addresses;
 };
+
+// Aliases for compatibility
+export const login = async (email, password) => loginUser({ email, password });
+export const getMe = async (userId) => getCurrentUser(userId);

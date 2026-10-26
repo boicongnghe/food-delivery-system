@@ -17,7 +17,7 @@ export default function PublicOnlyRoute() {
       return <Navigate to="/admin" replace />
     }
     if (user.role === 'restaurant_owner') {
-      return <Navigate to="/restaurant" replace />
+      return <Navigate to="/restaurant/orders" replace />
     }
     if (user.role === 'shipper') {
       return <Navigate to="/shipper" replace />

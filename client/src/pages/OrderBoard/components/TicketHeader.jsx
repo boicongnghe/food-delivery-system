@@ -48,7 +48,7 @@ export default function TicketHeader({ order, now, onClose, onPrintTicket, onPri
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5 font-semibold">
           <Bike className="h-4 w-4 text-emerald-700" />
-          Giao hàng tận nơi · GiaoNhanh {DELIVERY_TYPE_LABELS[order.delivery.type]}
+          Giao hàng tận nơi · FoodDelivery {DELIVERY_TYPE_LABELS[order.delivery.type]}
         </span>
         <span>
           Thanh toán: <strong>{order.payment.method === 'cod' ? 'Tiền mặt COD' : 'Online'}</strong>

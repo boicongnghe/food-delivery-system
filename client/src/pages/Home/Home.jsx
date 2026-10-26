@@ -7,16 +7,19 @@ import {
   ShoppingBag,
   Sparkles,
   SlidersHorizontal,
-  UtensilsCrossed,
   ChevronRight,
+  Plus,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+import { useCart } from '../../context/CartContext.jsx'
 import { CATEGORIES, DISHES } from '../../data/dishesData.js'
+import { foodApi } from '../../api/foodApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
 
 export default function Home() {
   const { user, isAuthenticated } = useAuth()
+  const { addToCart, items: cartItems } = useCart() || { addToCart: () => {}, items: [] }
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -32,10 +35,60 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [priceFilter, setPriceFilter] = useState('all') // 'all' | 'under50' | '50to100' | 'over100'
   const [sortBy, setSortBy] = useState('popular') // 'popular' | 'rating' | 'priceAsc' | 'priceDesc'
+  const [apiDishes, setApiDishes] = useState([])
 
   // Modal State for Order - initialized with dish if user just logged in from dish selection
   const [activeDish, setActiveDish] = useState(() => location.state?.continueOrder || null)
   const welcomedRef = useRef(false)
+
+  // Fetch foods from backend if available
+  useEffect(() => {
+    let isMounted = true
+    const fetchFoods = async () => {
+      try {
+        const res = await foodApi.getFoods()
+        const foods = res.data?.data || []
+        if (isMounted && Array.isArray(foods) && foods.length > 0) {
+          const mapped = foods.map((f, idx) => ({
+            id: f._id || `food-${idx}`,
+            _id: f._id,
+            name: f.name,
+            restaurant: f.restaurant?.name || 'Quán Ăn Ngon',
+            restaurantId: f.restaurant?._id || f.restaurant,
+            price: f.price,
+            originalPrice: Math.round(f.price * 1.15),
+            image: f.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
+            category: 'com-mi',
+            rating: 4.8,
+            reviewsCount: 120,
+            deliveryTime: '15-25 phút',
+            distance: '1.5 km',
+            tag: idx === 0 ? 'Mới' : undefined,
+            description: f.description || 'Món ngon chuẩn vị với nguyên liệu tươi sạch.',
+          }))
+          setApiDishes(mapped)
+        }
+      } catch (err) {
+        // Fallback gracefully to default DISHES
+        console.warn('Backend foods not loaded, using fallback catalog:', err?.message)
+      }
+    }
+    fetchFoods()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Combine dishes
+  const allDishes = useMemo(() => {
+    if (apiDishes.length > 0) {
+      // Ensure no duplicates by name
+      const apiNames = new Set(apiDishes.map((d) => d.name.toLowerCase()))
+      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase()))
+      return [...apiDishes, ...nonOverlappingStatic]
+    }
+    return DISHES
+  }, [apiDishes])
 
   // Handle welcome toast when returning from login
   useEffect(() => {
@@ -52,57 +105,68 @@ export default function Home() {
 
   // Filtered and sorted dishes
   const filteredDishes = useMemo(() => {
-    return DISHES.filter((dish) => {
-      // Category filter
-      if (selectedCategory !== 'all' && dish.category !== selectedCategory) {
-        return false
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim()
-        const matchesName = dish.name.toLowerCase().includes(query)
-        const matchesRestaurant = dish.restaurant.toLowerCase().includes(query)
-        const matchesDesc = dish.description.toLowerCase().includes(query)
-        if (!matchesName && !matchesRestaurant && !matchesDesc) {
+    return allDishes
+      .filter((dish) => {
+        // Category filter
+        if (selectedCategory !== 'all' && dish.category !== selectedCategory) {
           return false
         }
-      }
 
-      // Price filter
-      if (priceFilter === 'under50' && dish.price >= 50000) return false
-      if (priceFilter === '50to100' && (dish.price < 50000 || dish.price > 100000)) return false
-      if (priceFilter === 'over100' && dish.price <= 100000) return false
+        // Search query
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase().trim()
+          const matchesName = dish.name.toLowerCase().includes(query)
+          const matchesRestaurant = dish.restaurant?.toLowerCase().includes(query)
+          const matchesDesc = dish.description?.toLowerCase().includes(query)
+          if (!matchesName && !matchesRestaurant && !matchesDesc) {
+            return false
+          }
+        }
 
-      return true
-    }).sort((a, b) => {
-      if (sortBy === 'rating') return b.rating - a.rating
-      if (sortBy === 'priceAsc') return a.price - b.price
-      if (sortBy === 'priceDesc') return b.price - a.price
-      // 'popular' default: by reviews count
-      return b.reviewsCount - a.reviewsCount
-    })
-  }, [selectedCategory, searchQuery, priceFilter, sortBy])
+        // Price filter
+        if (priceFilter === 'under50' && dish.price >= 50000) return false
+        if (priceFilter === '50to100' && (dish.price < 50000 || dish.price > 100000)) return false
+        if (priceFilter === 'over100' && dish.price <= 100000) return false
+
+        return true
+      })
+      .sort((a, b) => {
+        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0)
+        if (sortBy === 'priceAsc') return a.price - b.price
+        if (sortBy === 'priceDesc') return b.price - a.price
+        // 'popular' default: by reviews count
+        return (b.reviewsCount || 0) - (a.reviewsCount || 0)
+      })
+  }, [allDishes, selectedCategory, searchQuery, priceFilter, sortBy])
 
   // Click on a dish item
   const handleDishClick = (dish) => {
+    setActiveDish(dish)
+  }
+
+  // Quick Add to cart
+  const handleQuickAddToCart = (e, dish) => {
+    e.stopPropagation()
     if (!isAuthenticated) {
-      toast('Vui lòng đăng nhập để tiếp tục đặt món này nhé!', {
-        icon: '🔐',
-        duration: 3500,
+      toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
+        icon: '🔒',
+        duration: 3000,
       })
-      navigate('/login', {
-        state: {
-          from: '/',
-          selectedDish: dish,
-          action: 'order',
-        },
+      navigate('/login')
+      return
+    }
+    if (user?.role !== 'customer') {
+      toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
+        icon: '⚠️',
+        duration: 3000,
       })
       return
     }
-
-    // Authenticated user (customer, owner, shipper)
-    setActiveDish(dish)
+    addToCart(dish, 1, '')
+    toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
+      icon: '🛒',
+      duration: 2500,
+    })
   }
 
   const formatPrice = (price) => {
@@ -134,7 +198,6 @@ export default function Home() {
 
       {/* Hero Banner Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950 text-white pt-10 pb-16 sm:pb-20 px-4 sm:px-6 lg:px-8">
-        {/* Decorative background glow circles */}
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-primary/20 blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 rounded-full bg-amber-500/15 blur-3xl pointer-events-none"></div>
 
@@ -232,7 +295,7 @@ export default function Home() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleDishClick(DISHES[0])}
+                      onClick={() => handleDishClick(allDishes[0])}
                       className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-md shadow-primary/20 transition-all"
                     >
                       Đặt ngay
@@ -245,9 +308,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Categories Bar */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
-        <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xl border border-slate-100 flex items-center gap-2 overflow-x-auto scrollbar-none">
+      {/* Main Content Area */}
+      <section id="dishes-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+        {/* Category Filter Pills */}
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-4 scrollbar-none">
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.id
             return (
@@ -255,36 +319,34 @@ export default function Home() {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shadow-sm ${
                   isSelected
                     ? 'bg-primary text-white shadow-md shadow-primary/25 scale-[1.02]'
-                    : 'bg-slate-100/80 text-slate-700 hover:bg-slate-100'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80'
                 }`}
               >
-                <span className="text-base">{cat.icon}</span>
+                <span>{cat.icon}</span>
                 <span>{cat.name}</span>
               </button>
             )
           })}
         </div>
-      </section>
 
-      {/* Main Dishes & Filters Section */}
-      <section id="dishes-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 space-y-6">
-        {/* Controls & Filter Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        {/* Section Header with Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 mb-6">
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <UtensilsCrossed className="w-6 h-6 text-primary" />
-              Thực Đơn Món Ngon ({filteredDishes.length} món)
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+              {selectedCategory === 'all'
+                ? 'Thực Đơn Đầy Đủ'
+                : CATEGORIES.find((c) => c.id === selectedCategory)?.name || 'Danh mục món ăn'}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Chọn món yêu thích để thưởng thức ngay tại nhà
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tìm thấy <strong className="text-primary">{filteredDishes.length}</strong> món ăn hấp dẫn sẵn sàng giao ngay
             </p>
           </div>
 
-          {/* Filter & Sort Selectors */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Price & Sort Selectors */}
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Price Filter */}
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-2xl shadow-sm text-xs font-semibold text-slate-700">
               <span className="text-slate-400">Giá:</span>
@@ -368,13 +430,13 @@ export default function Home() {
                   {/* Rating Badge */}
                   <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-amber-300 text-xs font-bold">
                     <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                    {dish.rating} ({dish.reviewsCount})
+                    {dish.rating || 4.8} ({dish.reviewsCount || 40})
                   </span>
 
                   {/* Time Badge */}
                   <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-white text-xs font-medium">
                     <Clock className="w-3.5 h-3.5 text-slate-300" />
-                    {dish.deliveryTime}
+                    {dish.deliveryTime || '15-25 phút'}
                   </span>
                 </div>
 
@@ -405,18 +467,26 @@ export default function Home() {
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDishClick(dish)
-                      }}
-                      className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
-                      title={isAuthenticated ? 'Đặt món ngay' : 'Đăng nhập để đặt món'}
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      {isAuthenticated ? 'Chọn món' : 'Đặt món'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickAddToCart(e, dish)}
+                        className="p-2 rounded-xl bg-orange-50 hover:bg-primary text-primary hover:text-white transition-colors shadow-sm"
+                        title="Thêm nhanh vào giỏ hàng"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDishClick(dish)
+                        }}
+                        className="px-3 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:bg-primary-hover transition-colors shadow-sm"
+                      >
+                        Chọn món
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -448,7 +518,25 @@ export default function Home() {
           dish={activeDish}
           onClose={() => setActiveDish(null)}
           onOrderSuccess={(orderData) => {
-            console.log('Order created:', orderData)
+            if (!isAuthenticated) {
+              toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
+                icon: '🔒',
+                duration: 3000,
+              })
+              navigate('/login')
+              return
+            }
+            if (user?.role !== 'customer') {
+              toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
+                icon: '⚠️',
+                duration: 3000,
+              })
+              return
+            }
+            addToCart(orderData.dish, orderData.quantity, orderData.note)
+            toast.success(`Đã thêm ${orderData.quantity}x "${orderData.dish.name}" vào giỏ hàng!`, {
+              icon: '🛒',
+            })
           }}
         />
       )}

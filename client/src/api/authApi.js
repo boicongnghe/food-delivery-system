@@ -1,6 +1,6 @@
 import axiosClient from './axiosClient.js'
 
-const authApi = {
+export const authApi = {
   login: async (credentials) => {
     const response = await axiosClient.post('/auth/login', credentials)
     return response.data
