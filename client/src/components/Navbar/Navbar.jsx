@@ -13,7 +13,7 @@ import {
 import useAuth from '../../hooks/useAuth.js'
 import ProfileModal from '../ProfileModal/ProfileModal.jsx'
 
-export default function Navbar() {
+export default function Navbar({ showSearch = true }) {
   const { user, isAuthenticated, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -61,17 +61,18 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Search bar in Navbar */}
-        <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center flex-1 max-w-md relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Tìm món ngon, quán ăn..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-sm text-slate-800 rounded-full border border-transparent focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </form>
+        {showSearch && (
+          <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center flex-1 max-w-md relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Tìm món ngon, quán ăn..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-sm text-slate-800 rounded-full border border-transparent focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </form>
+        )}
 
         {/* Right Actions & Menus */}
         <div className="flex items-center gap-3">

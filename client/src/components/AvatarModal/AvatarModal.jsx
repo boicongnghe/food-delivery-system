@@ -63,18 +63,8 @@ export default function AvatarModal({ isOpen, onClose }) {
         throw new Error('Không nhận được URL từ máy chủ')
       }
     } catch (err) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        setAvatar(reader.result)
-      }
-      reader.readAsDataURL(file)
-
       const errMsg = err.response?.data?.message || err.message || 'Lỗi kết nối'
-      if (errMsg.includes('Cloudinary')) {
-        toast('Đã chọn ảnh (Lưu ý: ' + errMsg + ')', { id: toastId, icon: '⚠️' })
-      } else {
-        toast.error('Tải lên Cloudinary thất bại: ' + errMsg, { id: toastId })
-      }
+      toast.error('Tải lên Cloudinary thất bại: ' + errMsg, { id: toastId })
     } finally {
       setUploadingAvatar(false)
       if (e.target) e.target.value = ''

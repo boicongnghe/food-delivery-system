@@ -1,43 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
-
-/* =====================================================
-   GIAONHANH DRIVER DASHBOARD — Clean Light Theme
-   ===================================================== */
-
 :root {
-  --bg-page:      #f0ebe2;
+  --bg-page:      #f8fafc;
   --bg-card:      #ffffff;
-  --bg-card-alt:  #faf8f5;
+  --bg-card-alt:  #f8fafc;
 
-  --nav-bg:       #1c1c1c;
-  --nav-border:   #2e2e2e;
+  --nav-bg:       #ffffff;
+  --nav-border:   #e2e8f0;
 
-  --brand:        #d93025;
-  --brand-dark:   #b52118;
+  --brand:        #ff642f;
+  --brand-dark:   #e85523;
 
-  --text-primary:   #1a1a1a;
-  --text-secondary: #4b4b4b;
-  --text-muted:     #8a8a8a;
+  --text-primary:   #1e293b;
+  --text-secondary: #475569;
+  --text-muted:     #64748b;
 
   --green:    #1a7f37;
   --green-bg: #f0faf3;
-  --red-bg:   #fdf2f1;
+  --red-bg:   #fff0eb;
   --amber:    #b45309;
   --amber-bg: #fef9ee;
   --blue:     #1d4ed8;
   --blue-bg:  #eff6ff;
 
-  --border:       #e2ddd6;
-  --border-light: #ede9e2;
+  --border:       #e2e8f0;
+  --border-light: #f1f5f9;
 
-  --font: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font: var(--font-family, 'Plus Jakarta Sans'), system-ui, sans-serif;
 
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  10px;
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
 
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.07);
-  --shadow-md:  0 2px 8px rgba(0,0,0,0.08);
+  --shadow-sm:  0 1px 2px rgba(15,23,42,0.05);
+  --shadow-md:  0 4px 12px rgba(15,23,42,0.08);
 }
 
 /* ---- Reset & Base ---- */
@@ -52,58 +46,73 @@
   line-height: 1.5;
 }
 
-/* =====================================================
-   TOP NAVIGATION
-   ===================================================== */
-.driver-topnav {
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--nav-border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+.driver-home-banner {
+  color: #fff;
+  background: linear-gradient(100deg, #f59e0b 0%, #ff642f 100%);
 }
 
-.driver-topnav-inner {
-  max-width: 1400px;
+.driver-home-banner-inner {
+  width: min(100%, 1280px);
+  min-height: 68px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
-  height: 52px;
-  gap: 0;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-/* Brand */
-.nav-brand {
-  display: flex;
+.driver-home-banner-message {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 24px;
-  text-decoration: none;
-  flex-shrink: 0;
-}
-
-.nav-brand-icon {
-  width: 32px;
-  height: 32px;
-  background: #fff;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 12px;
   font-size: 16px;
 }
 
-.nav-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
-.nav-brand-name { font-size: 15px; font-weight: 800; color: #fff; }
-.nav-brand-sub  { font-size: 9px;  font-weight: 500; color: #9ca3af; letter-spacing: 0.04em; text-transform: uppercase; }
+.driver-home-banner-message strong { color: #fff; }
+.driver-home-banner-role { text-decoration: underline; text-underline-offset: 3px; }
 
-/* Nav Tabs */
+.driver-home-banner-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 9px 15px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.driver-home-banner-link:hover {
+  background: #fff7ed;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.driver-topnav {
+  background: #fff;
+  border-bottom: 1px solid var(--nav-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.driver-topnav-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  gap: 18px;
+}
+
 .nav-tabs {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0;
+  gap: 6px;
   flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
@@ -115,75 +124,49 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border: none;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   background: transparent;
-  color: #9ca3af;
+  color: #475569;
   font-family: var(--font);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   text-decoration: none;
-  border-bottom: 2px solid transparent;
-  height: 52px;
-  transition: color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
   flex-shrink: 0;
 }
 
-.nav-tab:hover  { color: #d1d5db; }
-.nav-tab.active { color: #fff; border-bottom-color: var(--brand); font-weight: 600; }
+.nav-tab:hover { background: #fff7ed; color: var(--brand-dark); }
+.nav-tab.active {
+  border-color: #ffded1;
+  background: #fff0eb;
+  color: var(--brand-dark);
+  font-weight: 700;
+}
 .nav-tab-icon   { font-size: 13px; }
 
-/* Driver Panel */
 .nav-driver-panel {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-left: auto;
+  gap: 12px;
   flex-shrink: 0;
 }
 
-.driver-info { display: flex; align-items: center; gap: 8px; }
+.toggle-wrap { display: flex; align-items: center; gap: 9px; }
+.toggle-label { font-size: 12px; font-weight: 700; color: #64748b; white-space: nowrap; }
+.toggle-label.online { color: #059669; }
 
-.driver-avatar-wrap { position: relative; }
-
-.driver-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #444;
-}
-
-.driver-status-dot {
-  position: absolute;
-  bottom: 0; right: 0;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: #22c55e;
-  border: 2px solid var(--nav-bg);
-}
-
-.driver-status-dot.offline { background: #6b7280; }
-
-.driver-details { display: flex; flex-direction: column; gap: 1px; }
-.driver-name { font-size: 12px; font-weight: 700; color: #f3f4f6; line-height: 1; }
-.driver-id   { font-size: 10px; color: #9ca3af; line-height: 1; }
-
-/* Toggle */
-.toggle-wrap { display: flex; align-items: center; gap: 7px; }
-.toggle-label { font-size: 11px; font-weight: 600; color: #6b7280; }
-.toggle-label.online { color: #22c55e; }
-
-.toggle-switch { position: relative; width: 40px; height: 22px; }
+.toggle-switch { position: relative; width: 42px; height: 24px; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 
 .toggle-slider {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background: #374151;
+  background: #cbd5e1;
   border-radius: 22px;
   transition: background 0.2s;
 }
@@ -191,30 +174,33 @@
 .toggle-slider::before {
   content: '';
   position: absolute;
-  height: 16px; width: 16px;
+  height: 18px; width: 18px;
   left: 3px; bottom: 3px;
-  background: #6b7280;
+  background: #fff;
   border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  transition: transform 0.2s;
 }
 
-.toggle-switch input:checked + .toggle-slider { background: #166534; }
+.toggle-switch input:checked + .toggle-slider { background: #10b981; }
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(18px);
-  background: #22c55e;
 }
 
 /* =====================================================
    DRIVER PROFILE HEADER STRIP
    ===================================================== */
 .driver-profile-strip {
+  width: min(calc(100% - 40px), 1232px);
+  margin: 18px auto 0;
+  padding: 16px 20px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  padding: 14px 20px;
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   gap: 16px;
-  max-width: 100%;
 }
 
 .profile-strip-inner {
@@ -227,12 +213,43 @@
 }
 
 .profile-avatar-lg {
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--border);
   flex-shrink: 0;
+}
+
+.profile-avatar-edit {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.profile-avatar-edit-icon {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  width: 23px;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-card);
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+}
+
+.profile-avatar-edit:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
 }
 
 .profile-info { flex: 1; }
@@ -296,9 +313,10 @@
    PAGE CONTENT WRAPPER
    ===================================================== */
 .driver-content {
-  max-width: 1400px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 16px 20px 40px;
+  width: 100%;
+  padding: 20px 24px 48px;
 }
 
 /* Date filter tabs */
@@ -345,8 +363,8 @@
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  padding: 18px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -1311,14 +1329,24 @@
   .dashboard-columns { grid-template-columns: 1fr; }
   .dashboard-sidebar { position: static; max-height: none; overflow: visible; }
   .settings-page { grid-template-columns: 1fr; }
+  .driver-topnav-inner { align-items: stretch; flex-direction: column; gap: 8px; padding-top: 8px; padding-bottom: 10px; }
+  .nav-driver-panel { justify-content: flex-end; }
 }
 
 @media (max-width: 640px) {
   .stat-cards-grid { grid-template-columns: 1fr 1fr; }
-  .driver-content  { padding: 12px; }
+  .driver-content  { padding: 14px 12px 32px; }
   .nav-tabs .nav-tab .nav-tab-icon { display: none; }
   .settings-fields-grid { grid-template-columns: 1fr; }
   .settings-field-wide { grid-column: auto; }
+  .driver-home-banner-inner { align-items: stretch; flex-direction: column; padding: 14px 16px; }
+  .driver-home-banner-message { align-items: flex-start; font-size: 13px; }
+  .driver-home-banner-link { align-self: flex-start; }
+  .driver-topnav-inner { padding-right: 12px; padding-left: 12px; }
+  .nav-tabs { gap: 3px; }
+  .nav-tab { padding: 8px; font-size: 11px; }
+  .driver-profile-strip { width: calc(100% - 24px); margin-top: 12px; padding: 13px; }
+  .profile-meta { flex-wrap: wrap; gap: 6px 12px; }
 }
 
 @media (max-width: 420px) {

@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Camera, ChevronRight, Sparkles } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import driverApi from '../../api/driverApi'
+import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
+import Navbar from '../../components/Navbar/Navbar.jsx'
 import DriverTopNav from './components/DriverTopNav'
 import StatCards from './components/StatCards'
 import EarningsChart from './components/EarningsChart'
@@ -75,6 +79,7 @@ function DriverDashboard() {
   const [actionError, setActionError] = useState('')
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [showPayoutNotice, setShowPayoutNotice] = useState(false)
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -126,27 +131,49 @@ function DriverDashboard() {
 
   return (
     <div className="driver-shell">
+      <Navbar showSearch={false} />
+      <div className="driver-home-banner">
+        <div className="driver-home-banner-inner">
+          <span className="driver-home-banner-message">
+            <Sparkles size={18} aria-hidden="true" />
+            <span>
+              Bạn đang ở <strong>Bảng Quản Lý</strong> với tài khoản{' '}
+              <strong className="driver-home-banner-role">Tài Xế Giao Hàng</strong>
+            </span>
+          </span>
+          <Link to="/" className="driver-home-banner-link">
+            Xem Trang Chủ Khách Hàng <ChevronRight size={17} aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
       <DriverTopNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         isOnline={Boolean(dashboard?.isOnline)}
         onToggleOnline={handleOnlineToggle}
         statusUpdating={statusUpdating || isLoading || !dashboard}
-        driverName={profile?.name}
-        driverCode={profile?.driverCode}
-        tier={profile?.tier}
-        avatarUrl={profile?.avatarUrl}
       />
 
       {profile && (
         <div className="driver-profile-strip">
           <div className="profile-strip-inner">
-            <img
-              src={profile.avatarUrl || '/driver-avatar.png'}
-              alt={profile.name}
-              className="profile-avatar-lg"
-              onError={event => { event.currentTarget.style.display = 'none' }}
-            />
+            <button
+              type="button"
+              className="profile-avatar-edit"
+              onClick={() => setAvatarModalOpen(true)}
+              aria-label="Đổi ảnh đại diện tài xế"
+              title="Đổi ảnh đại diện"
+            >
+              <img
+                src={profile.avatarUrl || '/driver-avatar.png'}
+                alt={profile.name}
+                className="profile-avatar-lg"
+                onError={event => { event.currentTarget.style.display = 'none' }}
+              />
+              <span className="profile-avatar-edit-icon" aria-hidden="true">
+                <Camera size={15} />
+              </span>
+            </button>
             <div className="profile-info">
               <div className="profile-badge-row">
                 <span className="profile-badge-label">🏍️ {profile.tier || 'Đối tác tài xế'}</span>
@@ -169,6 +196,7 @@ function DriverDashboard() {
                     🏍️ {profile.vehicle}{profile.licensePlate ? ` · ${profile.licensePlate}` : ''}
                   </span>
                 )}
+                {profile.phone && <span className="profile-meta-item">☎ {profile.phone}</span>}
               </div>
             </div>
           </div>
@@ -176,29 +204,31 @@ function DriverDashboard() {
       )}
 
       <main className="driver-content">
-        <div className="date-filter-row" role="tablist" aria-label="Date range filter">
-          {DATE_TABS.map(tab => (
-            <button
-              key={tab.id}
-              id={`date-tab-${tab.id}`}
-              role="tab"
-              aria-selected={period === tab.id}
-              className={`date-tab ${period === tab.id ? 'active' : ''}`}
-              onClick={() => {
-                if (tab.id !== period) {
-                  setIsLoading(true)
-                  setLoadError('')
-                  setPeriod(tab.id)
-                }
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-          <span className="date-filter-note">
-            {latestUpdate ? `Cập nhật lần cuối: ${latestUpdate}` : 'Dữ liệu từ máy chủ'}
-          </span>
-        </div>
+        {['dashboard', 'history', 'ranking'].includes(activeTab) && (
+          <div className="date-filter-row" role="tablist" aria-label="Date range filter">
+            {DATE_TABS.map(tab => (
+              <button
+                key={tab.id}
+                id={`date-tab-${tab.id}`}
+                role="tab"
+                aria-selected={period === tab.id}
+                className={`date-tab ${period === tab.id ? 'active' : ''}`}
+                onClick={() => {
+                  if (tab.id !== period) {
+                    setIsLoading(true)
+                    setLoadError('')
+                    setPeriod(tab.id)
+                  }
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+            <span className="date-filter-note">
+              {latestUpdate ? `Cập nhật lần cuối: ${latestUpdate}` : 'Dữ liệu từ máy chủ'}
+            </span>
+          </div>
+        )}
 
         {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
 
@@ -313,12 +343,6 @@ function DriverDashboard() {
 
             {activeTab === 'ranking' && (
               <div className="dashboard-columns ranking-columns">
-                <div className="dashboard-main">
-                  <StatCards
-                    summary={{ ...summary, tier: profile?.tier }}
-                    onWithdraw={() => setShowPayoutNotice(true)}
-                  />
-                </div>
                 <div className="dashboard-sidebar">
                   <DailyMissions missions={summary.missions || []} />
                   <CustomerPraise
@@ -377,6 +401,13 @@ function DriverDashboard() {
           </section>
         </div>
       )}
+      <AvatarModal
+        isOpen={avatarModalOpen}
+        onClose={() => {
+          setAvatarModalOpen(false)
+          setReloadCount(count => count + 1)
+        }}
+      />
     </div>
   )
 }

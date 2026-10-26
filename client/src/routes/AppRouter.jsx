@@ -9,7 +9,6 @@ import OrderBoard from '../pages/OrderBoard/OrderBoard.jsx'
 import Home from '../pages/Home/Home.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
-import ShipperDashboard from '../pages/Shipper/ShipperDashboard.jsx'
 import AdminDashboard from '../pages/Admin/AdminDashboard.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
@@ -36,6 +35,7 @@ function AppRouter() {
       <Routes>
         {/* Main Public & Customer / Restaurant / Shipper Area */}
         <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
+          <Route path="/shipper" element={<DriverDashboard />} />
           <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
         </Route>
 
@@ -52,11 +52,6 @@ function AppRouter() {
           {/* Restaurant Owner Partner Portal redirect */}
           <Route element={<ProtectedRoute allowedRoles={['restaurant_owner']} />}>
             <Route path="/restaurant" element={<Navigate to="/restaurant/profile" replace />} />
-          </Route>
-
-          {/* Shipper Dashboard (also has button to view Homepage) */}
-          <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
-            <Route path="/shipper" element={<ShipperDashboard />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

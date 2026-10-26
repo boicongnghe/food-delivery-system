@@ -2,7 +2,11 @@
 
 The driver dashboard reads a MongoDB dashboard snapshot for the authenticated
 shipper. It does not fabricate fallback data or derive earnings from orders;
-the project does not yet have an order model to calculate those metrics.
+earnings and performance metrics must be supplied in that snapshot.
+
+Both `/shipper` and `/shipper/dashboard` use the API-backed earnings dashboard.
+The profile header supports avatar uploads through the authenticated Cloudinary
+upload endpoint.
 
 ## Endpoints
 
@@ -14,6 +18,8 @@ the project does not yet have an order model to calculate those metrics.
 - `PATCH /api/drivers/me/settings`
 - `PATCH /api/drivers/me/password`
 - `PATCH /api/drivers/me/status` with `{ "isOnline": true }`
+- `GET /api/orders/available-for-pickup?page=1&limit=10`
+- `POST /api/uploads/images?folder=avatars` (multipart field `image`)
 
 Authentication endpoints return a JWT. Driver endpoints require
 `Authorization: Bearer <jwt>`. The JWT payload must
@@ -102,6 +108,20 @@ dashboard or settings request creates an empty snapshot. Values remain zero or
 empty until operational data is added.
 
 ## Temporary demo reviews
+
+To log in to the API-backed driver dashboard, configure `NODE_ENV=development`
+and `MONGO_URI` in `server/.env`, then run these commands from `server/`:
+
+```bash
+npm run seed:driver-account
+npm run seed:driver-demo
+```
+
+The account seed creates `taixe@fooddelivery.vn` with password `password123`
+and an approved demo shipper profile only when the account does not exist. It
+does not modify an existing account or password. The demo login button then
+authenticates through the backend and receives a real JWT for dashboard API
+requests.
 
 For local/demo use, `npm run seed:driver-demo` fills the selected shipper's
 profile, earnings, wallet, trips, missions, reviews, badges, chart, forecast,
