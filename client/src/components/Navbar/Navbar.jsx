@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   UserCog,
   ShoppingBag,
+  MessageSquareText,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/CartContext.jsx'
@@ -174,6 +175,15 @@ export default function Navbar({ onOpenCart }) {
                     >
                       <UtensilsCrossed className="w-4 h-4 text-slate-400" />
                       <span>Đơn hàng của tôi</span>
+                    </Link>
+
+                    <Link
+                      to="/feedback"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg transition-colors"
+                    >
+                      <MessageSquareText className="w-4 h-4 text-slate-400" />
+                      <span>Đánh giá & Khiếu nại</span>
                     </Link>
 
                     <div className="border-t border-slate-100 my-1"></div>

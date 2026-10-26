@@ -12,11 +12,18 @@ import Checkout from '../pages/Checkout/Checkout.jsx'
 import PaymentResult from '../pages/Payment/PaymentResult.jsx'
 import OrderTracking from '../pages/OrderTracking/OrderTracking.jsx'
 import OrderHistory from '../pages/Orders/OrderHistory.jsx'
-import ManagePromotions from '../pages/Admin/Promotions/ManagePromotions.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
 import ShipperDashboard from '../pages/Shipper/ShipperDashboard.jsx'
 import AdminDashboard from '../pages/Admin/AdminDashboard.jsx'
+import AdminAnalytics from '../pages/AdminAnalytics/AdminAnalytics.jsx'
+import AdminCommissionRules from '../pages/AdminCommissionRules/AdminCommissionRules.jsx'
+import AdminComplaints from '../pages/AdminComplaints/AdminComplaints.jsx'
+import AdminDeliveryIssues from '../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'
+import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
+import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
+import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
+import Feedback from '../pages/Feedback/Feedback.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
@@ -49,6 +56,7 @@ function AppRouter() {
               <Route path="/payment-result" element={<PaymentResult />} />
               <Route path="/orders" element={<OrderHistory />} />
               <Route path="/orders/:id" element={<OrderTracking />} />
+              <Route path="/feedback" element={<Feedback />} />
             </Route>
 
             {/* Guest only routes: logged-in users redirected to their dashboards */}
@@ -80,11 +88,17 @@ function AppRouter() {
             </Route>
           </Route>
 
-          {/* Admin Portal Area */}
+          {/* Independent Admin Portal Area: Isolated from customer/storefront */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
-              <Route path="promotions" element={<ManagePromotions />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="complaints" element={<AdminComplaints />} />
+              <Route path="reviews" element={<AdminReviews />} />
+              <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
+              <Route path="promotions" element={<AdminPromotions />} />
+              <Route path="commission-rules" element={<AdminCommissionRules />} />
             </Route>
           </Route>
         </Routes>

@@ -8,6 +8,9 @@ const DUPLICATE_FIELD_MESSAGES = {
   name: 'Tên này đã tồn tại',
   email: 'Email đã được sử dụng',
   owner: 'Tài khoản đã có nhà hàng',
+  // Review / complaint / open delivery issue: one per order
+  order: 'Đơn hàng này đã được gửi trước đó',
+  code: 'Mã này đã tồn tại',
 };
 
 // eslint-disable-next-line no-unused-vars

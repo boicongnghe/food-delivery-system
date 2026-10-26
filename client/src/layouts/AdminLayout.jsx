@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -6,17 +6,38 @@ import {
   Store,
   Bike,
   Receipt,
-  Settings,
   LogOut,
   Bell,
-  Sparkles,
+  ChartColumn,
+  MessageSquareText,
+  MessageSquareWarning,
+  Percent,
+  Siren,
+  TicketPercent,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
+
+const NAV_LINKS = [
+  { to: '/admin', label: 'Tổng quan hệ thống', icon: LayoutDashboard, end: true },
+  { to: '/admin/analytics', label: 'Thống kê & báo cáo', icon: ChartColumn },
+  { to: '/admin/users', label: 'Quản lý tài khoản', icon: Users },
+  { to: '/admin/complaints', label: 'Xử lý khiếu nại', icon: MessageSquareWarning },
+  { to: '/admin/reviews', label: 'Kiểm duyệt đánh giá', icon: MessageSquareText },
+  { to: '/admin/delivery-issues', label: 'Sự cố giao hàng', icon: Siren },
+  { to: '/admin/promotions', label: 'Mã khuyến mãi', icon: TicketPercent },
+  { to: '/admin/commission-rules', label: 'Quy tắc hoa hồng', icon: Percent },
+]
+
+// Sections owned by other modules that have no screen yet
+const UPCOMING_ITEMS = [
+  { label: 'Kiểm duyệt quán ăn', icon: Store },
+  { label: 'Hồ sơ tài xế', icon: Bike },
+  { label: 'Đơn hàng toàn sàn', icon: Receipt },
+]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
 
   const handleLogout = () => {
     logout()
@@ -38,71 +59,40 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="p-4 space-y-1.5 flex-1">
-          <Link
-            to="/admin"
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-colors ${
-              location.pathname === '/admin'
-                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 text-purple-400" />
-            Tổng quan hệ thống
-          </Link>
+        {/* Navigation Menu: a horizontal scroll row on mobile, a column from md */}
+        <nav className="p-4 flex gap-1.5 overflow-x-auto md:flex-1 md:flex-col md:overflow-visible">
+          {NAV_LINKS.map(({ to, label, icon: Icon, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `flex shrink-0 items-center gap-3 whitespace-nowrap rounded-2xl border px-4 py-3 text-sm transition-colors md:w-full ${
+                  isActive
+                    ? 'bg-purple-600/20 text-purple-300 font-bold border-purple-500/30'
+                    : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-900 font-semibold'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-purple-400' : 'text-slate-400'}`} />
+                  {label}
+                </>
+              )}
+            </NavLink>
+          ))}
 
-          <Link
-            to="/admin/promotions"
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-colors ${
-              location.pathname === '/admin/promotions'
-                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            Quản lý khuyến mãi
-          </Link>
-
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors"
-          >
-            <Store className="w-4 h-4 text-slate-400" />
-            Kiểm duyệt quán ăn
-          </button>
-
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors"
-          >
-            <Users className="w-4 h-4 text-slate-400" />
-            Quản lý người dùng
-          </button>
-
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors"
-          >
-            <Bike className="w-4 h-4 text-slate-400" />
-            Hồ sơ tài xế
-          </button>
-
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors"
-          >
-            <Receipt className="w-4 h-4 text-slate-400" />
-            Đơn hàng toàn sàn
-          </button>
-
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors"
-          >
-            <Settings className="w-4 h-4 text-slate-400" />
-            Cấu hình & Tỷ lệ chiết khấu
-          </button>
+          {UPCOMING_ITEMS.map(({ label, icon: Icon }) => (
+            <button
+              key={label}
+              type="button"
+              className="flex shrink-0 items-center gap-3 whitespace-nowrap px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-900 font-semibold text-sm transition-colors md:w-full"
+            >
+              <Icon className="w-4 h-4 text-slate-400" />
+              {label}
+            </button>
+          ))}
         </nav>
 
         {/* Admin User info footer */}
