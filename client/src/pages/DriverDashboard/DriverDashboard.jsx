@@ -131,7 +131,7 @@ function DriverDashboard() {
 
   return (
     <div className="driver-shell">
-      <Navbar showSearch={false} />
+      <Navbar />
       <div className="driver-home-banner">
         <div className="driver-home-banner-inner">
           <span className="driver-home-banner-message">

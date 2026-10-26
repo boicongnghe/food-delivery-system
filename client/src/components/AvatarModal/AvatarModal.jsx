@@ -64,7 +64,17 @@ export default function AvatarModal({ isOpen, onClose }) {
       }
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message || 'Lỗi kết nối'
-      toast.error('Tải lên Cloudinary thất bại: ' + errMsg, { id: toastId })
+      const reader = new FileReader()
+      reader.onload = () => {
+        setAvatar(reader.result)
+      }
+      reader.readAsDataURL(file)
+
+      if (errMsg.includes('Cloudinary')) {
+        toast('Đã chọn ảnh (Lưu ý: ' + errMsg + ')', { id: toastId, icon: '⚠️' })
+      } else {
+        toast.error('Tải lên Cloudinary thất bại: ' + errMsg, { id: toastId })
+      }
     } finally {
       setUploadingAvatar(false)
       if (e.target) e.target.value = ''
