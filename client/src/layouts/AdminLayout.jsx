@@ -16,6 +16,7 @@ import {
   TicketPercent,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
+import NotificationBell from '../components/NotificationBell/NotificationBell.jsx'
 
 const NAV_LINKS = [
   { to: '/admin', label: 'Tổng quan hệ thống', icon: LayoutDashboard, end: true },
@@ -130,14 +131,7 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              className="relative p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              aria-label="Thông báo"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-500"></span>
-            </button>
+            <NotificationBell isDark={true} />
             <span className="text-xs font-mono px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-purple-300">
               Role: SYSTEM_ADMIN
             </span>

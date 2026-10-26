@@ -67,7 +67,7 @@ function AppRouter() {
 
             {/* Restaurant Owner Partner Portal redirect */}
             <Route element={<ProtectedRoute allowedRoles={['restaurant_owner']} />}>
-              <Route path="/restaurant" element={<Navigate to="/restaurant/profile" replace />} />
+              <Route path="/restaurant" element={<Navigate to="/restaurant/orders" replace />} />
             </Route>
 
             {/* Shipper Dashboard */}

@@ -7,10 +7,10 @@ import restaurantApi from '../api/restaurantApi.js'
 import { isOpenNow } from '../utils/openingHours.js'
 
 const RESTAURANT_NAV_ITEMS = [
-  { to: '/restaurant/profile', label: 'Hồ Sơ Quán' },
-  { to: '/restaurant/menu', label: 'Thực Đơn & Món Ăn' },
   { to: '/restaurant/orders', label: 'Đơn Hàng Bếp' },
-  { to: '/restaurant/revenue', label: 'Báo Cáo Doanh Thu' },
+  { to: '/restaurant/menu', label: 'Thực Đơn & Món Ăn' },
+  { to: '/restaurant/profile', label: 'Hồ Sơ Quán' },
+  { to: '/restaurant/revenue', label: 'Thống Kê' },
 ]
 
 // Layout for restaurant owner pages. Child pages read the restaurant via useOutletContext().
@@ -49,7 +49,7 @@ export default function RestaurantLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
-      <Header subtitle="Bếp & Phố" navItems={RESTAURANT_NAV_ITEMS} status={status} />
+      <Header subtitle="Kênh Quán Ăn" navItems={RESTAURANT_NAV_ITEMS} status={status} />
 
       {restaurant?.status === 'pending' && (
         <div className="bg-amber-500 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-xs text-center animate-in fade-in">
