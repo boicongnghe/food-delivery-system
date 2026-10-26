@@ -130,23 +130,38 @@ stateDiagram-v2
   - Số phiếu bếp được cấp **sau khi** nhận đơn thành công, nên request thua khi 2 người bấm cùng lúc không làm nhảy số.
 - Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `ready_for_pickup`, `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn: gán `shipper` (trạng thái vẫn `ready_for_pickup`); khi lấy hàng: chuyển `delivering`.
 
+- **Module sau giao hàng (đánh giá, khiếu nại, sự cố) dựa vào `statusHistory`:** thời điểm giao/hủy lấy từ dòng `delivered`/`cancelled` cuối cùng. Module Shipper khi chuyển đơn sang `delivered` **bắt buộc** `$push` dòng này, nếu không thì khách sẽ không đánh giá hoặc khiếu nại được.
+
 ## 5. `reviews`
+
+**Đã triển khai (UC17, UC43).** Model: `server/src/models/Review.js`. Có đánh giá shipper.
 
 | Trường | Kiểu | Ghi chú |
 | --- | --- | --- |
-| `order` | ObjectId → `orders` | unique – mỗi đơn chỉ review một lần |
-| `customer` | ObjectId → `users` | |
-| `restaurant` | ObjectId → `restaurants` | |
-| `rating` | Number | 1–5 |
-| `comment` | String | |
+| `order` | ObjectId → `orders` | unique: mỗi đơn chỉ đánh giá một lần |
+| `orderCode` | String | snapshot `GN-0042` để tìm kiếm |
+| `customer` / `restaurant` / `shipper` | ObjectId | `shipper` = null nếu đơn không có shipper |
+| `restaurantRating`, `comment` | Number 1–5, String ≤ 500 | đánh giá món ăn và nhà hàng |
+| `shipperRating`, `shipperComment` | Number 1–5 / null, String ≤ 300 | bắt buộc chấm sao khi đơn có shipper |
+| `isHidden`, `moderation` | Boolean, `{ reason, note, by, at }` | admin ẩn đánh giá vi phạm (UC43) |
 
-Chỉ cho review khi đơn ở trạng thái `delivered`.
+- Chỉ đánh giá đơn `delivered`, trong **7 ngày** kể từ lúc giao.
+- `restaurants.rating/ratingCount` và `shippers.rating` được **tính lại từ đầu** sau mỗi lần tạo, ẩn hoặc hiện lại một đánh giá. Đánh giá đã ẩn không được tính.
 
-TODO: nhóm chốt thiết kế – có review shipper không?
+## 6. Các collection của module sau giao hàng & quản trị vận hành
+
+Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admin.md).
+
+| Collection | Model | Ghi chú |
+| --- | --- | --- |
+| `complaints` | `Complaint.js` | Khiếu nại của khách (UC18, UC42). `code` dạng `KN-0001`, unique theo `order`. `open → resolved \| rejected`, `resolution: { note, refundAmount, by, at }` |
+| `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm |
+| `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
+| `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
 
 ## Collection có thể cần thêm
 
 - `carts` – giỏ hàng lưu phía server (hoặc chỉ lưu ở client `localStorage`).
-- `categories`, `notifications`, `vouchers`...
+- `categories`, `notifications`...
 
 TODO: nhóm chốt thiết kế.
