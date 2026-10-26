@@ -34,6 +34,7 @@ function AppRouter() {
         }}
       />
       <Routes>
+        {/* Main Public & Customer / Restaurant / Shipper Area */}
         <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
           <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
         </Route>
@@ -53,6 +54,7 @@ function AppRouter() {
             <Route path="/restaurant" element={<Navigate to="/restaurant/profile" replace />} />
           </Route>
 
+          {/* Shipper Dashboard (also has button to view Homepage) */}
           <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
             <Route path="/shipper" element={<ShipperDashboard />} />
           </Route>
