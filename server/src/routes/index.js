@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import driverRoutes from './driverRoutes.js';
 
+import authRoutes from './authRoutes.js';
+import userRoutes from './userRoutes.js';
+import restaurantRoutes from './restaurantRoutes.js';
+import uploadRoutes from './uploadRoutes.js';
+import orderRoutes from './orderRoutes.js';
+import adminRoutes from './adminRoutes.js';
+
 const router = Router();
 
 router.get('/health', (req, res) => {
@@ -12,5 +19,11 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/drivers', driverRoutes);
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/restaurants', restaurantRoutes);
+router.use('/uploads', uploadRoutes);
+router.use('/orders', orderRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

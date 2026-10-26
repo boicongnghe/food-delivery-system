@@ -1,17 +1,14 @@
-import { Link, Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
+import Navbar from '../components/Navbar/Navbar.jsx'
 
 function MainLayout() {
   return (
-    <>
-      <header style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb' }}>
-        <Link to="/" style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit' }}>
-          Food Delivery
-        </Link>
-      </header>
-      <main style={{ padding: '24px' }}>
+    <div className="layout-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Navbar />
+      <main style={{ flex: 1 }}>
         <Outlet />
       </main>
-    </>
+    </div>
   )
 }
 
