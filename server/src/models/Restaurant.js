@@ -46,6 +46,7 @@ const restaurantSchema = new mongoose.Schema(
     categories: { type: [String], default: [] },
     logo: { type: String, default: '' },
     coverImage: { type: String, default: '' },
+    image: { type: String, default: '' },
     openingHours: { type: [openingHourSchema], default: [] },
     isVerified: { type: Boolean, default: false },
     rating: { type: Number, min: 0, max: 5, default: 0 },
@@ -56,7 +57,7 @@ const restaurantSchema = new mongoose.Schema(
       default: 'pending',
     },
   },
-  { timestamps: true },
+  { timestamps: true, collection: 'restaurants' },
 );
 
 const Restaurant = mongoose.model('Restaurant', restaurantSchema);

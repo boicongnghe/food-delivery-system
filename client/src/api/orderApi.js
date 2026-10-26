@@ -2,9 +2,16 @@ import axiosClient from './axiosClient.js'
 
 const RESTAURANT_ORDER_URL = '/restaurants/me/orders'
 
-const orderApi = {
+export const orderApi = {
+  // ----- Customer orders -----
+  createOrder: (data) => axiosClient.post('/orders', data),
+  getOrderById: (id) => axiosClient.get(`/orders/${id}`),
+  getCustomerOrders: (params) => axiosClient.get('/orders', { params }),
+  cancelOrder: (id, data) => axiosClient.post(`/orders/${id}/cancel`, data),
+  receiveOrder: (id) => axiosClient.patch(`/orders/${id}/receive`),
+  progressOrder: (id, data) => axiosClient.patch(`/orders/${id}/progress`, data),
+
   // ----- Restaurant owner (kitchen board) -----
-  // Returns { pending, preparing, readyForPickup, recentlyCancelled, stats }
   getBoard: async () => {
     const response = await axiosClient.get(`${RESTAURANT_ORDER_URL}/board`)
     return response.data
@@ -26,7 +33,6 @@ const orderApi = {
     return response.data
   },
 
-  // data: { reason: 'out_of_stock' | 'too_busy' | 'closing_soon' | 'other', note }
   rejectOrder: async (id, data) => {
     const response = await axiosClient.patch(`${RESTAURANT_ORDER_URL}/${id}/reject`, data)
     return response.data

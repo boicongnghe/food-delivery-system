@@ -11,7 +11,8 @@
     "seed:driver-account": "node src/seeds/driverDemoAccountSeed.js",
     "seed:driver-demo": "node src/seeds/driverDashboardDemoSeed.js",
     "seed:menu": "node src/seeds/menuSeed.js",
-    "seed:orders": "node src/seeds/orderSeed.js"
+    "seed:orders": "node src/seeds/orderSeed.js",
+    "seed:feedback": "node src/seeds/feedbackSeed.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

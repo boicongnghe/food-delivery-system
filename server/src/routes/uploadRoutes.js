@@ -11,9 +11,19 @@ const router = Router();
 
 router.use(protect);
 
+// Evidence photos: complaints are sent by customers, delivery issue reports by shippers
+const EVIDENCE_FOLDER_ROLES = { complaints: 'customer', 'delivery-issues': 'shipper' };
+
 // Allow avatars for all roles, require restaurant_owner for restaurant/menu items
 const checkUploadPermission = (req, res, next) => {
   if (req.query.folder === 'avatars') {
+    return next();
+  }
+  const evidenceRole = EVIDENCE_FOLDER_ROLES[req.query.folder];
+  if (evidenceRole) {
+    if (req.user.role !== evidenceRole) {
+      throw new ApiError(403, 'Bạn không có quyền tải ảnh vào thư mục này');
+    }
     return next();
   }
   if (!['restaurant_owner', 'admin'].includes(req.user.role)) {
