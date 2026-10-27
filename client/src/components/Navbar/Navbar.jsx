@@ -67,7 +67,6 @@ export default function Navbar({ onOpenCart }) {
           </span>
         </Link>
 
-        {/* Search bar in Navbar */}
         <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center flex-1 max-w-md relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
           <input

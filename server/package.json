@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "seed:driver-account": "node src/seeds/driverDemoAccountSeed.js",
+    "seed:driver-demo": "node src/seeds/driverDashboardDemoSeed.js",
     "seed:menu": "node src/seeds/menuSeed.js",
     "seed:orders": "node src/seeds/orderSeed.js",
     "seed:feedback": "node src/seeds/feedbackSeed.js"

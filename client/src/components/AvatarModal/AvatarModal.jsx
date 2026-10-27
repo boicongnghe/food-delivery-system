@@ -63,13 +63,13 @@ export default function AvatarModal({ isOpen, onClose }) {
         throw new Error('Không nhận được URL từ máy chủ')
       }
     } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'Lỗi kết nối'
       const reader = new FileReader()
       reader.onload = () => {
         setAvatar(reader.result)
       }
       reader.readAsDataURL(file)
 
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi kết nối'
       if (errMsg.includes('Cloudinary')) {
         toast('Đã chọn ảnh (Lưu ý: ' + errMsg + ')', { id: toastId, icon: '⚠️' })
       } else {

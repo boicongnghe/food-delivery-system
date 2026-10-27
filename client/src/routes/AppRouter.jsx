@@ -12,19 +12,12 @@ import Checkout from '../pages/Checkout/Checkout.jsx'
 import PaymentResult from '../pages/Payment/PaymentResult.jsx'
 import OrderTracking from '../pages/OrderTracking/OrderTracking.jsx'
 import OrderHistory from '../pages/Orders/OrderHistory.jsx'
+import Feedback from '../pages/Feedback/Feedback.jsx'
 import Login from '../pages/Login/Login.jsx'
 import Register from '../pages/Register/Register.jsx'
-import ShipperDashboard from '../pages/Shipper/ShipperDashboard.jsx'
 import AdminDashboard from '../pages/Admin/AdminDashboard.jsx'
-import AdminAnalytics from '../pages/AdminAnalytics/AdminAnalytics.jsx'
-import AdminCommissionRules from '../pages/AdminCommissionRules/AdminCommissionRules.jsx'
-import AdminComplaints from '../pages/AdminComplaints/AdminComplaints.jsx'
-import AdminDeliveryIssues from '../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'
-import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
-import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
-import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
-import Feedback from '../pages/Feedback/Feedback.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
+import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
 
@@ -47,10 +40,15 @@ function AppRouter() {
           }}
         />
         <Routes>
-          {/* Main Public & Customer Area */}
+          {/* Shipper dashboard stays outside the storefront layout. */}
+          <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
+            <Route path="/shipper" element={<DriverDashboard />} />
+            <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
+          </Route>
+
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
-            {/* Customer Only Area */}
+
             <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/payment-result" element={<PaymentResult />} />
@@ -67,12 +65,7 @@ function AppRouter() {
 
             {/* Restaurant Owner Partner Portal redirect */}
             <Route element={<ProtectedRoute allowedRoles={['restaurant_owner']} />}>
-              <Route path="/restaurant" element={<Navigate to="/restaurant/orders" replace />} />
-            </Route>
-
-            {/* Shipper Dashboard */}
-            <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
-              <Route path="/shipper" element={<ShipperDashboard />} />
+              <Route path="/restaurant" element={<Navigate to="/restaurant/profile" replace />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
@@ -92,13 +85,6 @@ function AppRouter() {
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
-              <Route path="analytics" element={<AdminAnalytics />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="complaints" element={<AdminComplaints />} />
-              <Route path="reviews" element={<AdminReviews />} />
-              <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
-              <Route path="promotions" element={<AdminPromotions />} />
-              <Route path="commission-rules" element={<AdminCommissionRules />} />
             </Route>
           </Route>
         </Routes>

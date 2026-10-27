@@ -136,6 +136,18 @@ export function AuthProvider({ children }) {
         message: response.message || 'Đăng nhập thành công',
       }
     } catch (error) {
+      if (
+        normalizedEmail === 'taixe@fooddelivery.vn'
+        && password === 'password123'
+      ) {
+        return {
+          success: false,
+          message: error.response?.data?.message
+            || 'Không thể kết nối backend. Hãy khởi động server để đăng nhập tài khoản tài xế mẫu.',
+          errors: error.response?.data?.errors || [],
+        }
+      }
+
       // Fallback for demo accounts if backend is unreachable or db IP is not whitelisted
       if (DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
         const demoUser = DEMO_ACCOUNTS[normalizedEmail]
