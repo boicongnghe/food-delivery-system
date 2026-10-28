@@ -11,7 +11,6 @@ import {
   UserCog,
   ShoppingBag,
   MessageSquareText,
-  MapPin,
   Moon,
   Sun,
   Flame,
@@ -28,13 +27,10 @@ export default function Navbar({ onOpenCart }) {
   const navigate = useNavigate()
   const location = useLocation()
   const dropdownRef = useRef(null)
-  const locationDropdownRef = useRef(null)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [locationOpen, setLocationOpen] = useState(false)
-  const [selectedLocation, setSelectedLocation] = useState('128 Hai Bà Trưng, Quận 1, TP.HCM')
 
   // Dark Mode state
   const [isDark, setIsDark] = useState(() => {
@@ -74,9 +70,6 @@ export default function Navbar({ onOpenCart }) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false)
       }
-      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
-        setLocationOpen(false)
-      }
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
@@ -113,17 +106,10 @@ export default function Navbar({ onOpenCart }) {
     }
   }
 
-  const SAMPLE_LOCATIONS = [
-    '128 Hai Bà Trưng, Phường Đa Kao, Quận 1',
-    '84 Đặng Văn Ngữ, Phường 10, Quận Phú Nhuận',
-    '268 Lý Thường Kiệt, Phường 14, Quận 10',
-    'Landmark 81, Vinhomes Central Park, Bình Thạnh',
-  ]
-
   return (
     <header className="sticky top-0 z-40 w-full bg-white/90 dark:bg-[#0F1014]/90 backdrop-blur-xl border-b border-orange-100/80 dark:border-slate-800/80 shadow-xs transition-colors duration-200">
       <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 h-18 flex items-center justify-between gap-3 sm:gap-6">
-        {/* Left Side: Brand Logo + Location Selector + Navigation Links */}
+        {/* Left Side: Brand Logo + Quick Search + Navigation Links */}
         <div className="flex items-center gap-4 sm:gap-6 lg:gap-8 flex-1 min-w-0">
           {/* CraveDash Logo with Hover Scale & Rotate */}
           <Link
@@ -143,57 +129,6 @@ export default function Navbar({ onOpenCart }) {
               </span>
             </div>
           </Link>
-
-          {/* Delivery Location Selector Dropdown */}
-          <div className="hidden lg:block relative" ref={locationDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setLocationOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-orange-50/80 dark:bg-slate-800/80 border border-orange-200/60 dark:border-slate-700 hover:border-primary text-slate-700 dark:text-slate-200 transition-all text-xs font-semibold shadow-2xs group"
-              title="Chọn địa chỉ giao hàng"
-            >
-              <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <MapPin className="w-3.5 h-3.5" />
-              </div>
-              <div className="text-left">
-                <p className="text-[10px] text-slate-400 dark:text-slate-400 font-medium leading-none">
-                  Giao đến:
-                </p>
-                <p className="font-bold text-slate-900 dark:text-white max-w-[190px] xl:max-w-[240px] truncate leading-tight mt-0.5">
-                  {selectedLocation}
-                </p>
-              </div>
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${locationOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {locationOpen && (
-              <div className="absolute left-0 mt-2 w-80 bg-white dark:bg-[#181A20] rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 px-3 py-1.5 uppercase tracking-wider">
-                  Chọn địa chỉ nhận món:
-                </p>
-                <div className="space-y-1">
-                  {SAMPLE_LOCATIONS.map((loc, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setSelectedLocation(loc)
-                        setLocationOpen(false)
-                      }}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
-                        selectedLocation === loc
-                          ? 'bg-primary/10 text-primary font-bold'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <MapPin className="w-3.5 h-3.5 shrink-0 text-primary" />
-                      <span className="truncate">{loc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Quick Search Bar */}
           <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center flex-1 max-w-sm xl:max-w-md relative">
