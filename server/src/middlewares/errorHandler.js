@@ -43,6 +43,11 @@ const errorHandler = (err, req, res, next) => {
     errors: Array.isArray(err.errors) ? err.errors : [],
   };
 
+  if (err.requiresVerification) {
+    response.requiresVerification = true;
+    response.unverifiedEmail = err.unverifiedEmail;
+  }
+
   if (!isProduction) {
     response.stack = err.stack;
   }
