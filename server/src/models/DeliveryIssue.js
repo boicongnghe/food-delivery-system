@@ -36,7 +36,9 @@ const deliveryIssueSchema = new mongoose.Schema(
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
     type: { type: String, enum: DELIVERY_ISSUE_TYPES, required: true },
-    description: { type: String, trim: true, maxlength: 1000, required: true },
+    description: { type: String, trim: true, maxlength: 1000, default: '' },
+    waitedMinutes: { type: Number, min: 0, default: 0 },
+    unansweredCalls: { type: Number, min: 0, default: 0 },
     images: { type: [String], default: [] },
 
     status: { type: String, enum: DELIVERY_ISSUE_STATUSES, default: 'open' },

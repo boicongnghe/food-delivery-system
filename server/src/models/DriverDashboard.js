@@ -113,6 +113,7 @@ const driverDashboardSchema = new Schema(
     },
     profile: { type: profileSchema, required: true },
     isOnline: { type: Boolean, default: false },
+    activeOrderId: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
     isDemo: { type: Boolean, default: false },
     periods: {
       today: { type: periodSchema },

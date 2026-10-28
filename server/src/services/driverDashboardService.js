@@ -1,4 +1,5 @@
 import DriverDashboard from '../models/DriverDashboard.js';
+import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 
@@ -39,9 +40,10 @@ const getOrCreateDashboard = async (userId) => {
 const getDashboard = async (userId, period) => {
   validatePeriod(period);
 
-  const [dashboard, user] = await Promise.all([
+  const [dashboard, user, shipper] = await Promise.all([
     getOrCreateDashboard(userId),
     User.findById(userId).select('fullName phone avatar').lean(),
+    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status').lean(),
   ]);
   if (!dashboard.periods?.[period]) {
     throw new ApiError(404, 'Driver dashboard data was not found');
@@ -55,6 +57,10 @@ const getDashboard = async (userId, period) => {
       name: user.fullName,
       phone: user.phone,
       avatarUrl: user.avatar,
+      ...(shipper && {
+        vehicle: shipper.vehicleInfo,
+        licensePlate: '',
+      }),
     },
     isOnline: dashboard.isOnline,
     isDemo: dashboard.isDemo,
@@ -67,9 +73,10 @@ const getDashboard = async (userId, period) => {
 };
 
 const getSettings = async (userId) => {
-  const [user, dashboard] = await Promise.all([
+  const [user, dashboard, shipper] = await Promise.all([
     User.findById(userId).select('fullName email phone avatar').lean(),
     getOrCreateDashboard(userId),
+    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status').lean(),
   ]);
 
   if (!user) {
@@ -81,8 +88,11 @@ const getSettings = async (userId) => {
     email: user.email,
     phone: user.phone,
     avatarUrl: user.avatar,
-    vehicle: dashboard.profile.vehicle,
-    licensePlate: dashboard.profile.licensePlate,
+    citizenIdMasked: shipper?.citizenId
+      ? `${'*'.repeat(Math.max(0, shipper.citizenId.length - 4))}${shipper.citizenId.slice(-4)}`
+      : '',
+    vehicleInfo: shipper?.vehicleInfo || '',
+    shipperStatus: shipper?.status || '',
     bankName: dashboard.profile.bankName,
     bankAccountName: dashboard.profile.bankAccountName,
     bankAccountNumber: dashboard.profile.bankAccountNumber,
@@ -90,9 +100,10 @@ const getSettings = async (userId) => {
 };
 
 const updateSettings = async (userId, settings) => {
-  const [user, dashboard] = await Promise.all([
+  const [user, dashboard, shipper] = await Promise.all([
     User.findById(userId),
     getOrCreateDashboard(userId),
+    Shipper.findOne({ user: userId }).select('vehicleInfo').lean(),
   ]);
 
   if (!user) {
@@ -111,8 +122,6 @@ const updateSettings = async (userId, settings) => {
     fullName: 'name',
     phone: 'phone',
     avatarUrl: 'avatarUrl',
-    vehicle: 'vehicle',
-    licensePlate: 'licensePlate',
     bankName: 'bankName',
     bankAccountName: 'bankAccountName',
     bankAccountNumber: 'bankAccountNumber',
@@ -136,7 +145,14 @@ const updateSettings = async (userId, settings) => {
     { runValidators: true },
   );
 
-  const { bankAccountNumber, ...profile } = dashboard.profile;
+  const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
+  const profile = {
+    ...dashboardProfile,
+    ...(shipper && {
+      vehicle: shipper.vehicleInfo,
+      licensePlate: '',
+    }),
+  };
 
   return {
     profile,
