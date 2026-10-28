@@ -1,4 +1,58 @@
 import mongoose from 'mongoose';
+import {
+  canonicalCancellationFromLegacy,
+  canonicalPaymentFromLegacy,
+  legacyCancellationFromCanonical,
+  legacyPaymentFromCanonical,
+} from '../utils/orderFieldSync.js';
+
+// Set explicitly in this save (works for new documents too; $isDefault is unreliable for nested paths)
+const wasSet = (doc, path) => doc.isModified(path);
+
+const LEGACY_PAYMENT_PATHS = ['paymentMethod', 'paymentStatus', 'refundStatus', 'refundAmount'];
+const CANONICAL_PAYMENT_PATHS = ['payment.method', 'payment.status', 'payment.refundAmount'];
+
+/**
+ * Checkout writes the legacy top-level fields, kitchen/shipper/analytics read the nested ones.
+ * Whichever side was changed in this save drives the other (nested wins if both changed).
+ * Only runs on document saves; services using findOneAndUpdate must set both sides themselves.
+ */
+const syncPaymentAndCancellation = (doc) => {
+  const now = new Date();
+
+  const canonicalChanged = CANONICAL_PAYMENT_PATHS.some((path) => wasSet(doc, path));
+  const legacyChanged = LEGACY_PAYMENT_PATHS.some((path) => wasSet(doc, path));
+  if (legacyChanged && !canonicalChanged) {
+    const next = canonicalPaymentFromLegacy(doc);
+    if (next.status === 'paid' && doc.payment.status !== 'paid') doc.payment.paidAt = now;
+    if (next.status === 'refunded' && doc.payment.status !== 'refunded') doc.payment.refundedAt = now;
+    doc.payment.method = next.method;
+    doc.payment.status = next.status;
+    doc.payment.refundAmount = next.refundAmount;
+  } else if (canonicalChanged || doc.isNew) {
+    // New order with no payment given: the two default sets differ, nested ones are the truth
+    doc.set(legacyPaymentFromCanonical(doc.payment));
+  }
+
+  if (wasSet(doc, 'cancellation.by')) {
+    doc.set(legacyCancellationFromCanonical(doc.cancellation));
+  } else if (wasSet(doc, 'cancelledBy') && doc.cancelledBy) {
+    doc.cancellation = canonicalCancellationFromLegacy(doc, now);
+  }
+
+  if (!wasSet(doc, 'status')) return;
+  // Cancelled before any money arrived: nothing to refund
+  if (doc.status === 'cancelled' && doc.payment.status === 'unpaid') {
+    doc.payment.status = 'cancelled';
+    doc.paymentStatus = 'cancelled';
+  }
+  // COD is paid when the customer receives the food
+  if (doc.status === 'delivered' && doc.payment.method === 'cod' && doc.payment.status === 'unpaid') {
+    doc.payment.status = 'paid';
+    doc.payment.paidAt = now;
+    doc.paymentStatus = 'paid';
+  }
+};
 
 // pending -> preparing -> ready_for_pickup -> delivering -> delivered, or cancelled
 export const ORDER_STATUSES = [
@@ -175,15 +229,7 @@ orderSchema.pre('validate', function () {
       note: this.customerNote || '',
     };
   }
-  if (this.paymentMethod && (!this.payment || !this.payment.method)) {
-    this.payment = {
-      method: this.paymentMethod,
-      status: this.paymentStatus === 'paid' ? 'paid' : 'unpaid',
-      paidAt: this.paymentStatus === 'paid' ? new Date() : null,
-      refundedAt: null,
-      refundAmount: 0,
-    };
-  }
+  syncPaymentAndCancellation(this);
   if (Array.isArray(this.items)) {
     for (const item of this.items) {
       if (!item.unitPrice && item.price) item.unitPrice = item.price;
@@ -191,6 +237,20 @@ orderSchema.pre('validate', function () {
       if (!item.lineTotal) item.lineTotal = (item.unitPrice || item.price || 0) * (item.quantity || 1);
     }
   }
+});
+
+// Keep the embedded timeline (kitchen drawer) in step with status changes made through document saves.
+// Services may set order.$locals.changedByRole ('customer' | 'restaurant' | 'shipper' | 'system').
+orderSchema.pre('validate', function () {
+  const last = this.statusHistory[this.statusHistory.length - 1];
+  if (!wasSet(this, 'status') && this.statusHistory.length > 0) return;
+  if (last?.status === this.status) return;
+
+  const byRole =
+    this.$locals.changedByRole ||
+    (this.status === 'cancelled' ? this.cancellation?.by : null) ||
+    (this.isNew ? 'customer' : 'system');
+  this.statusHistory.push({ status: this.status, at: new Date(), byRole });
 });
 
 orderSchema.index({ restaurant: 1, status: 1, createdAt: 1 });

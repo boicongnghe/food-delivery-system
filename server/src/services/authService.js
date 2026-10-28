@@ -1,8 +1,10 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
+import * as emailService from './emailService.js';
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -72,13 +74,20 @@ export const registerUser = async ({
   const validRoles = ['customer', 'restaurant_owner', 'shipper'];
   const userRole = role && validRoles.includes(role) ? role : 'customer';
 
-  // 1. Lưu tài khoản người dùng vào collection 'users'
+  // Tạo token kích hoạt tài khoản có hạn 24 giờ
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  // 1. Lưu tài khoản người dùng vào collection 'users' với trạng thái chưa kích hoạt (isVerified: false)
   const userDataToCreate = {
     fullName: fullName.trim(),
     email: normalizedEmail,
     password,
     phone: phone ? phone.trim() : '',
     role: userRole,
+    isVerified: false,
+    verificationToken,
+    verificationTokenExpires,
   };
 
   const newUser = await User.create(userDataToCreate);
@@ -91,6 +100,8 @@ export const registerUser = async ({
       address: restaurantDetails.restaurantAddress || 'Đang cập nhật địa chỉ',
       phone: (phone ? phone.trim() : '0900000000'),
       description: (restaurantDetails.businessItems || '').slice(0, 150),
+      ownerCitizenId: restaurantDetails.ownerCitizenId || '',
+      businessLicense: restaurantDetails.businessLicense || null,
       status: 'pending',
     });
   }
@@ -111,12 +122,91 @@ export const registerUser = async ({
     });
   }
 
-  const token = generateToken(newUser);
-  const enrichedUser = await enrichUserData(newUser);
+  // 4. Gửi email xác thực tài khoản kèm liên kết kích hoạt
+  const emailResult = await emailService.sendVerificationEmail({
+    email: normalizedEmail,
+    fullName: newUser.fullName,
+    token: verificationToken,
+  });
 
   return {
-    token,
+    requiresVerification: true,
+    email: normalizedEmail,
+    fullName: newUser.fullName,
+    message: 'Đăng ký tài khoản thành công! Chúng tôi đã gửi email xác nhận. Vui lòng kiểm tra hòm thư để kích hoạt tài khoản.',
+    verificationUrl: emailResult?.verificationUrl,
+    isDevMode: emailResult?.isDevMode,
+  };
+};
+
+export const verifyEmail = async (token) => {
+  if (!token) {
+    throw new ApiError(400, 'Mã token xác thực không hợp lệ');
+  }
+
+  const user = await User.findOne({
+    verificationToken: token,
+    verificationTokenExpires: { $gt: new Date() },
+  }).select('+verificationToken +verificationTokenExpires');
+
+  if (!user) {
+    // Kiểm tra xem có phải tài khoản đã được kích hoạt trước đó hay không
+    throw new ApiError(
+      400,
+      'Liên kết xác nhận không hợp lệ hoặc đã hết hạn (24 giờ). Vui lòng yêu cầu gửi lại email kích hoạt mới.'
+    );
+  }
+
+  user.isVerified = true;
+  user.verificationToken = null;
+  user.verificationTokenExpires = null;
+  await user.save();
+
+  const authToken = generateToken(user);
+  const enrichedUser = await enrichUserData(user);
+
+  return {
+    message: 'Kích hoạt tài khoản thành công! Chào mừng bạn đến với hệ thống CraveDash.',
+    token: authToken,
     user: enrichedUser,
+  };
+};
+
+export const resendVerificationEmail = async (email) => {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    '+verificationToken +verificationTokenExpires'
+  );
+
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy tài khoản nào khớp với địa chỉ email này.');
+  }
+
+  if (user.isVerified) {
+    return {
+      alreadyVerified: true,
+      message: 'Tài khoản này đã được kích hoạt trước đó. Bạn có thể đăng nhập ngay.',
+    };
+  }
+
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  user.verificationToken = verificationToken;
+  user.verificationTokenExpires = verificationTokenExpires;
+  await user.save();
+
+  const emailResult = await emailService.sendVerificationEmail({
+    email: normalizedEmail,
+    fullName: user.fullName,
+    token: verificationToken,
+  });
+
+  return {
+    message: 'Đã gửi lại email kích hoạt thành công. Vui lòng kiểm tra hộp thư của bạn.',
+    email: normalizedEmail,
+    verificationUrl: emailResult?.verificationUrl,
+    isDevMode: emailResult?.isDevMode,
   };
 };
 
@@ -130,6 +220,24 @@ export const loginUser = async ({ email, password }) => {
 
   if (!user.isActive) {
     throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
+  }
+
+  // Danh sách email demo luôn được miễn kiểm tra xác thực
+  const demoEmails = [
+    'khachhang@fooddelivery.vn',
+    'chuquan@fooddelivery.vn',
+    'taixe@fooddelivery.vn',
+    'admin@fooddelivery.vn',
+  ];
+
+  if (user.isVerified === false && !demoEmails.includes(normalizedEmail)) {
+    const error = new ApiError(
+      403,
+      'Tài khoản của bạn chưa được kích hoạt qua email. Vui lòng kiểm tra hộp thư của bạn để kích hoạt hoặc yêu cầu gửi lại link kích hoạt.'
+    );
+    error.requiresVerification = true;
+    error.unverifiedEmail = user.email;
+    throw error;
   }
 
   const isPasswordMatch = await user.comparePassword(password);

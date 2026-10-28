@@ -23,8 +23,8 @@ export function CartProvider({ children }) {
   }, [cart])
 
   const addToCart = (food, quantity = 1, note = '') => {
-    const restaurantId = food.restaurant?._id || food.restaurant
-    const restaurantName = food.restaurant?.name || 'Nhà hàng'
+    const restaurantId = food.restaurantId || food.restaurant?._id || (typeof food.restaurant === 'string' && food.restaurant.length === 24 ? food.restaurant : '6ad719cbf02e3385602cfd0c')
+    const restaurantName = food.restaurantName || (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) || 'Quán Ăn'
 
     setCart((prev) => {
       // Check if item is from another restaurant

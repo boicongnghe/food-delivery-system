@@ -66,13 +66,29 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    verificationTokenExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     resetPasswordOtp: {
       type: String,
       default: null,
+      select: false,
     },
     resetPasswordExpires: {
       type: Date,
       default: null,
+      select: false,
     },
   },
   {
@@ -81,6 +97,10 @@ const userSchema = new mongoose.Schema(
       transform(doc, ret) {
         delete ret.password;
         delete ret.__v;
+        delete ret.verificationToken;
+        delete ret.verificationTokenExpires;
+        delete ret.resetPasswordOtp;
+        delete ret.resetPasswordExpires;
         return ret;
       },
     },

@@ -27,3 +27,17 @@ export const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB, same as server
 
 export const DEFAULT_SHIFT = { open: '06:00', close: '22:00' }
 export const DEFAULT_SECOND_SHIFT = { open: '17:00', close: '21:30' }
+
+// Suggestions for the payout bank (free text is still allowed)
+export const BANK_OPTIONS = [
+  'Vietcombank',
+  'VietinBank',
+  'BIDV',
+  'Agribank',
+  'Techcombank',
+  'MB Bank',
+  'ACB',
+  'VPBank',
+  'Sacombank',
+  'TPBank',
+]

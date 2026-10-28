@@ -48,6 +48,14 @@ const restaurantSchema = new mongoose.Schema(
     coverImage: { type: String, default: '' },
     image: { type: String, default: '' },
     openingHours: { type: [openingHourSchema], default: [] },
+    ownerCitizenId: { type: String, default: '', trim: true },
+    businessLicense: {
+      fileName: { type: String, default: '' },
+      fileSize: { type: Number, default: 0 },
+      fileType: { type: String, default: '' },
+      fileData: { type: String, default: '' },
+      uploadedAt: { type: Date, default: Date.now },
+    },
     isVerified: { type: Boolean, default: false },
     rating: { type: Number, min: 0, max: 5, default: 0 },
     ratingCount: { type: Number, min: 0, default: 0 },
@@ -55,6 +63,12 @@ const restaurantSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'approved', 'rejected', 'suspended'],
       default: 'pending',
+    },
+    // Bank account that receives the weekly settlement (shown masked in reports)
+    payoutAccount: {
+      bankName: { type: String, trim: true, default: '' },
+      accountNumber: { type: String, trim: true, default: '' },
+      accountHolder: { type: String, trim: true, default: '' },
     },
   },
   { timestamps: true, collection: 'restaurants' },

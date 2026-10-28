@@ -167,6 +167,8 @@ export function AuthProvider({ children }) {
         error.response?.data?.message || 'Đăng nhập không thành công. Vui lòng thử lại.'
       return {
         success: false,
+        requiresVerification: Boolean(error.response?.data?.requiresVerification),
+        unverifiedEmail: error.response?.data?.unverifiedEmail || normalizedEmail,
         message,
         errors: error.response?.data?.errors || [],
       }
@@ -176,12 +178,29 @@ export function AuthProvider({ children }) {
   const register = async (userData) => {
     try {
       const response = await authApi.register(userData)
-      const { token: receivedToken, user: receivedUser } = response.data
+      const data = response.data || {}
 
-      localStorage.setItem('token', receivedToken)
-      localStorage.removeItem('demo_user')
-      setToken(receivedToken)
-      setUser(receivedUser)
+      if (data.requiresVerification) {
+        return {
+          success: true,
+          requiresVerification: true,
+          email: data.email,
+          fullName: data.fullName,
+          verificationUrl: data.verificationUrl,
+          isDevMode: data.isDevMode,
+          message:
+            response.message ||
+            'Đăng ký tài khoản thành công! Vui lòng kiểm tra email để kích hoạt.',
+        }
+      }
+
+      const { token: receivedToken, user: receivedUser } = data
+      if (receivedToken) {
+        localStorage.setItem('token', receivedToken)
+        localStorage.removeItem('demo_user')
+        setToken(receivedToken)
+        setUser(receivedUser)
+      }
 
       return {
         success: true,
@@ -195,6 +214,50 @@ export function AuthProvider({ children }) {
         success: false,
         message,
         errors: error.response?.data?.errors || [],
+      }
+    }
+  }
+
+  const verifyEmail = async (verificationToken) => {
+    try {
+      const response = await authApi.verifyEmail(verificationToken)
+      const { token: receivedToken, user: receivedUser } = response.data || {}
+
+      if (receivedToken && receivedUser) {
+        localStorage.setItem('token', receivedToken)
+        localStorage.removeItem('demo_user')
+        setToken(receivedToken)
+        setUser(receivedUser)
+      }
+
+      return {
+        success: true,
+        user: receivedUser,
+        message: response.message || 'Kích hoạt tài khoản thành công!',
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message ||
+          'Kích hoạt tài khoản thất bại hoặc liên kết đã hết hạn.',
+      }
+    }
+  }
+
+  const resendVerification = async (targetEmail) => {
+    try {
+      const response = await authApi.resendVerification(targetEmail)
+      return {
+        success: true,
+        data: response.data,
+        message: response.message || 'Đã gửi lại email kích hoạt.',
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || 'Không thể gửi lại email kích hoạt.',
       }
     }
   }
@@ -250,6 +313,8 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user,
     login,
     register,
+    verifyEmail,
+    resendVerification,
     logout,
     updateProfile,
     setUser,

@@ -8,6 +8,7 @@ import { DEFAULT_SHIFT, MAX_CATEGORIES, WEEK_DAYS } from './constants.js'
 import ImageSection from './components/ImageSection.jsx'
 import BasicInfoSection from './components/BasicInfoSection.jsx'
 import OpeningHoursSection from './components/OpeningHoursSection.jsx'
+import PayoutAccountSection from './components/PayoutAccountSection.jsx'
 import RestaurantPreviewCard from './components/RestaurantPreviewCard.jsx'
 
 // Build editable form data from the API restaurant (or empty defaults for a new profile)
@@ -26,6 +27,11 @@ function toFormState(restaurant) {
         ? { dayOfWeek, isOpen: saved.isOpen, shifts: saved.shifts.map(({ open, close }) => ({ open, close })) }
         : { dayOfWeek, isOpen: true, shifts: [{ ...DEFAULT_SHIFT }] }
     }),
+    payoutAccount: {
+      bankName: restaurant?.payoutAccount?.bankName || '',
+      accountNumber: restaurant?.payoutAccount?.accountNumber || '',
+      accountHolder: restaurant?.payoutAccount?.accountHolder || '',
+    },
   }
 }
 
@@ -163,6 +169,12 @@ export default function RestaurantProfile() {
             openingHours={form.openingHours}
             error={errors.openingHours}
             onChange={(openingHours) => handleFieldChange('openingHours', openingHours)}
+          />
+
+          <PayoutAccountSection
+            account={form.payoutAccount}
+            error={errors.payoutAccount}
+            onChange={(payoutAccount) => handleFieldChange('payoutAccount', payoutAccount)}
           />
 
           {/* Action bar */}

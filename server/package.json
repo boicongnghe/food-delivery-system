@@ -13,7 +13,8 @@
     "seed:shipper-orders": "node src/seeds/shipperOrdersDemoSeed.js",
     "seed:menu": "node src/seeds/menuSeed.js",
     "seed:orders": "node src/seeds/orderSeed.js",
-    "seed:feedback": "node src/seeds/feedbackSeed.js"
+    "seed:feedback": "node src/seeds/feedbackSeed.js",
+    "migrate:order-fields": "node src/scripts/syncOrderFields.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -30,7 +31,9 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.2",
     "morgan": "^1.12.1",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "nodemailer": "^10.2.1",
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

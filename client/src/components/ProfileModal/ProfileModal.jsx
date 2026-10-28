@@ -28,30 +28,6 @@ import useAuth from '../../hooks/useAuth.js'
 import authApi from '../../api/authApi.js'
 import uploadApi from '../../api/uploadApi.js'
 
-const PRESET_AVATARS = {
-  customer: [
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-  ],
-  restaurant_owner: [
-    'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=150&q=80',
-  ],
-  shipper: [
-    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80',
-    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
-  ],
-}
-
 export default function ProfileModal({ isOpen, onClose }) {
   const { user, updateProfile } = useAuth()
   const fileInputRef = useRef(null)
@@ -306,8 +282,6 @@ export default function ProfileModal({ isOpen, onClose }) {
     }
   }
 
-  const avatarPresets = PRESET_AVATARS[user.role] || PRESET_AVATARS.customer
-
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col my-auto">
@@ -435,58 +409,23 @@ export default function ProfileModal({ isOpen, onClose }) {
                       type="button"
                       disabled={uploadingAvatar}
                       onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-primary text-slate-700 hover:text-primary text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:border-primary hover:bg-primary/5 text-slate-700 hover:text-primary text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
                     >
                       {uploadingAvatar ? (
                         <>
                           <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                          <span>Đang tải lên Cloudinary...</span>
+                          <span>Đang cập nhật ảnh...</span>
                         </>
                       ) : (
                         <>
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Tải ảnh lên Cloudinary</span>
+                          <Upload className="w-3.5 h-3.5 text-primary" />
+                          <span>Đổi ảnh đại diện</span>
                         </>
                       )}
                     </button>
                     <p className="text-[11px] text-slate-400">
-                      Lưu trữ an toàn trên Cloudinary CDN (JPG, PNG, WEBP tối đa 5MB).
+                      Hỗ trợ định dạng JPG, PNG, WEBP (tối đa 5MB).
                     </p>
-                  </div>
-                </div>
-
-                {/* Preset Avatars */}
-                <div>
-                  <span className="text-[11px] font-bold text-slate-600 block mb-2 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-500" /> Chọn nhanh avatar có sẵn:
-                  </span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {avatarPresets.map((presetUrl, idx) => {
-                      const isSelected = avatar === presetUrl
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setAvatar(presetUrl)}
-                          className={`relative rounded-xl overflow-hidden transition-all ${
-                            isSelected
-                              ? 'ring-3 ring-primary scale-105 shadow-md'
-                              : 'opacity-75 hover:opacity-100 hover:scale-105'
-                          }`}
-                        >
-                          <img
-                            src={presetUrl}
-                            alt={`Preset ${idx}`}
-                            className="w-11 h-11 object-cover rounded-xl"
-                          />
-                          {isSelected && (
-                            <div className="absolute inset-0 bg-primary/30 flex items-center justify-center text-white">
-                              <CheckCircle2 className="w-4 h-4 fill-primary text-white" />
-                            </div>
-                          )}
-                        </button>
-                      )
-                    })}
                   </div>
                 </div>
               </div>

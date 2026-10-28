@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import { startOfTodayInVietnam } from '../utils/date.js';
 import { maskPhone } from '../utils/maskPhone.js';
+import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { getNextKitchenTicketNo } from './counterService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER, VISIBLE_TO_RESTAURANT_FILTER } from './orderPolicy.js';
 import {
@@ -9,6 +10,7 @@ import {
   REGULAR_CUSTOMER_WINDOW_DAYS,
   calculateKitchenDueAt,
 } from './orderTiming.js';
+import { sendRealtimeNotification, broadcastRealtimeNotification } from '../socket.js';
 
 const ACTIVE_STATUSES = ['pending', 'preparing', 'ready_for_pickup'];
 const RECENT_CANCEL_WINDOW_MS = 10 * 60 * 1000; // customer-cancelled orders stay visible 10 minutes
@@ -151,13 +153,24 @@ export const acceptOrder = async (restaurantId, orderId) => {
   // Ticket number only after the accept really succeeded: a request that loses the race wastes no number
   const kitchenTicketNo = await getNextKitchenTicketNo(restaurantId, now);
   await Order.updateOne({ _id: accepted._id }, { $set: { kitchenTicketNo } });
+
+  if (accepted?.customer) {
+    sendRealtimeNotification(accepted.customer, {
+      title: 'Quán đã nhận đơn & đang nấu! 🍳',
+      message: `Đơn #${accepted.orderCode || accepted.orderNumber || ''} đã được bếp xác nhận và bắt đầu chế biến.`,
+      type: 'order',
+      orderId: accepted._id,
+      link: `/orders/${accepted._id}`,
+    });
+  }
+
   return { ...accepted, kitchenTicketNo };
 };
 
 // No: cancel and refund if the customer already paid online (simulated, no payment gateway yet)
 export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   const order = await Order.findOne({ _id: orderId, restaurant: restaurantId, ...VISIBLE_TO_RESTAURANT_FILTER })
-    .select('status payment total')
+    .select('status payment total customer')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
@@ -168,8 +181,18 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   const paymentUpdate = isPaid
     ? { 'payment.status': 'refunded', 'payment.refundedAt': now, 'payment.refundAmount': order.total }
     : { 'payment.status': 'cancelled' };
+  const cancellation = { by: 'restaurant', reason, note, at: now };
+  // findOneAndUpdate skips the model hook: also update the legacy fields read by the customer screens
+  const legacyUpdate = {
+    ...legacyPaymentFromCanonical({
+      method: order.payment.method,
+      status: isPaid ? 'refunded' : 'cancelled',
+      refundAmount: isPaid ? order.total : 0,
+    }),
+    ...legacyCancellationFromCanonical(cancellation),
+  };
 
-  return transitionOrder({
+  const rejected = await transitionOrder({
     restaurantId,
     orderId,
     fromStatus: 'pending',
@@ -179,18 +202,31 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
     update: {
       $set: {
         status: 'cancelled',
-        cancellation: { by: 'restaurant', reason, note, at: now },
+        cancellation,
         ...paymentUpdate,
+        ...legacyUpdate,
       },
       $push: historyEntry('cancelled', now),
     },
   });
+
+  if (order.customer) {
+    sendRealtimeNotification(order.customer, {
+      title: 'Quán ăn đã từ chối đơn hàng ❌',
+      message: `Đơn hàng của bạn không thể thực hiện (${reason || 'Quán quá tải'}). Tiền sẽ được hoàn lại nếu đã thanh toán.`,
+      type: 'order',
+      orderId,
+      link: `/orders/${orderId}`,
+    });
+  }
+
+  return rejected;
 };
 
 // Kitchen done: the order becomes visible to shippers (payment must still be valid)
 export const markReady = async (restaurantId, orderId) => {
   const now = new Date();
-  return transitionOrder({
+  const ready = await transitionOrder({
     restaurantId,
     orderId,
     fromStatus: 'preparing',
@@ -201,4 +237,21 @@ export const markReady = async (restaurantId, orderId) => {
       $push: historyEntry('ready_for_pickup', now),
     },
   });
+
+  if (ready?.customer) {
+    sendRealtimeNotification(ready.customer, {
+      title: 'Món ăn đã chuẩn bị xong! 🥡',
+      message: `Món ăn của bạn đã nấu xong. Hệ thống đang điều phối shipper tới lấy hàng!`,
+      type: 'order',
+      orderId: ready._id,
+      link: `/orders/${ready._id}`,
+    });
+  }
+
+  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+    orderId: ready._id,
+    orderCode: ready.orderCode || ready.orderNumber,
+  });
+
+  return ready;
 };

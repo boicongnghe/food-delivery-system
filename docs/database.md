@@ -132,6 +132,28 @@ stateDiagram-v2
 
 - **Module sau giao hàng (đánh giá, khiếu nại, sự cố) dựa vào `statusHistory`:** thời điểm giao/hủy lấy từ dòng `delivered`/`cancelled` cuối cùng. Module Shipper khi chuyển đơn sang `delivered` **bắt buộc** `$push` dòng này, nếu không thì khách sẽ không đánh giá hoặc khiếu nại được.
 
+### Hai bộ trường thanh toán / hủy đơn (bắt buộc đọc)
+
+Model `Order` đang có **hai bộ trường cho cùng một thông tin**:
+
+| Bộ | Trường | Ai dùng |
+| --- | --- | --- |
+| **Chuẩn (nested)** | `payment.method/status/paidAt/refundAmount/refundedAt`, `cancellation.*`, `statusHistory` | Bảng bếp, shipper, thống kê admin, báo cáo doanh thu |
+| Cũ (top-level) | `paymentMethod`, `paymentStatus`, `refundStatus`, `refundAmount`, `cancelledBy`, `cancelReason` | Checkout, thanh toán, màn đơn hàng của khách |
+
+- **Mọi báo cáo và nghiệp vụ mới phải đọc bộ chuẩn.**
+- Hook `pre('validate')` trong `Order.js` tự đồng bộ hai bộ **khi lưu bằng `order.save()` / `Order.create()`**: bộ nào được sửa trong lần lưu đó sẽ quyết định bộ còn lại (sửa cả hai thì bộ chuẩn thắng). Hàm chuyển đổi nằm ở `server/src/utils/orderFieldSync.js`.
+- **`findOneAndUpdate` / `updateOne` KHÔNG chạy hook**: phải tự `$set` cả hai bộ (xem `rejectOrder` trong `restaurantOrderService.js`).
+- `'banking'` (chuyển khoản/VietQR) là thanh toán online: chưa nhận tiền thì quán không thấy đơn, shipper không thu tiền mặt.
+- Dữ liệu cũ lưu sai trước bản sửa: chạy `npm run migrate:order-fields` (chỉ in, không ghi), kiểm tra rồi chạy `npm run migrate:order-fields -- --apply`. Chạy lại nhiều lần vẫn an toàn.
+- Đơn checkout (`orderNumber` dạng `ORD-...`) lấy bộ cũ làm gốc; đơn bếp/seed (`GN-...`) lấy bộ chuẩn làm gốc.
+
+### Quy tắc của các API đơn phía khách (`/api/orders`)
+
+- `GET /api/orders/:id`: khách chỉ xem được đơn của mình; admin xem được mọi đơn.
+- `PATCH /api/orders/:id/progress` là **công cụ demo**: chỉ chủ đơn, chỉ sang `confirmed`/`preparing`/`delivering`, bị chặn khi `NODE_ENV=production`.
+- `PATCH /api/orders/:id/receive`: chỉ khi đơn đang `delivering`; đơn COD tự chuyển `payment.status = paid`.
+
 ## 5. `reviews`
 
 **Đã triển khai (UC17, UC43).** Model: `server/src/models/Review.js`. Có đánh giá shipper.

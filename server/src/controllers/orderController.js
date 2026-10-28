@@ -11,7 +11,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {
-  const order = await orderService.getOrderById(req.params.id, req.user._id);
+  const order = await orderService.getOrderById(req.params.id, req.user);
   res.status(200).json({
     success: true,
     data: order,
@@ -49,7 +49,7 @@ export const receiveOrder = asyncHandler(async (req, res) => {
 
 export const progressOrder = asyncHandler(async (req, res) => {
   const { status, note } = req.body;
-  const order = await orderService.progressOrderStatus(req.params.id, status, note);
+  const order = await orderService.progressOrderStatus(req.params.id, req.user, status, note);
   res.status(200).json({
     success: true,
     data: order,
