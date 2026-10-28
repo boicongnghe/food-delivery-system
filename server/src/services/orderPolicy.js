@@ -1,6 +1,7 @@
 // Shared business rules for orders (kitchen, shipper and later checkout use the same filters)
 
-export const ONLINE_PAYMENT_METHODS = ['momo', 'vnpay'];
+// 'banking' = bank transfer / VietQR from checkout: the money must arrive before the kitchen sees the order
+export const ONLINE_PAYMENT_METHODS = ['momo', 'vnpay', 'banking'];
 
 // Online order whose payment is not confirmed yet: the customer may still be on the payment page.
 // The restaurant must not see or cook it.
