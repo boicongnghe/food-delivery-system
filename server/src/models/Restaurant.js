@@ -56,6 +56,12 @@ const restaurantSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected', 'suspended'],
       default: 'pending',
     },
+    // Bank account that receives the weekly settlement (shown masked in reports)
+    payoutAccount: {
+      bankName: { type: String, trim: true, default: '' },
+      accountNumber: { type: String, trim: true, default: '' },
+      accountHolder: { type: String, trim: true, default: '' },
+    },
   },
   { timestamps: true, collection: 'restaurants' },
 );

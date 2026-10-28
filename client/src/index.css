@@ -392,3 +392,43 @@ textarea {
     transform: translateX(0);
   }
 }
+
+/* Printing (kitchen ticket / delivery slip / reports): only content rendered by PrintPortal is printed */
+.print-only {
+  display: none;
+}
+
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Thermal printers: pure black on white (overrides the grey text of global p/h styles) */
+  body {
+    background: #fff !important;
+  }
+
+  .print-only,
+  .print-only * {
+    color: #000 !important;
+  }
+
+  @page {
+    size: 80mm auto; /* thermal receipt paper */
+    margin: 4mm;
+  }
+
+  /* Office documents (settlement statement) use A4 instead of the receipt paper */
+  .print-a4 {
+    page: a4-document;
+  }
+
+  @page a4-document {
+    size: A4;
+    margin: 12mm;
+  }
+}
