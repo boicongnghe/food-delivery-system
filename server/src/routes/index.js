@@ -12,6 +12,7 @@ import orderRoutes from './orderRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import reviewRoutes from './reviewRoutes.js';
 import complaintRoutes from './complaintRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 const router = Router();
 
@@ -37,5 +38,6 @@ router.use('/orders', orderRoutes);
 router.use('/admin', adminRoutes);
 router.use('/reviews', reviewRoutes);
 router.use('/complaints', complaintRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

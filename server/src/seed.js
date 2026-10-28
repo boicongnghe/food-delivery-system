@@ -48,7 +48,7 @@ const seedUsers = async () => {
     for (const u of demoUsers) {
       const exists = await User.findOne({ email: u.email });
       if (!exists) {
-        await User.create(u);
+        await User.create({ ...u, isVerified: true });
         console.log(`Created demo user: ${u.email} (${u.role})`);
       } else {
         // update role and ensure password
@@ -57,6 +57,9 @@ const seedUsers = async () => {
         exists.phone = u.phone;
         exists.avatar = u.avatar;
         exists.isActive = true;
+        exists.isVerified = true;
+        exists.verificationToken = null;
+        exists.verificationTokenExpires = null;
         exists.password = u.password; // will be hashed by pre('save')
         await exists.save();
         console.log(`Updated demo user: ${u.email} (${u.role})`);
