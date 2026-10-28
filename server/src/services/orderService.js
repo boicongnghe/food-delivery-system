@@ -5,6 +5,7 @@ import PromotionRule from '../models/PromotionRule.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import ApiError from '../utils/ApiError.js';
 import { validateAndApplyPromotion } from './promotionService.js';
+import { sendRealtimeNotification } from '../socket.js';
 
 const generateOrderNumber = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -116,6 +117,27 @@ export const createOrder = async (userId, data) => {
     action: 'Tạo đơn hàng',
     note: 'Khách hàng đã đặt đơn thành công',
     changedByRole: 'customer',
+  });
+
+  // Bắn thông báo Realtime cho Nhà hàng và Khách hàng
+  const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
+
+  if (restaurant?.owner) {
+    sendRealtimeNotification(restaurant.owner, {
+      title: `Đơn hàng mới #${shortCode} 🔔`,
+      message: `Khách ${deliveryAddress.recipientName} vừa đặt đơn (${snapshotItems.length} món, ${totalPrice.toLocaleString('vi-VN')}đ). Bếp kiểm tra ngay!`,
+      type: 'order',
+      orderId: order._id,
+      link: '/restaurant/orders',
+    });
+  }
+
+  sendRealtimeNotification(userId, {
+    title: `Đặt hàng thành công #${shortCode} 🎉`,
+    message: `Đơn hàng của bạn đã gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`,
+    type: 'order',
+    orderId: order._id,
+    link: `/orders/${order._id}`,
   });
 
   return order;
