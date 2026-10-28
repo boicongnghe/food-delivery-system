@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Inbox,
+  Image as ImageIcon,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
@@ -105,20 +106,21 @@ export default function Register() {
     }))
   }
 
-  const handlePdfUpload = (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!isPdf) {
-      toast.error('Chỉ chấp nhận tệp định dạng PDF (.pdf) cho Giấy phép kinh doanh!')
+    const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name)
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+
+    if (!isImage && !isPdf) {
+      toast.error('Chỉ chấp nhận tệp hình ảnh (JPG, PNG, WEBP) hoặc file PDF (.pdf)!')
       if (pdfInputRef.current) pdfInputRef.current.value = ''
       return
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error('Dung lượng file PDF vượt quá giới hạn 15MB. Vui lòng chọn file nhỏ hơn.')
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error('Dung lượng tệp vượt quá giới hạn 3MB. Vui lòng chọn file nhỏ gọn hơn hoặc nén ảnh/PDF.')
       if (pdfInputRef.current) pdfInputRef.current.value = ''
       return
     }
@@ -130,50 +132,74 @@ export default function Register() {
         businessLicense: {
           fileName: file.name,
           fileSize: file.size,
+          fileType: isImage ? 'image' : 'pdf',
           fileData: reader.result,
           uploadedAt: new Date().toISOString(),
         },
       }))
-      toast.success(`Đã tải lên tệp PDF: ${file.name}`)
+      toast.success(`Đã tải lên tệp: ${file.name}`)
     }
     reader.onerror = () => {
-      toast.error('Không thể đọc file PDF. Vui lòng thử lại!')
+      toast.error('Không thể đọc tệp. Vui lòng thử lại!')
     }
     reader.readAsDataURL(file)
   }
 
-  const handleRemovePdf = () => {
+  const handleRemoveFile = () => {
     setFormData((prev) => ({ ...prev, businessLicense: null }))
     if (pdfInputRef.current) pdfInputRef.current.value = ''
     toast('Đã gỡ tệp Giấy phép kinh doanh', { icon: '🗑️' })
   }
 
-  const handlePreviewPdf = () => {
+  const handlePreviewFile = () => {
     if (!formData.businessLicense?.fileData) return
+    const dataUri = formData.businessLicense.fileData
+    const isImg =
+      formData.businessLicense.fileType === 'image' ||
+      dataUri.startsWith('data:image/') ||
+      /\.(jpe?g|png|webp)$/i.test(formData.businessLicense.fileName)
+
     try {
-      const dataUri = formData.businessLicense.fileData
       const win = window.open('')
       if (win) {
-        win.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Xem trước: ${formData.businessLicense.fileName}</title>
-              <style>
-                body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1e293b; }
-                iframe { width: 100%; height: 100%; border: none; }
-              </style>
-            </head>
-            <body>
-              <iframe src="${dataUri}"></iframe>
-            </body>
-          </html>
-        `)
+        if (isImg) {
+          win.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Xem trước: ${formData.businessLicense.fileName}</title>
+                <style>
+                  body { margin: 0; padding: 24px; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0f172a; font-family: sans-serif; }
+                  img { max-width: 95%; max-height: 90vh; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); object-fit: contain; }
+                </style>
+              </head>
+              <body>
+                <img src="${dataUri}" alt="Giấy phép kinh doanh" />
+              </body>
+            </html>
+          `)
+        } else {
+          win.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Xem trước: ${formData.businessLicense.fileName}</title>
+                <style>
+                  body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1e293b; }
+                  iframe { width: 100%; height: 100%; border: none; }
+                </style>
+              </head>
+              <body>
+                <iframe src="${dataUri}"></iframe>
+              </body>
+            </html>
+          `)
+        }
       } else {
-        toast.error('Trình duyệt đã chặn cửa sổ pop-up. Vui lòng cho phép để xem trước file!')
+        toast.error('Trình duyệt đã chặn cửa sổ pop-up. Vui lòng cho phép để xem trước tệp!')
       }
     } catch {
-      toast.error('Không thể mở xem trước file PDF.')
+      toast.error('Không thể mở xem trước tệp.')
     }
   }
 
@@ -328,7 +354,7 @@ export default function Register() {
         return
       }
       if (!formData.businessLicense || !formData.businessLicense.fileData) {
-        toast.error('Bắt buộc phải tải lên file PDF Giấy phép kinh doanh của nhà hàng.')
+        toast.error('Bắt buộc phải tải lên hình ảnh hoặc file PDF Giấy phép kinh doanh của nhà hàng.')
         return
       }
 
@@ -994,40 +1020,60 @@ export default function Register() {
                         />
                       </div>
 
-                      {/* PDF Upload Box */}
+                      {/* Image / PDF Upload Box */}
                       <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                          File PDF Giấy phép kinh doanh / Vệ sinh ATTP <span className="text-red-500">*</span>
+                          Hình ảnh hoặc File PDF Giấy phép kinh doanh / Vệ sinh ATTP <span className="text-red-500">*</span>
                         </label>
                         <input
                           ref={pdfInputRef}
                           type="file"
-                          accept=".pdf,application/pdf"
-                          onChange={handlePdfUpload}
+                          accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf,.pdf"
+                          onChange={handleFileUpload}
                           className="hidden"
-                          id="pdf-upload-input"
+                          id="license-upload-input"
                         />
 
                         {formData.businessLicense ? (
                           <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 flex items-center justify-between">
                             <div className="flex items-center gap-2.5 truncate">
-                              <FileText className="w-5 h-5 text-emerald-500 shrink-0" />
-                              <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {formData.businessLicense.fileName}
-                              </span>
+                              {formData.businessLicense.fileType === 'image' ||
+                              formData.businessLicense.fileData?.startsWith('data:image/') ||
+                              /\.(jpe?g|png|webp)$/i.test(formData.businessLicense.fileName) ? (
+                                <img
+                                  src={formData.businessLicense.fileData}
+                                  alt="Xem trước giấy phép"
+                                  className="w-9 h-9 rounded-lg object-cover border border-emerald-200 dark:border-emerald-800 shrink-0"
+                                />
+                              ) : (
+                                <FileText className="w-6 h-6 text-emerald-500 shrink-0" />
+                              )}
+                              <div className="flex flex-col truncate">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {formData.businessLicense.fileName}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {formData.businessLicense.fileType === 'image' ||
+                                  formData.businessLicense.fileData?.startsWith('data:image/') ||
+                                  /\.(jpe?g|png|webp)$/i.test(formData.businessLicense.fileName)
+                                    ? '🖼️ Tệp hình ảnh'
+                                    : '📄 Tài liệu PDF'} • {(formData.businessLicense.fileSize / 1024).toFixed(0)} KB
+                                </span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
-                                onClick={handlePreviewPdf}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-primary transition-colors flex items-center gap-1"
+                                onClick={handlePreviewFile}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
                               >
                                 <ExternalLink className="w-3 h-3" /> Xem
                               </button>
                               <button
                                 type="button"
-                                onClick={handleRemovePdf}
-                                className="p-1 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                                onClick={handleRemoveFile}
+                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                title="Gỡ bỏ tệp"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1035,15 +1081,15 @@ export default function Register() {
                           </div>
                         ) : (
                           <label
-                            htmlFor="pdf-upload-input"
+                            htmlFor="license-upload-input"
                             className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-orange-300 dark:border-orange-800 hover:border-primary bg-white/70 dark:bg-slate-900/60 cursor-pointer transition-colors"
                           >
                             <UploadCloud className="w-8 h-8 text-primary mb-2" />
                             <span className="text-xs font-bold text-slate-800 dark:text-white">
-                              Bấm để tải lên file PDF (Tối đa 15MB)
+                              Bấm để chụp ảnh hoặc tải lên tệp (Tối đa 3MB)
                             </span>
                             <span className="text-[10px] text-slate-400 mt-0.5">
-                              Định dạng hợp lệ: .pdf
+                              Hỗ trợ định dạng ảnh (.jpg, .jpeg, .png, .webp) hoặc tài liệu PDF (.pdf)
                             </span>
                           </label>
                         )}

@@ -56,21 +56,25 @@ export const registerSchema = Joi.object({
     businessLicense: Joi.object({
       fileName: Joi.string()
         .trim()
-        .pattern(/\.pdf$/i)
+        .pattern(/\.(pdf|jpe?g|png|webp)$/i)
         .required()
         .messages({
-          'string.empty': 'Vui lòng đính kèm file PDF giấy phép kinh doanh',
-          'string.pattern.base': 'Giấy phép kinh doanh bắt buộc phải là tệp định dạng PDF (.pdf)',
+          'string.empty': 'Vui lòng đính kèm ảnh hoặc file PDF giấy phép kinh doanh',
+          'string.pattern.base': 'Giấy phép kinh doanh phải là hình ảnh (JPG, PNG, WEBP) hoặc tài liệu PDF (.pdf)',
           'any.required': 'Tên file giấy phép kinh doanh là bắt buộc',
         }),
-      fileSize: Joi.number().optional().allow(null, 0),
-      fileData: Joi.string().required().messages({
-        'string.empty': 'Nội dung file PDF không được để trống',
-        'any.required': 'Nội dung file PDF là bắt buộc',
+      fileSize: Joi.number().max(3 * 1024 * 1024).optional().allow(null, 0).messages({
+        'number.max': 'Dung lượng tệp không được vượt quá 3MB',
+      }),
+      fileType: Joi.string().optional().allow('', null),
+      fileData: Joi.string().max(5000000).required().messages({
+        'string.empty': 'Nội dung tệp không được để trống',
+        'string.max': 'Dung lượng tệp vượt quá giới hạn 3MB',
+        'any.required': 'Nội dung tệp là bắt buộc',
       }),
       uploadedAt: Joi.any().optional(),
     }).required().messages({
-      'any.required': 'File PDF giấy phép kinh doanh là bắt buộc đối với nhà hàng',
+      'any.required': 'Hình ảnh hoặc file PDF giấy phép kinh doanh là bắt buộc đối với nhà hàng',
     }),
   }).when('role', {
     is: 'restaurant_owner',
@@ -80,10 +84,29 @@ export const registerSchema = Joi.object({
     otherwise: Joi.optional().allow(null),
   }),
   shipperDetails: Joi.object({
-    dateOfBirth: Joi.string().trim().required().messages({
-      'string.empty': 'Ngày sinh tài xế không được để trống',
-      'any.required': 'Ngày sinh là bắt buộc đối với tài xế',
-    }),
+    dateOfBirth: Joi.string()
+      .trim()
+      .required()
+      .custom((value, helpers) => {
+        const dob = new Date(value);
+        if (isNaN(dob.getTime())) {
+          return helpers.message('Ngày sinh tài xế không đúng định dạng');
+        }
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+          age--;
+        }
+        if (age < 18) {
+          return helpers.message('Tài xế đối tác phải từ đủ 18 tuổi trở lên theo quy định');
+        }
+        return value;
+      })
+      .messages({
+        'string.empty': 'Ngày sinh tài xế không được để trống',
+        'any.required': 'Ngày sinh là bắt buộc đối với tài xế',
+      }),
     citizenId: Joi.string()
       .trim()
       .pattern(/^[0-9]{9,12}$/)

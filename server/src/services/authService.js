@@ -100,6 +100,8 @@ export const registerUser = async ({
       address: restaurantDetails.restaurantAddress || 'Đang cập nhật địa chỉ',
       phone: (phone ? phone.trim() : '0900000000'),
       description: (restaurantDetails.businessItems || '').slice(0, 150),
+      ownerCitizenId: restaurantDetails.ownerCitizenId || '',
+      businessLicense: restaurantDetails.businessLicense || null,
       status: 'pending',
     });
   }
