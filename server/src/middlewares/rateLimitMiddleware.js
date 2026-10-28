@@ -46,3 +46,20 @@ export const forgotPasswordRateLimit = rateLimit({
     );
   },
 });
+
+// Chống spam yêu cầu gửi lại email kích hoạt
+export const resendVerificationRateLimit = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 phút
+  limit: 5, // Tối đa 5 yêu cầu trong 10 phút
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: (req, res, next) => {
+    next(
+      new ApiError(
+        429,
+        'Bạn đã yêu cầu gửi lại email kích hoạt quá nhiều lần. Vui lòng kiểm tra kỹ hòm thư (kể cả mục Thư rác/Spam) hoặc thử lại sau 10 phút.'
+      )
+    );
+  },
+});
+

@@ -16,9 +16,32 @@ export const register = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     data: result,
-    message: 'Đăng ký tài khoản thành công',
+    message: result.message || 'Đăng ký tài khoản thành công. Vui lòng kiểm tra email để kích hoạt.',
   });
 });
+
+export const verifyEmail = asyncHandler(async (req, res) => {
+  const token = req.query.token || req.body.token;
+  const result = await authService.verifyEmail(token);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
+export const resendVerification = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const result = await authService.resendVerificationEmail(email);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;

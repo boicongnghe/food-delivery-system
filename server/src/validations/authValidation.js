@@ -170,3 +170,19 @@ export const changePasswordSchema = Joi.object({
     'any.required': 'Vui lòng xác nhận mật khẩu mới',
   }),
 });
+
+export const verifyEmailSchema = Joi.object({
+  token: Joi.string().trim().required().messages({
+    'string.empty': 'Mã xác thực không được để trống',
+    'any.required': 'Mã xác thực token là bắt buộc',
+  }),
+});
+
+export const resendVerificationSchema = Joi.object({
+  email: Joi.string().trim().lowercase().email().required().messages({
+    'string.empty': 'Email không được để trống',
+    'string.email': 'Email không đúng định dạng',
+    'any.required': 'Email là bắt buộc',
+  }),
+});
+
