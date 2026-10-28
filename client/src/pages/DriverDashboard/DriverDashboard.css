@@ -1011,18 +1011,6 @@
   color: var(--text-muted);
 }
 
-.surge-tag {
-  display: inline-block;
-  margin-top: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--brand);
-  background: var(--red-bg);
-  border: 1px solid #fca5a5;
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
 .trip-restaurant-name { font-weight: 600; color: var(--text-primary); font-size: 12px; }
 .trip-restaurant-dist { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
 

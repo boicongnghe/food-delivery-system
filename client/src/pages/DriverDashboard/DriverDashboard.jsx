@@ -298,9 +298,6 @@ function DriverDashboard() {
                       </p>
                     </div>
                   </div>
-                  {summary.earningsByHour?.some(item => item.surge) && (
-                    <span className="receipt-banner-badge">🔥 Có thu nhập giờ cao điểm trong kỳ</span>
-                  )}
                 </div>
                 <div className="dashboard-columns">
                   <div className="dashboard-main">

@@ -33,7 +33,6 @@ function TripLedger({ trips, periodLabel }) {
                 <td>
                   <span className="trip-code">{trip.id}</span>
                   <div className="trip-time" style={{ marginTop: 2 }}>{trip.time}</div>
-                  {trip.surge && <span className="surge-tag">🔥 SURGE x1.4</span>}
                 </td>
                 <td>
                   <div className="trip-restaurant-name">{trip.restaurant}</div>
@@ -75,7 +74,7 @@ function TripLedger({ trips, periodLabel }) {
       <div className="ledger-footer">
         <div>
           <div className="ledger-total-label">Tổng {trips.length} chuyến</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cước gốc + Thưởng surge + Tiền tip</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cước gốc + Thưởng + Tiền tip</div>
         </div>
         <div className="ledger-total-value">{formatVND(total)}</div>
       </div>
