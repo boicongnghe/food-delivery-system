@@ -143,8 +143,10 @@ export const createOrder = async (userId, data) => {
   return order;
 };
 
-export const getOrderById = async (orderId) => {
-  const order = await Order.findById(orderId)
+// Customers only see their own orders (full phone + address inside); admins see every order
+export const getOrderById = async (orderId, user) => {
+  const filter = user.role === 'admin' ? { _id: orderId } : { _id: orderId, customer: user._id };
+  const order = await Order.findOne(filter)
     .populate('customer', 'fullName email phone')
     .populate('restaurant', 'name address phone image');
 
@@ -186,6 +188,7 @@ export const cancelOrder = async (orderId, userId, reason) => {
   order.status = 'cancelled';
   order.cancelReason = reason || 'Khách hàng yêu cầu hủy đơn';
   order.cancelledBy = 'customer';
+  order.$locals.changedByRole = 'customer';
 
   // Refund handling (UC17)
   if (order.paymentStatus === 'paid') {
@@ -218,9 +221,14 @@ export const receiveOrder = async (orderId, userId) => {
   if (order.status === 'cancelled') {
     throw new ApiError(400, 'Đơn hàng này đã bị hủy');
   }
+  // Only food that is on its way can be received (otherwise revenue is counted for food never cooked)
+  if (order.status !== 'delivering') {
+    throw new ApiError(400, 'Chỉ xác nhận đã nhận hàng khi đơn đang được giao');
+  }
 
   const previousStatus = order.status;
   order.status = 'delivered';
+  order.$locals.changedByRole = 'customer';
   await order.save();
 
   await OrderStatusHistory.create({
@@ -235,14 +243,29 @@ export const receiveOrder = async (orderId, userId) => {
   return order;
 };
 
-export const progressOrderStatus = async (orderId, nextStatus, note = '') => {
-  const order = await Order.findById(orderId);
+// Demo helper for the order tracking screen: the customer moves their OWN order through the middle steps.
+// Never in production, never to delivered/cancelled (those have their own flows).
+const DEMO_PROGRESS_STATUSES = ['confirmed', 'preparing', 'delivering'];
+
+export const progressOrderStatus = async (orderId, user, nextStatus, note = '') => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new ApiError(403, 'Chức năng giả lập tiến độ chỉ dùng khi demo');
+  }
+  if (!DEMO_PROGRESS_STATUSES.includes(nextStatus)) {
+    throw new ApiError(400, `Chỉ giả lập được các trạng thái: ${DEMO_PROGRESS_STATUSES.join(', ')}`);
+  }
+
+  const order = await Order.findOne({ _id: orderId, customer: user._id });
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
+  }
+  if (['delivered', 'cancelled'].includes(order.status)) {
+    throw new ApiError(400, 'Đơn hàng đã kết thúc, không thể đổi trạng thái');
   }
 
   const previousStatus = order.status;
   order.status = nextStatus;
+  order.$locals.changedByRole = 'system';
   await order.save();
 
   await OrderStatusHistory.create({

@@ -6,6 +6,7 @@ import { updateRestaurantProfileSchema } from '../validations/restaurantValidati
 import menuCategoryRoutes from './menuCategoryRoutes.js';
 import menuItemRoutes from './menuItemRoutes.js';
 import restaurantOrderRoutes from './restaurantOrderRoutes.js';
+import restaurantReportRoutes from './restaurantReportRoutes.js';
 
 const router = Router();
 
@@ -14,6 +15,8 @@ router.use('/me/menu-categories', menuCategoryRoutes);
 router.use('/me/menu-items', menuItemRoutes);
 // Kitchen order processing: accept / reject / ready for pickup
 router.use('/me/orders', restaurantOrderRoutes);
+// Revenue report: overview, order history, reviews and weekly settlement
+router.use('/me/reports', restaurantReportRoutes);
 
 // UC19 - Restaurant owner manages their own restaurant profile
 router.get('/me', protect, authorize('restaurant_owner'), restaurantController.getMyRestaurant);

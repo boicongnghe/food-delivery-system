@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import { startOfTodayInVietnam } from '../utils/date.js';
 import { maskPhone } from '../utils/maskPhone.js';
+import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { getNextKitchenTicketNo } from './counterService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER, VISIBLE_TO_RESTAURANT_FILTER } from './orderPolicy.js';
 import {
@@ -180,6 +181,16 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   const paymentUpdate = isPaid
     ? { 'payment.status': 'refunded', 'payment.refundedAt': now, 'payment.refundAmount': order.total }
     : { 'payment.status': 'cancelled' };
+  const cancellation = { by: 'restaurant', reason, note, at: now };
+  // findOneAndUpdate skips the model hook: also update the legacy fields read by the customer screens
+  const legacyUpdate = {
+    ...legacyPaymentFromCanonical({
+      method: order.payment.method,
+      status: isPaid ? 'refunded' : 'cancelled',
+      refundAmount: isPaid ? order.total : 0,
+    }),
+    ...legacyCancellationFromCanonical(cancellation),
+  };
 
   const rejected = await transitionOrder({
     restaurantId,
@@ -191,8 +202,9 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
     update: {
       $set: {
         status: 'cancelled',
-        cancellation: { by: 'restaurant', reason, note, at: now },
+        cancellation,
         ...paymentUpdate,
+        ...legacyUpdate,
       },
       $push: historyEntry('cancelled', now),
     },

@@ -12,7 +12,8 @@
     "seed:driver-demo": "node src/seeds/driverDashboardDemoSeed.js",
     "seed:menu": "node src/seeds/menuSeed.js",
     "seed:orders": "node src/seeds/orderSeed.js",
-    "seed:feedback": "node src/seeds/feedbackSeed.js"
+    "seed:feedback": "node src/seeds/feedbackSeed.js",
+    "migrate:order-fields": "node src/scripts/syncOrderFields.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

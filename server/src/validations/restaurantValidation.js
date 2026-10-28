@@ -69,4 +69,19 @@ export const updateRestaurantProfileSchema = Joi.object({
     'array.length': 'Giờ mở cửa phải đủ 7 ngày trong tuần',
     'array.unique': 'Mỗi ngày chỉ được khai báo một lần',
   }),
+  // Optional and without default: an old client that does not send it never wipes the saved account
+  payoutAccount: Joi.object({
+    bankName: Joi.string().trim().max(60).allow('').default(''),
+    accountNumber: Joi.string().trim().pattern(/^\d{6,20}$/).allow('').default('').messages({
+      'string.pattern.base': 'Số tài khoản gồm 6–20 chữ số',
+    }),
+    accountHolder: Joi.string().trim().uppercase().max(100).allow('').default(''),
+  })
+    .custom((account, helpers) => {
+      const filled = [account.bankName, account.accountNumber, account.accountHolder].filter(Boolean).length;
+      // All three or none: a half-filled account cannot receive money
+      return filled === 0 || filled === 3
+        ? account
+        : helpers.message('Nhập đủ ngân hàng, số tài khoản và tên chủ tài khoản (hoặc để trống cả ba)');
+    }),
 });
