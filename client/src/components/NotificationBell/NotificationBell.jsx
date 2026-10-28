@@ -18,73 +18,6 @@ import notificationApi from '../../api/notificationApi.js'
 import { connectSocket } from '../../services/socket.js'
 import { playNotificationSound } from '../../utils/playNotificationSound.js'
 
-// Mẫu thông báo dự phòng khi chưa có dữ liệu từ Database
-const DEFAULT_NOTIFICATIONS_BY_ROLE = {
-  customer: [
-    {
-      id: 'cust-1',
-      _id: 'cust-1',
-      title: 'Đơn hàng đang trên đường giao! 🛵',
-      message: 'Tài xế đang giao đơn hàng đến địa chỉ của bạn. Dự kiến 10 phút nữa tới nơi.',
-      time: '5 phút trước',
-      type: 'order',
-      link: '/orders',
-      read: false,
-      isRead: false,
-    },
-    {
-      id: 'cust-2',
-      _id: 'cust-2',
-      title: 'Voucher giảm giá 20.000đ 🎉',
-      message: 'Nhập mã FREESHIP để được miễn phí vận chuyển cho đơn hàng từ 100.000đ hôm nay.',
-      time: '1 giờ trước',
-      type: 'promo',
-      link: '/',
-      read: false,
-      isRead: false,
-    },
-  ],
-  restaurant_owner: [
-    {
-      id: 'rest-1',
-      _id: 'rest-1',
-      title: 'Đơn hàng mới cần chuẩn bị! 🔔',
-      message: 'Khách hàng vừa đặt đơn món ăn. Vui lòng kiểm tra và xác nhận vào bếp.',
-      time: 'Vừa xong',
-      type: 'order',
-      link: '/restaurant/orders',
-      read: false,
-      isRead: false,
-    },
-  ],
-  shipper: [
-    {
-      id: 'ship-1',
-      _id: 'ship-1',
-      title: 'Đơn hàng mới sẵn sàng giao! ⚡',
-      message: 'Có đơn hàng đã chuẩn bị xong quanh khu vực của bạn, sẵn sàng nhận cuốc.',
-      time: 'Vừa xong',
-      type: 'order',
-      link: '/shipper',
-      read: false,
-      isRead: false,
-    },
-  ],
-  admin: [
-    {
-      id: 'adm-1',
-      _id: 'adm-1',
-      title: 'Đối tác mới chờ kiểm duyệt 🏪',
-      message: 'Có hồ sơ đăng ký đối tác mới đang chờ quản trị viên xác thực.',
-      time: '10 phút trước',
-      type: 'admin',
-      link: '/admin',
-      read: false,
-      isRead: false,
-    },
-  ],
-}
-
 const formatTimeAgo = (dateStr) => {
   if (!dateStr) return 'Vừa xong'
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -105,18 +38,16 @@ export default function NotificationBell({ isDark = false }) {
   const [isOpen, setIsOpen] = useState(false)
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
 
-  const role = user?.role || 'customer'
   const token = localStorage.getItem('token')
 
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
 
-  // 1. Tải danh sách thông báo từ API Backend
+  // 1. Tải danh sách thông báo từ API Backend - nếu không kết nối được thì để danh sách rỗng
   const loadNotifications = useCallback(async () => {
     if (!token) {
-      const fallback = DEFAULT_NOTIFICATIONS_BY_ROLE[role] || DEFAULT_NOTIFICATIONS_BY_ROLE.customer
-      setNotifications(fallback)
-      setUnreadCount(fallback.filter((n) => !n.read && !n.isRead).length)
+      setNotifications([])
+      setUnreadCount(0)
       return
     }
 
@@ -140,11 +71,11 @@ export default function NotificationBell({ isDark = false }) {
         setUnreadCount(0)
       }
     } catch {
-      const fallback = DEFAULT_NOTIFICATIONS_BY_ROLE[role] || DEFAULT_NOTIFICATIONS_BY_ROLE.customer
-      setNotifications(fallback)
-      setUnreadCount(fallback.filter((n) => !n.read && !n.isRead).length)
+      // Khi không kết nối được backend hoặc API lỗi -> Bỏ trống hoàn toàn (không dùng mock hardcode)
+      setNotifications([])
+      setUnreadCount(0)
     }
-  }, [role, token])
+  }, [token])
 
   useEffect(() => {
     loadNotifications()
@@ -207,7 +138,7 @@ export default function NotificationBell({ isDark = false }) {
     )
     setUnreadCount((prev) => Math.max(0, prev - 1))
 
-    if (token && item._id && !item._id.startsWith('cust-') && !item._id.startsWith('rest-')) {
+    if (token && item._id) {
       try {
         await notificationApi.markAsRead(item._id)
       } catch (err) {
@@ -239,7 +170,7 @@ export default function NotificationBell({ isDark = false }) {
       setUnreadCount((prev) => Math.max(0, prev - 1))
     }
 
-    if (token && item._id && !item._id.startsWith('cust-') && !item._id.startsWith('rest-')) {
+    if (token && item._id) {
       try {
         await notificationApi.deleteNotification(item._id)
       } catch (err) {
@@ -303,7 +234,7 @@ export default function NotificationBell({ isDark = false }) {
         type="button"
         id="navbar-notification-bell-btn"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`relative p-2 rounded-full transition-all flex items-center justify-center focus:outline-none ${
+        className={`relative p-2 rounded-full transition-all flex items-center justify-center focus:outline-none cursor-pointer ${
           isDark
             ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800'
             : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-transparent hover:border-slate-200'
@@ -360,7 +291,7 @@ export default function NotificationBell({ isDark = false }) {
                 <button
                   type="button"
                   onClick={handleMarkAllAsRead}
-                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                   title="Đánh dấu tất cả là đã đọc"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
@@ -371,7 +302,7 @@ export default function NotificationBell({ isDark = false }) {
                 <button
                   type="button"
                   onClick={handleClearAll}
-                  className="text-[11px] font-semibold text-slate-400 hover:text-red-500 hover:underline flex items-center gap-1 ml-1"
+                  className="text-[11px] font-semibold text-slate-400 hover:text-red-500 hover:underline flex items-center gap-1 ml-1 cursor-pointer"
                   title="Xóa tất cả thông báo"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -390,12 +321,12 @@ export default function NotificationBell({ isDark = false }) {
             <button
               type="button"
               onClick={() => setFilter('all')}
-              className={`px-2.5 py-1 rounded-lg transition-colors ${
+              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filter === 'all'
                   ? isDark
                     ? 'bg-purple-600/30 text-purple-300 font-bold'
                     : 'bg-white text-primary shadow-xs font-bold'
-                  : 'text-slate-400 hover:text-slate-700'
+                  : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               Tất cả ({notifications.length})
@@ -403,19 +334,19 @@ export default function NotificationBell({ isDark = false }) {
             <button
               type="button"
               onClick={() => setFilter('unread')}
-              className={`px-2.5 py-1 rounded-lg transition-colors ${
+              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filter === 'unread'
                   ? isDark
                     ? 'bg-purple-600/30 text-purple-300 font-bold'
                     : 'bg-white text-primary shadow-xs font-bold'
-                  : 'text-slate-400 hover:text-slate-700'
+                  : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               Chưa đọc ({unreadCount})
             </button>
           </div>
 
-          {/* List items with customized slim scrollbar (no bulky Windows scrollbar arrows) */}
+          {/* List items with customized slim scrollbar */}
           <div className="max-h-88 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] dark:[scrollbar-color:#334155_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 divide-y divide-slate-100 dark:divide-slate-800/40">
             {displayedList.length > 0 ? (
               displayedList.map((item) => (
@@ -473,7 +404,7 @@ export default function NotificationBell({ isDark = false }) {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteNotification(item, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all cursor-pointer"
                       title="Xóa thông báo"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -486,9 +417,10 @@ export default function NotificationBell({ isDark = false }) {
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-slate-400 text-xs">
-                <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p>Không có thông báo nào!</p>
+              <div className="py-10 text-center text-slate-400 dark:text-slate-500 text-xs space-y-1">
+                <Bell className="w-8 h-8 mx-auto mb-2 opacity-25" />
+                <p className="font-semibold text-slate-600 dark:text-slate-300">Không có thông báo nào</p>
+                <p className="text-[11px] text-slate-400">Bạn sẽ nhận được thông báo tại đây khi có cập nhật mới</p>
               </div>
             )}
           </div>
@@ -500,8 +432,8 @@ export default function NotificationBell({ isDark = false }) {
             }`}
           >
             <span className="text-[11px] font-semibold text-slate-400 flex items-center justify-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Socket.io Realtime · {role.toUpperCase()}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Hệ thống thông báo Realtime</span>
             </span>
           </div>
         </div>

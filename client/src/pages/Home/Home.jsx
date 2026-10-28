@@ -61,7 +61,7 @@ const DEFAULT_PARTNERS = [
   },
   {
     id: 'res-3',
-    name: 'The Grill Burger & Fries House',
+    name: 'The Grill Burger House',
     category: 'Burger Bò Úc nướng khói, Gà giòn sốt cay',
     rating: 4.9,
     reviewsCount: 750,
@@ -790,10 +790,16 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSearchQuery(partner.name.split('-')[0].trim())
-                    document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
+                    setSelectedCategory('all')
+                    setPriceFilter('all')
+                    const cleanQuery = partner.name.split('-')[0].trim()
+                    setSearchQuery(cleanQuery)
+                    toast.success(`Đang mở thực đơn: ${partner.name}`, { icon: '🍽️', duration: 2500 })
+                    setTimeout(() => {
+                      document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
+                    }, 50)
                   }}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>Xem thực đơn quán</span>
                   <ArrowRight className="w-3.5 h-3.5" />
