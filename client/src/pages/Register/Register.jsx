@@ -8,20 +8,22 @@ import {
   Eye,
   EyeOff,
   Store,
-  MapPin,
   UtensilsCrossed,
-  CreditCard,
   UploadCloud,
   FileText,
   Trash2,
   ExternalLink,
-  Calendar,
   Bike,
   ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
   Sparkles,
-  Info,
+  ArrowRight,
+  ArrowLeft,
+  Truck,
+  Coins,
+  Star,
+  CheckCircle2,
+  RefreshCw,
+  Inbox,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
@@ -43,11 +45,13 @@ const SUGGESTED_ITEMS = [
 
 export default function Register() {
   const navigate = useNavigate()
-  const { register } = useAuth()
+  const { register, resendVerification } = useAuth()
   const pdfInputRef = useRef(null)
 
+  const [registeredData, setRegisteredData] = useState(null)
+  const [resending, setResending] = useState(false)
+
   const [formData, setFormData] = useState({
-    // Thông tin tài khoản chung
     fullName: '',
     email: '',
     phone: '',
@@ -56,18 +60,18 @@ export default function Register() {
     role: 'customer', // 'customer' | 'restaurant_owner' | 'shipper'
     agreeTerms: true,
 
-    // Thông tin dành riêng cho Nhà Hàng
+    // Nhà Hàng
     restaurantName: '',
     restaurantAddress: '',
     businessItems: '',
     ownerCitizenId: '',
-    businessLicense: null, // { fileName, fileSize, fileData, uploadedAt }
+    businessLicense: null,
 
-    // Thông tin dành riêng cho Tài Xế
+    // Tài Xế
     dateOfBirth: '',
     driverCitizenId: '',
     vehicleInfo: '',
-    insuranceSubmitLater: true, // Mặc định: cho nộp sau cũng được
+    insuranceSubmitLater: true,
     insuranceInfo: '',
   })
 
@@ -82,7 +86,6 @@ export default function Register() {
     }))
   }
 
-  // Thêm/bỏ nhanh tag món ăn muốn bán
   const handleToggleTag = (tag) => {
     const cleanTag = tag.replace(/^[^\s]+\s/, '')
     const current = formData.businessItems
@@ -102,12 +105,10 @@ export default function Register() {
     }))
   }
 
-  // Xử lý upload file PDF giấy phép kinh doanh
   const handlePdfUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Kiểm tra định dạng PDF bắt buộc
     const isPdf =
       file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
     if (!isPdf) {
@@ -116,7 +117,6 @@ export default function Register() {
       return
     }
 
-    // Kiểm tra kích thước file <= 15MB
     if (file.size > 15 * 1024 * 1024) {
       toast.error('Dung lượng file PDF vượt quá giới hạn 15MB. Vui lòng chọn file nhỏ hơn.')
       if (pdfInputRef.current) pdfInputRef.current.value = ''
@@ -205,7 +205,6 @@ export default function Register() {
 
   const passwordStrength = getPasswordStrength(formData.password)
 
-  // Tự động điền dữ liệu mẫu để kiểm thử nhanh
   const handleQuickFill = (targetRole) => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000)
 
@@ -213,7 +212,7 @@ export default function Register() {
       setFormData((prev) => ({
         ...prev,
         fullName: 'Võ Thị Bích Thảo',
-        email: `nhahang.${randomSuffix}@fooddelivery.vn`,
+        email: `nhahang.${randomSuffix}@cravedash.vn`,
         phone: '0938556677',
         password: 'password123',
         confirmPassword: 'password123',
@@ -235,7 +234,7 @@ export default function Register() {
       setFormData((prev) => ({
         ...prev,
         fullName: 'Hoàng Minh Đức',
-        email: `taixe.${randomSuffix}@fooddelivery.vn`,
+        email: `taixe.${randomSuffix}@cravedash.vn`,
         phone: '0977889911',
         password: 'password123',
         confirmPassword: 'password123',
@@ -252,7 +251,7 @@ export default function Register() {
       setFormData((prev) => ({
         ...prev,
         fullName: 'Lê Thu Hương',
-        email: `khachhang.${randomSuffix}@fooddelivery.vn`,
+        email: `khachhang.${randomSuffix}@cravedash.vn`,
         phone: '0912345678',
         password: 'password123',
         confirmPassword: 'password123',
@@ -266,7 +265,6 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // 1. Kiểm tra thông tin chung
     if (!formData.fullName.trim()) {
       toast.error('Vui lòng nhập họ và tên.')
       return
@@ -304,7 +302,6 @@ export default function Register() {
       return
     }
 
-    // 2. Kiểm tra thông tin theo vai trò
     const payload = {
       fullName: formData.fullName.trim(),
       email: formData.email.trim(),
@@ -378,6 +375,22 @@ export default function Register() {
     setLoading(false)
 
     if (result.success) {
+      if (result.requiresVerification) {
+        setRegisteredData({
+          email: result.email || payload.email,
+          fullName: result.fullName || payload.fullName,
+          role: payload.role,
+          verificationUrl: result.verificationUrl,
+          isDevMode: result.isDevMode,
+        })
+        toast.success(
+          result.message ||
+            'Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản.'
+        )
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+
       toast.success(result.message || 'Đăng ký tài khoản thành công!')
       setTimeout(() => {
         if (formData.role === 'restaurant_owner') {
@@ -389,721 +402,781 @@ export default function Register() {
         }
       }, 500)
     } else {
-      toast.error(result.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.')
+      toast.error(
+        result.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.'
+      )
+    }
+  }
+
+  const handleResendFromRegister = async () => {
+    if (!registeredData?.email) return
+    setResending(true)
+    const res = await resendVerification(registeredData.email)
+    setResending(false)
+    if (res.success) {
+      toast.success(res.message || 'Đã gửi lại email kích hoạt!')
+      if (res.data?.verificationUrl) {
+        setRegisteredData((prev) => ({
+          ...prev,
+          verificationUrl: res.data.verificationUrl,
+        }))
+      }
+    } else {
+      toast.error(res.message || 'Không thể gửi lại email. Vui lòng thử lại sau.')
     }
   }
 
   const shipperAge = calculateAge(formData.dateOfBirth)
 
-  return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-50">
-      <div className="w-full max-w-3xl bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-        {/* Header Tabs */}
-        <div className="grid grid-cols-2 border-b border-slate-100 bg-slate-50/50 p-1.5 gap-1.5">
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className="py-2.5 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-2xl transition-colors"
+  if (registeredData) {
+    return (
+      <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
+        {/* Top Header Bar */}
+        <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 py-4 flex items-center justify-between border-b border-orange-100/60 dark:border-slate-800/80 bg-white/70 dark:bg-[#181A20]/70 backdrop-blur-md">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors group"
           >
-            Đăng nhập
-          </button>
-          <button
-            type="button"
-            className="py-2.5 text-sm font-bold text-primary bg-white rounded-2xl shadow-sm cursor-default"
-            disabled
-          >
-            Đăng ký
-          </button>
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Quay lại Trang chủ</span>
+          </Link>
+
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-md shadow-orange-500/20">
+              <UtensilsCrossed className="w-4 h-4" />
+            </div>
+            <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+              Crave<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Dash</span>
+            </span>
+          </Link>
         </div>
 
-        <div className="p-6 sm:p-10">
-          {/* Title Header */}
-          <div className="mb-6 text-center">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Tạo tài khoản đối tác & khách hàng 🚀
+        {/* Verification Success Box */}
+        <div className="w-full flex-1 px-4 sm:px-8 py-12 sm:py-16 flex items-center justify-center">
+          <div className="w-full max-w-lg bg-white dark:bg-[#181A20] rounded-3xl border border-orange-100 dark:border-slate-800 shadow-2xl p-8 sm:p-10 relative overflow-hidden text-center backdrop-blur-xl">
+            {/* Ambient background decoration */}
+            <div className="absolute -top-24 -right-24 w-52 h-52 bg-gradient-to-br from-orange-400/20 to-pink-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-52 h-52 bg-gradient-to-tr from-amber-400/20 to-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Icon */}
+            <div className="relative inline-block mb-6">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#FF4B2B] to-[#FF416C] flex items-center justify-center text-white shadow-xl shadow-orange-500/30">
+                <Mail className="w-10 h-10 animate-bounce" />
+              </div>
+              <span className="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-md">
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            </div>
+
+            <div className="inline-block px-3.5 py-1 rounded-full bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 text-xs font-bold uppercase tracking-wider mb-3">
+              Gần hoàn tất đăng ký!
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
+              Kiểm tra email của bạn 📩
             </h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Điền thông tin tương ứng theo vai trò để kích hoạt tài khoản ngay hôm nay
+
+            <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto mb-4 leading-relaxed">
+              Xin chào <strong>{registeredData.fullName}</strong>! Chúng tôi đã gửi một liên kết xác nhận kích hoạt tài khoản tới:
             </p>
 
-            {/* Quick Fill Test Badges */}
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 p-2.5 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs">
-              <span className="font-bold text-slate-600 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Điền nhanh test mẫu:
+            <div className="p-3 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 rounded-2xl font-bold text-orange-600 dark:text-orange-400 text-sm mb-6 select-all break-all shadow-inner">
+              {registeredData.email}
+            </div>
+
+            <div className="text-left p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-2 mb-6">
+              <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 mb-1">
+                <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                <span>Các bước tiếp theo:</span>
+              </div>
+              <p>1. Mở hòm thư của bạn và tìm thư từ <strong>CraveDash Food Delivery</strong>.</p>
+              <p>2. Nhấp vào nút <strong>"Kích hoạt tài khoản ngay"</strong> để kích hoạt.</p>
+              <p>3. Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thêm mục <strong>Thư rác / Spam</strong>.</p>
+            </div>
+
+            {/* Dev mode quick link helper */}
+            {registeredData.verificationUrl && (
+              <div className="p-3.5 mb-6 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-left">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-300 mb-1">
+                  <span>💡 [Chế độ thử nghiệm Dev Mode]</span>
+                </div>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">
+                  Bạn có thể bấm vào nút dưới đây để xác thực ngay mà không cần mở mail thật:
+                </p>
+                <a
+                  href={registeredData.verificationUrl}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-3.5 py-1.5 rounded-xl shadow-xs transition-all"
+                >
+                  <span>Mở liên kết kích hoạt ngay ➔</span>
+                </a>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleResendFromRegister}
+                disabled={resending}
+                className="w-full py-3 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+                <span>{resending ? 'Đang gửi lại...' : 'Chưa nhận được mail? Gửi lại'}</span>
+              </button>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRegisteredData(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  Đăng ký email khác
+                </button>
+
+                <Link
+                  to="/login"
+                  className="text-orange-500 hover:text-orange-600 font-bold inline-flex items-center gap-1 transition-colors"
+                >
+                  <span>Đi đến Đăng nhập</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
+      {/* Top Header Bar with Back Button */}
+      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 py-4 flex items-center justify-between border-b border-orange-100/60 dark:border-slate-800/80 bg-white/70 dark:bg-[#181A20]/70 backdrop-blur-md">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Quay lại Trang chủ</span>
+        </Link>
+
+        {/* Brand Logo in Header */}
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-md shadow-orange-500/20">
+            <UtensilsCrossed className="w-4 h-4" />
+          </div>
+          <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+            Crave<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Dash</span>
+          </span>
+        </Link>
+      </div>
+
+      {/* Main Full-Width 2-Column Content */}
+      <div className="w-full flex-1 px-4 sm:px-8 lg:px-12 2xl:px-16 py-8 sm:py-12 flex items-center justify-center">
+        <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
+          {/* ================================================================
+              CỘT TRÁI (5 CỘT) — VISUAL BRAND SHOWCASE
+              ================================================================ */}
+          <div className="hidden lg:flex lg:col-span-5 flex-col gap-6 sticky top-28">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-100 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 text-xs font-bold text-primary w-fit shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+              <span>Gia nhập cộng đồng ẩm thực số #1</span>
+            </div>
+
+            <h1 className="text-3xl xl:text-4xl 2xl:text-5xl font-black text-slate-900 dark:text-white leading-[1.18] tracking-tight">
+              Khởi đầu trải nghiệm <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FFB800] animate-gradient-text">
+                ẩm thực đỉnh cao
               </span>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('restaurant_owner')}
-                className="px-2.5 py-1 rounded-lg bg-orange-100 text-primary font-bold hover:bg-orange-200 transition-colors"
-              >
-                🍳 Mẫu Quán Ăn (+PDF)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('shipper')}
-                className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-bold hover:bg-emerald-200 transition-colors"
-              >
-                🛵 Mẫu Tài Xế
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('customer')}
-                className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 font-bold hover:bg-blue-200 transition-colors"
-              >
-                👤 Mẫu Khách Hàng
-              </button>
+            </h1>
+
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed max-w-md">
+              Dù bạn là khách hàng sành ăn, chủ quán mong muốn bứt phá doanh số hay tài xế tìm kiếm thu nhập ổn định, CraveDash luôn đồng hành cùng bạn!
+            </p>
+
+            {/* Member Benefit Cards */}
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-orange-300 transition-all">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF4B2B] to-[#FF416C] text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
+                  <Truck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Giao hàng thần tốc 20 phút
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Hệ thống phân phối đơn thông minh, giảm tối đa thời gian chờ
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-amber-300 transition-all">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                  <Coins className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Chiết khấu ưu đãi cho đối tác
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Miễn phí duy trì gian hàng tháng đầu, hỗ trợ quảng bá chuyên sâu
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-emerald-300 transition-all">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                    Bảo vệ quyền lợi toàn diện
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Bảo hiểm đơn hàng, hỗ trợ giải quyết sự cố 24/7 từ tổng đài
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Social Proof */}
+            <div className="flex items-center gap-6 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div>
+                <p className="text-xl font-black text-slate-900 dark:text-white">50K+</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Khách hàng tin dùng</p>
+              </div>
+              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+              <div>
+                <p className="text-xl font-black text-slate-900 dark:text-white">1.200+</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Quán ăn đối tác</p>
+              </div>
+              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+              <div className="flex items-center gap-1.5">
+                <div className="flex text-amber-400">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">4.9/5</span>
+              </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Role Selection */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                Bạn muốn đăng ký tham gia với tư cách nào?
-              </label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {[
-                  {
-                    id: 'customer',
-                    title: 'Khách hàng',
-                    desc: 'Đặt món & Thưởng thức',
-                    icon: '👤',
-                    activeColor: 'border-blue-500 bg-blue-50/50 text-blue-700',
-                  },
-                  {
-                    id: 'restaurant_owner',
-                    title: 'Nhà hàng / Quán ăn',
-                    desc: 'Kinh doanh & Bán món',
-                    icon: '🍳',
-                    activeColor: 'border-primary bg-orange-50/50 text-primary',
-                  },
-                  {
-                    id: 'shipper',
-                    title: 'Tài xế giao hàng',
-                    desc: 'Nhận đơn & Giao đồ ăn',
-                    icon: '🛵',
-                    activeColor: 'border-emerald-500 bg-emerald-50/50 text-emerald-700',
-                  },
-                ].map((item) => (
-                  <label
-                    key={item.id}
-                    className={`cursor-pointer flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border text-center transition-all ${
-                      formData.role === item.id
-                        ? `${item.activeColor} font-bold shadow-sm ring-2 ring-primary/20`
-                        : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="role"
-                      value={item.id}
-                      checked={formData.role === item.id}
-                      onChange={handleChange}
-                      className="sr-only"
-                    />
-                    <span className="text-2xl sm:text-3xl mb-1.5">{item.icon}</span>
-                    <span className="text-xs sm:text-sm font-bold block">{item.title}</span>
-                    <span className="text-[10px] text-slate-400 hidden sm:block mt-0.5">
-                      {item.desc}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* SECTION 1: THÔNG TIN CƠ BẢN */}
-            <div className="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-primary" /> Thông tin tài khoản đăng nhập
-              </h3>
-
-              {/* Full Name */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5" htmlFor="reg-name">
-                  {formData.role === 'restaurant_owner'
-                    ? 'Họ và tên chủ quán / Người đại diện pháp lý'
-                    : formData.role === 'shipper'
-                    ? 'Họ và tên tài xế'
-                    : 'Họ và tên'}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <div className="relative">
-                  <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    id="reg-name"
-                    type="text"
-                    name="fullName"
-                    placeholder="Nguyễn Văn A"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    required
-                    className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  />
-                </div>
+          {/* ================================================================
+              CỘT PHẢI (7 CỘT) — REGISTRATION FORM
+              ================================================================ */}
+          <div className="lg:col-span-7">
+            <div className="bg-white dark:bg-[#181A20] rounded-3xl shadow-2xl shadow-orange-500/10 border border-slate-200/80 dark:border-slate-800 overflow-hidden transition-all duration-300">
+              {/* Header Tabs: Đăng nhập / Đăng ký */}
+              <div className="grid grid-cols-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 p-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="py-3 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800 rounded-2xl transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🔑</span> Đăng nhập
+                </button>
+                <button
+                  type="button"
+                  className="py-3 text-xs sm:text-sm font-extrabold text-primary bg-white dark:bg-[#181A20] rounded-2xl shadow-sm cursor-default flex items-center justify-center gap-2"
+                  disabled
+                >
+                  <span>📝</span> Đăng ký tài khoản
+                </button>
               </div>
 
-              {/* Email & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-6 sm:p-8 lg:p-10 space-y-6">
                 <div>
-                  <label
-                    className="block text-xs font-bold text-slate-700 mb-1.5"
-                    htmlFor="reg-email"
-                  >
-                    Địa chỉ Email đăng nhập <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-email"
-                      type="email"
-                      name="email"
-                      placeholder="name@example.com"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-700 mb-1.5"
-                    htmlFor="reg-phone"
-                  >
-                    Số điện thoại liên hệ <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-phone"
-                      type="tel"
-                      name="phone"
-                      placeholder="0912 345 678"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Password & Confirm */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-700 mb-1.5"
-                    htmlFor="reg-password"
-                  >
-                    Mật khẩu <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-password"
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      placeholder="Ít nhất 6 ký tự"
-                      value={formData.password}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-11 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-700 mb-1.5"
-                    htmlFor="reg-confirm"
-                  >
-                    Xác nhận mật khẩu <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-confirm"
-                      type={showPassword ? 'text' : 'password'}
-                      name="confirmPassword"
-                      placeholder="Nhập lại mật khẩu"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Password strength indicator */}
-              {formData.password && (
-                <div className="pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1">
-                    <span>Độ bảo mật mật khẩu</span>
-                    <span>{passwordStrength.text}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex gap-1">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength.score >= 1 ? passwordStrength.color : 'bg-transparent'
-                      } flex-1`}
-                    ></div>
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength.score >= 2 ? passwordStrength.color : 'bg-transparent'
-                      } flex-1`}
-                    ></div>
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength.score >= 3 ? passwordStrength.color : 'bg-transparent'
-                      } flex-1`}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 2: DÀNH RIÊNG CHO NHÀ HÀNG */}
-            {formData.role === 'restaurant_owner' && (
-              <div className="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-4 animate-in fade-in duration-300">
-                <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
-                      <Store className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Thông tin Nhà hàng & Giấy phép Kinh doanh
-                      </h3>
-                      <p className="text-xs text-amber-900/80">
-                        Bắt buộc cung cấp đầy đủ thông tin để kiểm duyệt mở gian hàng
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-200/70 text-amber-900">
-                    Bắt buộc
-                  </span>
-                </div>
-
-                {/* Tên nhà hàng */}
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-800 mb-1.5"
-                    htmlFor="reg-rest-name"
-                  >
-                    Tên nhà hàng / quán ăn <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Store className="w-5 h-5 text-amber-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-rest-name"
-                      type="text"
-                      name="restaurantName"
-                      placeholder="Ví dụ: Cơm Tấm Ba Ghiền, Phở Thìn Hà Nội..."
-                      value={formData.restaurantName}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-amber-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Địa chỉ nhà hàng */}
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-800 mb-1.5"
-                    htmlFor="reg-rest-addr"
-                  >
-                    Địa chỉ nhà hàng cụ thể <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <MapPin className="w-5 h-5 text-amber-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-rest-addr"
-                      type="text"
-                      name="restaurantAddress"
-                      placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
-                      value={formData.restaurantAddress}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-amber-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Nhà hàng muốn bán sản phẩm gì */}
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-800 mb-1.5"
-                    htmlFor="reg-rest-items"
-                  >
-                    Nhà hàng muốn bán sản phẩm / món ăn gì? <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <UtensilsCrossed className="w-5 h-5 text-amber-600/70 absolute left-3.5 top-3 pointer-events-none" />
-                    <textarea
-                      id="reg-rest-items"
-                      name="businessItems"
-                      rows={2}
-                      placeholder="Ví dụ: Cơm tấm sườn bì chả, canh khổ qua, sườn cây nướng, trà tắc khổng lồ..."
-                      value={formData.businessItems}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-amber-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                    />
-                  </div>
-                  {/* Category Chips Helper */}
-                  <div className="mt-2">
-                    <span className="text-[11px] font-semibold text-amber-900/80 block mb-1">
-                      💡 Chọn nhanh mặt hàng kinh doanh:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SUGGESTED_ITEMS.map((item) => {
-                        const cleanItem = item.replace(/^[^\s]+\s/, '')
-                        const isSelected = formData.businessItems
-                          .toLowerCase()
-                          .includes(cleanItem.toLowerCase())
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => handleToggleTag(item)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                              isSelected
-                                ? 'bg-amber-500 text-white shadow-xs font-bold'
-                                : 'bg-white border border-amber-200 text-slate-700 hover:bg-amber-100/70'
-                            }`}
-                          >
-                            {item}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* CCCD của chủ quán */}
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-800 mb-1.5"
-                    htmlFor="reg-owner-cccd"
-                  >
-                    Số Căn cước công dân (CCCD) của chủ quán <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <CreditCard className="w-5 h-5 text-amber-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-owner-cccd"
-                      type="text"
-                      name="ownerCitizenId"
-                      maxLength={12}
-                      placeholder="12 chữ số CCCD (Ví dụ: 079198005432)"
-                      value={formData.ownerCitizenId}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-amber-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all tracking-wider font-mono"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Nhập 12 chữ số trên thẻ CCCD gắn chip của chủ hộ kinh doanh hoặc người đại diện.
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Tạo tài khoản CraveDash 🚀
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Chọn vai trò tham gia và hoàn tất biểu mẫu để bắt đầu ngay
                   </p>
                 </div>
 
-                {/* File PDF về Giấy phép kinh doanh */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Tệp PDF Giấy phép đăng ký kinh doanh <span className="text-red-500">* (Bắt buộc dạng .PDF)</span>
-                  </label>
-
-                  <input
-                    ref={pdfInputRef}
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={handlePdfUpload}
-                    className="hidden"
-                    id="business-pdf-upload"
-                  />
-
-                  {!formData.businessLicense ? (
-                    <label
-                      htmlFor="business-pdf-upload"
-                      className="cursor-pointer flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white rounded-2xl transition-all text-center group hover:bg-amber-50/30"
-                    >
-                      <div className="w-12 h-12 rounded-2xl bg-amber-100 group-hover:bg-amber-200 text-amber-700 flex items-center justify-center mb-2 transition-colors">
-                        <UploadCloud className="w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-bold text-slate-800 group-hover:text-primary">
-                        Bấm vào đây để tải lên tệp PDF Giấy phép kinh doanh
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Hỗ trợ định dạng: <span className="font-bold text-red-600">.PDF</span> (Dung lượng tối đa 15MB)
-                      </p>
-                      <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
-                        <FileText className="w-3.5 h-3.5 text-red-500" /> Bắt buộc tệp PDF hợp lệ
-                      </div>
-                    </label>
-                  ) : (
-                    <div className="p-4 rounded-2xl bg-white border border-emerald-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-11 h-11 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0 font-bold text-xs shadow-xs">
-                          <FileText className="w-6 h-6" />
-                        </div>
-                        <div className="truncate">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-bold text-slate-900 truncate">
-                              {formData.businessLicense.fileName}
-                            </p>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Hợp lệ
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Dung lượng: {(formData.businessLicense.fileSize / 1024 / 1024).toFixed(2)} MB • Định dạng: PDF
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={handlePreviewPdf}
-                          className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" /> Xem trước
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemovePdf}
-                          className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Đổi file
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-amber-600" />
-                    Tài liệu này được lưu trữ an toàn và bảo mật chỉ dùng để đối chiếu xác minh tư cách nhà hàng.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* SECTION 3: DÀNH RIÊNG CHO TÀI XẾ */}
-            {formData.role === 'shipper' && (
-              <div className="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-4 animate-in fade-in duration-300">
-                <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-                      <Bike className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Thông tin Đối tác Tài xế & Phương tiện
-                      </h3>
-                      <p className="text-xs text-emerald-900/80">
-                        Cung cấp thông tin ngày sinh, CCCD, giấy tờ xe & bảo hiểm (nộp sau cũng được)
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-200/70 text-emerald-900">
-                    Đối tác vận chuyển
+                {/* Quick Fill Test Badges */}
+                <div className="flex flex-wrap items-center gap-2 p-3 bg-orange-50/70 dark:bg-slate-800/60 rounded-2xl border border-dashed border-orange-200 dark:border-slate-700 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" /> Điền nhanh test mẫu:
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickFill('restaurant_owner')}
+                    className="px-2.5 py-1 rounded-xl bg-orange-100 dark:bg-orange-950/80 text-primary font-bold hover:bg-orange-200 transition-colors"
+                  >
+                    🍳 Mẫu Quán Ăn (+PDF)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickFill('shipper')}
+                    className="px-2.5 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold hover:bg-emerald-200 transition-colors"
+                  >
+                    🛵 Mẫu Tài Xế
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickFill('customer')}
+                    className="px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-200 transition-colors"
+                  >
+                    👤 Mẫu Khách Hàng
+                  </button>
                 </div>
 
-                {/* Ngày sinh & Số CCCD */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Role Selector Pills */}
                   <div>
-                    <label
-                      className="block text-xs font-bold text-slate-800 mb-1.5"
-                      htmlFor="reg-shipper-dob"
-                    >
-                      Ngày sinh tài xế <span className="text-red-500">* (Đủ từ 18 tuổi)</span>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                      Bạn muốn đăng ký tham gia với tư cách nào? <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                      <Calendar className="w-5 h-5 text-emerald-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        id="reg-shipper-dob"
-                        type="date"
-                        name="dateOfBirth"
-                        value={formData.dateOfBirth}
-                        onChange={handleChange}
-                        required
-                        className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-emerald-200 bg-white text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                      />
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {[
+                        {
+                          id: 'customer',
+                          title: 'Khách hàng',
+                          desc: 'Đặt món ngon',
+                          icon: '👤',
+                          activeClass: 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm ring-2 ring-blue-500/20',
+                        },
+                        {
+                          id: 'restaurant_owner',
+                          title: 'Quán ăn',
+                          desc: 'Mở gian hàng',
+                          icon: '🍳',
+                          activeClass: 'border-primary bg-orange-50/60 dark:bg-orange-950/40 text-primary shadow-sm ring-2 ring-primary/20',
+                        },
+                        {
+                          id: 'shipper',
+                          title: 'Tài xế',
+                          desc: 'Giao hàng',
+                          icon: '🛵',
+                          activeClass: 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 shadow-sm ring-2 ring-emerald-500/20',
+                        },
+                      ].map((item) => (
+                        <label
+                          key={item.id}
+                          className={`cursor-pointer flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border text-center transition-all ${
+                            formData.role === item.id
+                              ? `${item.activeClass} font-bold`
+                              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="role"
+                            value={item.id}
+                            checked={formData.role === item.id}
+                            onChange={handleChange}
+                            className="sr-only"
+                          />
+                          <span className="text-2xl mb-1">{item.icon}</span>
+                          <span className="text-xs sm:text-sm font-bold block">{item.title}</span>
+                          <span className="text-[10px] text-slate-400 hidden sm:block mt-0.5">
+                            {item.desc}
+                          </span>
+                        </label>
+                      ))}
                     </div>
-                    {shipperAge !== null && (
-                      <p
-                        className={`text-[11px] mt-1 font-semibold flex items-center gap-1 ${
-                          shipperAge >= 18 ? 'text-emerald-700' : 'text-red-600'
-                        }`}
-                      >
-                        {shipperAge >= 18 ? (
-                          <>
-                            <CheckCircle2 className="w-3 h-3" /> Đủ điều kiện ({shipperAge} tuổi)
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="w-3 h-3" /> Chưa đủ 18 tuổi ({shipperAge} tuổi)
-                          </>
-                        )}
-                      </p>
+                  </div>
+
+                  {/* SECTION 1: THÔNG TIN TÀI KHOẢN CHUNG */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-primary" /> Thông tin tài khoản đăng nhập
+                    </h3>
+
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="reg-name">
+                        {formData.role === 'restaurant_owner'
+                          ? 'Họ và tên chủ quán / Người đại diện pháp lý'
+                          : formData.role === 'shipper'
+                          ? 'Họ và tên tài xế'
+                          : 'Họ và tên'}{' '}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          id="reg-name"
+                          type="text"
+                          name="fullName"
+                          placeholder="Nguyễn Văn A"
+                          value={formData.fullName}
+                          onChange={handleChange}
+                          required
+                          className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email & Phone */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="reg-email">
+                          Địa chỉ Email <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="reg-email"
+                            type="email"
+                            name="email"
+                            placeholder="name@example.com"
+                            value={formData.email}
+                            onChange={handleChange}
+                            required
+                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="reg-phone">
+                          Số điện thoại liên hệ <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="reg-phone"
+                            type="tel"
+                            name="phone"
+                            placeholder="0912 345 678"
+                            value={formData.phone}
+                            onChange={handleChange}
+                            required
+                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Password & Confirm */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="reg-pass">
+                          Mật khẩu <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="reg-pass"
+                            type={showPassword ? 'text' : 'password'}
+                            name="password"
+                            placeholder="Tối thiểu 6 ký tự"
+                            value={formData.password}
+                            onChange={handleChange}
+                            required
+                            className="w-full pl-11 pr-11 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5" htmlFor="reg-confirm">
+                          Xác nhận mật khẩu <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="reg-confirm"
+                            type={showPassword ? 'text' : 'password'}
+                            name="confirmPassword"
+                            placeholder="Nhập lại mật khẩu"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            required
+                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Password Strength Meter */}
+                    {formData.password && (
+                      <div className="space-y-1 pt-1">
+                        <div className="flex justify-between text-[11px] font-semibold">
+                          <span className="text-slate-500 dark:text-slate-400">Độ mạnh mật khẩu:</span>
+                          <span className={passwordStrength.score >= 3 ? 'text-emerald-500 font-bold' : 'text-amber-500'}>
+                            {passwordStrength.text}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${passwordStrength.color} transition-all duration-300`}
+                            style={{ width: `${(passwordStrength.score / 3) * 100}%` }}
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
 
-                  <div>
-                    <label
-                      className="block text-xs font-bold text-slate-800 mb-1.5"
-                      htmlFor="reg-shipper-cccd"
-                    >
-                      Số CCCD tài xế <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <CreditCard className="w-5 h-5 text-emerald-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        id="reg-shipper-cccd"
-                        type="text"
-                        name="driverCitizenId"
-                        maxLength={12}
-                        placeholder="12 chữ số CCCD (Ví dụ: 079201009876)"
-                        value={formData.driverCitizenId}
-                        onChange={handleChange}
-                        required
-                        className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-emerald-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono tracking-wider"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Nhập đủ 12 số CCCD gắn chip chính chủ tài xế.
-                    </p>
-                  </div>
-                </div>
+                  {/* SECTION 2: DÀNH RIÊNG CHO QUÁN ĂN */}
+                  {formData.role === 'restaurant_owner' && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-orange-50/60 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60 space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                        <Store className="w-3.5 h-3.5" /> Thông tin hồ sơ quán ăn & pháp lý
+                      </h3>
 
-                {/* Giấy tờ xe / Loại xe & Biển số xe */}
-                <div>
-                  <label
-                    className="block text-xs font-bold text-slate-800 mb-1.5"
-                    htmlFor="reg-shipper-vehicle"
-                  >
-                    Giấy tờ xe & Thông tin phương tiện giao hàng <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Bike className="w-5 h-5 text-emerald-600/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="reg-shipper-vehicle"
-                      type="text"
-                      name="vehicleInfo"
-                      placeholder="Ví dụ: Honda Wave Alpha - Biển kiểm soát: 59-P1 888.88 (Có Cà vẹt chính chủ)"
-                      value={formData.vehicleInfo}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-emerald-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Ghi rõ dòng xe, biển số xe và tình trạng giấy đăng ký xe (Cà vẹt xe / GPLX).
-                  </p>
-                </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Tên thương hiệu quán ăn <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="restaurantName"
+                          placeholder="Ví dụ: Cơm Tấm Ba Ghiền"
+                          value={formData.restaurantName}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                        />
+                      </div>
 
-                {/* Bảo hiểm xe (Cho nộp sau cũng được) */}
-                <div className="p-4 rounded-xl bg-white border border-emerald-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="insuranceSubmitLater"
-                        checked={formData.insuranceSubmitLater}
-                        onChange={handleChange}
-                        className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500/20 w-4 h-4"
-                      />
-                      <span className="text-xs font-bold text-slate-800">
-                        Bảo hiểm xe: Tôi sẽ nộp bổ sung sau khi tài khoản được duyệt
-                      </span>
-                    </label>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                      Cho nộp sau cũng được
-                    </span>
-                  </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Địa chỉ cụ thể của quán <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="restaurantAddress"
+                          placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành"
+                          value={formData.restaurantAddress}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                        />
+                      </div>
 
-                  {!formData.insuranceSubmitLater ? (
-                    <div className="pt-1 space-y-2 animate-in fade-in duration-200">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Thông tin thẻ bảo hiểm TNDS xe (Nếu đã có):
-                      </label>
-                      <input
-                        type="text"
-                        name="insuranceInfo"
-                        placeholder="Số thẻ bảo hiểm, nhà bảo hiểm (Bảo Việt, PTI...) và hạn sử dụng"
-                        value={formData.insuranceInfo}
-                        onChange={handleChange}
-                        className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span>
-                        Bạn có thể bổ sung ảnh chụp bảo hiểm xe máy trong mục quản lý hồ sơ tài xế trước khi thực hiện đơn hàng đầu tiên.
-                      </span>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Món ăn / Mặt hàng quán muốn kinh doanh <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="businessItems"
+                          placeholder="Ví dụ: Cơm tấm sườn bì chả, canh rong biển..."
+                          value={formData.businessItems}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary mb-2"
+                        />
+
+                        {/* Suggested Tag Pills */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {SUGGESTED_ITEMS.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleToggleTag(item)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors"
+                            >
+                              {item}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Số CCCD của chủ quán <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="ownerCitizenId"
+                          placeholder="Gồm 9 đến 12 chữ số"
+                          value={formData.ownerCitizenId}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      {/* PDF Upload Box */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          File PDF Giấy phép kinh doanh / Vệ sinh ATTP <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          ref={pdfInputRef}
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          onChange={handlePdfUpload}
+                          className="hidden"
+                          id="pdf-upload-input"
+                        />
+
+                        {formData.businessLicense ? (
+                          <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 truncate">
+                              <FileText className="w-5 h-5 text-emerald-500 shrink-0" />
+                              <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {formData.businessLicense.fileName}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={handlePreviewPdf}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-primary transition-colors flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Xem
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleRemovePdf}
+                                className="p-1 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label
+                            htmlFor="pdf-upload-input"
+                            className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-orange-300 dark:border-orange-800 hover:border-primary bg-white/70 dark:bg-slate-900/60 cursor-pointer transition-colors"
+                          >
+                            <UploadCloud className="w-8 h-8 text-primary mb-2" />
+                            <span className="text-xs font-bold text-slate-800 dark:text-white">
+                              Bấm để tải lên file PDF (Tối đa 15MB)
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">
+                              Định dạng hợp lệ: .pdf
+                            </span>
+                          </label>
+                        )}
+                      </div>
                     </div>
                   )}
+
+                  {/* SECTION 3: DÀNH RIÊNG CHO TÀI XẾ */}
+                  {formData.role === 'shipper' && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Bike className="w-3.5 h-3.5" /> Thông tin phương tiện & tài xế
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                            Ngày tháng năm sinh <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="date"
+                            name="dateOfBirth"
+                            value={formData.dateOfBirth}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                          />
+                          {shipperAge !== null && (
+                            <span
+                              className={`text-[11px] font-bold block mt-1 ${
+                                shipperAge >= 18 ? 'text-emerald-600' : 'text-red-500'
+                              }`}
+                            >
+                              Tuổi hiện tại: {shipperAge} tuổi {shipperAge < 18 ? '(Chưa đủ 18 tuổi)' : '(Đủ điều kiện)'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                            Số CCCD của tài xế <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            name="driverCitizenId"
+                            placeholder="Gồm 9 đến 12 chữ số"
+                            value={formData.driverCitizenId}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                          Thông tin loại xe & Biển số xe <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="vehicleInfo"
+                          placeholder="Ví dụ: Honda Wave Alpha - Biển số: 59-P1 888.88"
+                          value={formData.vehicleInfo}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300 select-none">
+                          <input
+                            type="checkbox"
+                            name="insuranceSubmitLater"
+                            checked={formData.insuranceSubmitLater}
+                            onChange={handleChange}
+                            className="w-4 h-4 rounded text-emerald-600 accent-emerald-600"
+                          />
+                          <span>Bảo hiểm trách nhiệm dân sự xe máy: Tôi sẽ bổ sung sau khi kích hoạt</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Terms & Privacy Checkbox */}
+                  <div className="pt-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
+                      <input
+                        type="checkbox"
+                        name="agreeTerms"
+                        checked={formData.agreeTerms}
+                        onChange={handleChange}
+                        className="w-4 h-4 rounded mt-0.5 text-primary accent-primary"
+                      />
+                      <span>
+                        Tôi đã đọc và đồng ý với{' '}
+                        <span className="text-primary font-bold hover:underline">
+                          Điều khoản dịch vụ & Chính sách bảo mật
+                        </span>{' '}
+                        của CraveDash.
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Đang khởi tạo tài khoản...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Hoàn tất đăng ký</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Bottom Login Redirect */}
+                <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  Đã có tài khoản CraveDash?{' '}
+                  <Link
+                    to="/login"
+                    className="font-bold text-primary hover:underline inline-flex items-center gap-0.5"
+                  >
+                    Đăng nhập ngay ➔
+                  </Link>
                 </div>
               </div>
-            )}
-
-            {/* Terms checkbox */}
-            <div className="pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-600">
-                <input
-                  type="checkbox"
-                  name="agreeTerms"
-                  checked={formData.agreeTerms}
-                  onChange={handleChange}
-                  className="rounded border-slate-300 text-primary focus:ring-primary/20 w-4 h-4"
-                />
-                <span>
-                  Tôi cam kết thông tin cung cấp là hoàn toàn chính xác và đồng ý với{' '}
-                  <span className="text-primary font-bold hover:underline">Điều khoản dịch vụ</span>{' '}
-                  & <span className="text-primary font-bold hover:underline">Chính sách bảo mật</span>.
-                </span>
-              </label>
             </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-2xl bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 mt-4"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Đang khởi tạo tài khoản...
-                </>
-              ) : formData.role === 'restaurant_owner' ? (
-                'Đăng ký Mở Quán Ăn Ngay'
-              ) : formData.role === 'shipper' ? (
-                'Đăng ký Trở Thành Tài Xế'
-              ) : (
-                'Đăng ký Tài Khoản Khách Hàng'
-              )}
-            </button>
-          </form>
-
-          {/* Bottom Switch Link */}
-          <div className="text-center text-xs text-slate-500 mt-6 pt-4 border-t border-slate-100">
-            Đã có tài khoản?{' '}
-            <Link to="/login" className="font-bold text-primary hover:underline">
-              Đăng nhập ngay
-            </Link>
           </div>
         </div>
       </div>
