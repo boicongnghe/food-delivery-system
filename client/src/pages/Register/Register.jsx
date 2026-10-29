@@ -22,6 +22,7 @@ import {
   Coins,
   Star,
   CheckCircle2,
+  XCircle,
   RefreshCw,
   Inbox,
   Image as ImageIcon,
@@ -51,6 +52,7 @@ export default function Register() {
 
   const [registeredData, setRegisteredData] = useState(null)
   const [resending, setResending] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1) // 1: Thông tin cơ bản, 2: Thông tin đối tác & giấy tờ
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -81,6 +83,9 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
+    if (name === 'role' && value === 'customer') {
+      setCurrentStep(1)
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -230,15 +235,19 @@ export default function Register() {
   }
 
   const passwordStrength = getPasswordStrength(formData.password)
+  const hasConfirmPassword = formData.confirmPassword.length > 0
+  const isPasswordMismatch = hasConfirmPassword && formData.password !== formData.confirmPassword
+  const isPasswordMatch = hasConfirmPassword && formData.password === formData.confirmPassword
 
   const handleQuickFill = (targetRole) => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000)
 
     if (targetRole === 'restaurant_owner') {
+      setCurrentStep(1)
       setFormData((prev) => ({
         ...prev,
         fullName: 'Võ Thị Bích Thảo',
-        email: `nhahang.${randomSuffix}@cravedash.vn`,
+        email: `nhahang.${randomSuffix}@fooddelivery.vn`,
         phone: '0938556677',
         password: 'password123',
         confirmPassword: 'password123',
@@ -257,10 +266,11 @@ export default function Register() {
       }))
       toast.success('Đã điền đầy đủ thông tin Quán Ăn & file PDF mẫu!')
     } else if (targetRole === 'shipper') {
+      setCurrentStep(1)
       setFormData((prev) => ({
         ...prev,
         fullName: 'Hoàng Minh Đức',
-        email: `taixe.${randomSuffix}@cravedash.vn`,
+        email: `taixe.${randomSuffix}@fooddelivery.vn`,
         phone: '0977889911',
         password: 'password123',
         confirmPassword: 'password123',
@@ -274,10 +284,11 @@ export default function Register() {
       }))
       toast.success('Đã điền thông tin Tài Xế mẫu (Bảo hiểm chọn nộp sau)!')
     } else {
+      setCurrentStep(1)
       setFormData((prev) => ({
         ...prev,
         fullName: 'Lê Thu Hương',
-        email: `khachhang.${randomSuffix}@cravedash.vn`,
+        email: `khachhang.${randomSuffix}@fooddelivery.vn`,
         phone: '0912345678',
         password: 'password123',
         confirmPassword: 'password123',
@@ -288,38 +299,70 @@ export default function Register() {
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
+  // Xác thực sơ bộ Bước 1: Tài khoản cơ bản
+  const validateStep1 = () => {
     if (!formData.fullName.trim()) {
       toast.error('Vui lòng nhập họ và tên.')
-      return
+      return false
     }
 
     if (!formData.email.trim()) {
       toast.error('Vui lòng nhập địa chỉ email.')
-      return
+      return false
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email.trim())) {
+      toast.error('Địa chỉ email không đúng định dạng.')
+      return false
     }
 
     const cleanPhone = formData.phone.trim().replace(/[\s.-]/g, '')
     if (!cleanPhone) {
       toast.error('Vui lòng nhập số điện thoại liên hệ.')
-      return
+      return false
     }
 
     const phoneRegex = /^(0|\+84)[0-9]{9}$/
     if (!phoneRegex.test(cleanPhone)) {
       toast.error('Số điện thoại không hợp lệ (gồm 10 số, ví dụ: 0912345678).')
-      return
+      return false
     }
 
     if (formData.password.length < 6) {
       toast.error('Mật khẩu phải có ít nhất 6 ký tự.')
-      return
+      return false
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Mật khẩu nhập lại không khớp.')
+      toast.error('Mật khẩu xác nhận không khớp.')
+      return false
+    }
+
+    return true
+  }
+
+  const handleNextStep = () => {
+    if (validateStep1()) {
+      setCurrentStep(2)
+      // Cuộn mượt lên đầu khung đăng ký để người dùng thuận tiện nhập tiếp
+      window.scrollTo({ top: 180, behavior: 'smooth' })
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!validateStep1()) {
+      if (formData.role !== 'customer') {
+        setCurrentStep(1)
+      }
+      return
+    }
+
+    // Nếu đang ở Bước 1 của vai trò Quán ăn hoặc Tài xế, chuyển sang Bước 2
+    if (formData.role !== 'customer' && currentStep === 1) {
+      handleNextStep()
       return
     }
 
@@ -328,6 +371,7 @@ export default function Register() {
       return
     }
 
+    const cleanPhone = formData.phone.trim().replace(/[\s.-]/g, '')
     const payload = {
       fullName: formData.fullName.trim(),
       email: formData.email.trim(),
@@ -457,26 +501,6 @@ export default function Register() {
   if (registeredData) {
     return (
       <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
-        {/* Top Header Bar */}
-        <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 py-4 flex items-center justify-between border-b border-orange-100/60 dark:border-slate-800/80 bg-white/70 dark:bg-[#181A20]/70 backdrop-blur-md">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span>Quay lại Trang chủ</span>
-          </Link>
-
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-md shadow-orange-500/20">
-              <UtensilsCrossed className="w-4 h-4" />
-            </div>
-            <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-              Crave<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Dash</span>
-            </span>
-          </Link>
-        </div>
-
         {/* Verification Success Box */}
         <div className="w-full flex-1 px-4 sm:px-8 py-12 sm:py-16 flex items-center justify-center">
           <div className="w-full max-w-lg bg-white dark:bg-[#181A20] rounded-3xl border border-orange-100 dark:border-slate-800 shadow-2xl p-8 sm:p-10 relative overflow-hidden text-center backdrop-blur-xl">
@@ -515,7 +539,7 @@ export default function Register() {
                 <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                 <span>Các bước tiếp theo:</span>
               </div>
-              <p>1. Mở hòm thư của bạn và tìm thư từ <strong>CraveDash Food Delivery</strong>.</p>
+              <p>1. Mở hòm thư của bạn và tìm thư từ <strong>FoodDelivery</strong>.</p>
               <p>2. Nhấp vào nút <strong>"Kích hoạt tài khoản ngay"</strong> để kích hoạt.</p>
               <p>3. Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra thêm mục <strong>Thư rác / Spam</strong>.</p>
             </div>
@@ -575,27 +599,6 @@ export default function Register() {
 
   return (
     <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
-      {/* Top Header Bar with Back Button */}
-      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 py-4 flex items-center justify-between border-b border-orange-100/60 dark:border-slate-800/80 bg-white/70 dark:bg-[#181A20]/70 backdrop-blur-md">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span>Quay lại Trang chủ</span>
-        </Link>
-
-        {/* Brand Logo in Header */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-md shadow-orange-500/20">
-            <UtensilsCrossed className="w-4 h-4" />
-          </div>
-          <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-            Crave<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Dash</span>
-          </span>
-        </Link>
-      </div>
-
       {/* Main Full-Width 2-Column Content */}
       <div className="w-full flex-1 px-4 sm:px-8 lg:px-12 2xl:px-16 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
@@ -616,7 +619,7 @@ export default function Register() {
             </h1>
 
             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed max-w-md">
-              Dù bạn là khách hàng sành ăn, chủ quán mong muốn bứt phá doanh số hay tài xế tìm kiếm thu nhập ổn định, CraveDash luôn đồng hành cùng bạn!
+              Dù bạn là khách hàng sành ăn, chủ quán mong muốn bứt phá doanh số hay tài xế tìm kiếm thu nhập ổn định, FoodDelivery luôn đồng hành cùng bạn!
             </p>
 
             {/* Member Benefit Cards */}
@@ -713,7 +716,7 @@ export default function Register() {
               <div className="p-6 sm:p-8 lg:p-10 space-y-6">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                    Tạo tài khoản CraveDash 🚀
+                    Tạo tài khoản FoodDelivery 🚀
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                     Chọn vai trò tham gia và hoàn tất biểu mẫu để bắt đầu ngay
@@ -804,8 +807,72 @@ export default function Register() {
                     </div>
                   </div>
 
-                  {/* SECTION 1: THÔNG TIN TÀI KHOẢN CHUNG */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                  {/* Thanh tiến trình 2 bước dành cho đối tác Quán ăn & Tài xế */}
+                  {formData.role !== 'customer' && (
+                    <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-orange-50/70 dark:bg-slate-900/60 border border-orange-200/80 dark:border-slate-800 animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(1)}
+                        className={`flex items-center gap-2 text-left cursor-pointer transition-all ${
+                          currentStep === 1
+                            ? 'text-primary font-black'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-all ${
+                            currentStep === 1
+                              ? 'bg-primary text-white shadow-md shadow-primary/30 ring-2 ring-primary/20'
+                              : 'bg-emerald-500 text-white'
+                          }`}
+                        >
+                          {currentStep > 1 ? '✓' : '1'}
+                        </div>
+                        <div className="leading-tight">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Bước 1</p>
+                          <p className="text-xs sm:text-sm font-bold truncate">Tài khoản cơ bản</p>
+                        </div>
+                      </button>
+
+                      <div className="h-[2px] flex-1 mx-2.5 sm:mx-4 bg-slate-200 dark:bg-slate-800 relative rounded-full overflow-hidden">
+                        <div
+                          className={`h-full bg-gradient-to-r from-primary to-orange-400 transition-all duration-300 ${
+                            currentStep === 2 ? 'w-full' : 'w-0'
+                          }`}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        className={`flex items-center gap-2 text-left cursor-pointer transition-all ${
+                          currentStep === 2
+                            ? 'text-primary font-black'
+                            : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-all ${
+                            currentStep === 2
+                              ? 'bg-primary text-white shadow-md shadow-primary/30 ring-2 ring-primary/20'
+                              : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          2
+                        </div>
+                        <div className="leading-tight">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Bước 2</p>
+                          <p className="text-xs sm:text-sm font-bold truncate">
+                            {formData.role === 'restaurant_owner' ? 'Hồ sơ quán & Giấy phép' : 'Phương tiện & Định danh'}
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* BƯỚC 1: THÔNG TIN TÀI KHOẢN (Hiển thị cho Khách hàng HOẶC khi Partner ở Bước 1) */}
+                  {(formData.role === 'customer' || currentStep === 1) && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-4 animate-in fade-in">
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-primary" /> Thông tin tài khoản đăng nhập
                     </h3>
@@ -918,9 +985,36 @@ export default function Register() {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             required
-                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                            className={`w-full pl-11 pr-10 py-3 text-xs sm:text-sm rounded-xl border bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium ${
+                              isPasswordMismatch
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : isPasswordMatch
+                                  ? 'border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-900/30'
+                                  : 'border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                            }`}
                           />
+                          {hasConfirmPassword && (
+                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none animate-in fade-in">
+                              {isPasswordMatch ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              ) : (
+                                <XCircle className="w-4 h-4 text-red-500" />
+                              )}
+                            </div>
+                          )}
                         </div>
+                        {isPasswordMismatch && (
+                          <p className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                            <XCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Mật khẩu xác nhận không khớp</span>
+                          </p>
+                        )}
+                        {isPasswordMatch && (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Mật khẩu hoàn toàn trùng khớp ✓</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -942,10 +1036,11 @@ export default function Register() {
                       </div>
                     )}
                   </div>
+                  )}
 
-                  {/* SECTION 2: DÀNH RIÊNG CHO QUÁN ĂN */}
-                  {formData.role === 'restaurant_owner' && (
-                    <div className="p-4 sm:p-5 rounded-2xl bg-orange-50/60 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60 space-y-4">
+                  {/* BƯỚC 2: DÀNH RIÊNG CHO QUÁN ĂN */}
+                  {formData.role === 'restaurant_owner' && currentStep === 2 && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-orange-50/60 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60 space-y-4 animate-in fade-in">
                       <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
                         <Store className="w-3.5 h-3.5" /> Thông tin hồ sơ quán ăn & pháp lý
                       </h3>
@@ -1097,9 +1192,9 @@ export default function Register() {
                     </div>
                   )}
 
-                  {/* SECTION 3: DÀNH RIÊNG CHO TÀI XẾ */}
-                  {formData.role === 'shipper' && (
-                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4">
+                  {/* BƯỚC 2: DÀNH RIÊNG CHO TÀI XẾ */}
+                  {formData.role === 'shipper' && currentStep === 2 && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4 animate-in fade-in">
                       <h3 className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
                         <Bike className="w-3.5 h-3.5" /> Thông tin phương tiện & tài xế
                       </h3>
@@ -1171,49 +1266,93 @@ export default function Register() {
                     </div>
                   )}
 
-                  {/* Terms & Privacy Checkbox */}
-                  <div className="pt-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
-                      <input
-                        type="checkbox"
-                        name="agreeTerms"
-                        checked={formData.agreeTerms}
-                        onChange={handleChange}
-                        className="w-4 h-4 rounded mt-0.5 text-primary accent-primary"
-                      />
-                      <span>
-                        Tôi đã đọc và đồng ý với{' '}
-                        <span className="text-primary font-bold hover:underline">
-                          Điều khoản dịch vụ & Chính sách bảo mật
-                        </span>{' '}
-                        của CraveDash.
-                      </span>
-                    </label>
-                  </div>
+                  {/* Terms & Privacy Checkbox (Hiển thị ở bước cuối) */}
+                  {(formData.role === 'customer' || currentStep === 2) && (
+                    <div className="pt-2 animate-in fade-in">
+                      <label className="flex items-start gap-2.5 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
+                        <input
+                          type="checkbox"
+                          name="agreeTerms"
+                          checked={formData.agreeTerms}
+                          onChange={handleChange}
+                          className="w-4 h-4 rounded mt-0.5 text-primary accent-primary"
+                        />
+                        <span>
+                          Tôi đã đọc và đồng ý với{' '}
+                          <span className="text-primary font-bold hover:underline">
+                            Điều khoản dịch vụ & Chính sách bảo mật
+                          </span>{' '}
+                          của FoodDelivery.
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {loading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Đang khởi tạo tài khoản...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Hoàn tất đăng ký</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
+                  {/* Nút hành động */}
+                  {formData.role === 'customer' ? (
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Đang khởi tạo tài khoản...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Hoàn tất đăng ký Khách Hàng</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  ) : currentStep === 1 ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-orange-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>
+                        Tiếp tục Bước 2: {formData.role === 'restaurant_owner' ? 'Thông tin quán & Giấy tờ' : 'Phương tiện & Định danh'}
+                      </span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(1)}
+                        className="w-full sm:w-auto px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Quay lại Bước 1</span>
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-sm shadow-xl shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Đang nộp hồ sơ xét duyệt...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Hoàn tất đăng ký đối tác</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </form>
 
                 {/* Bottom Login Redirect */}
                 <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  Đã có tài khoản CraveDash?{' '}
+                  Đã có tài khoản FoodDelivery?{' '}
                   <Link
                     to="/login"
                     className="font-bold text-primary hover:underline inline-flex items-center gap-0.5"

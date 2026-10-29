@@ -1082,12 +1082,12 @@ export default function Home() {
               <div className="p-4 rounded-2xl bg-white text-slate-900 shadow-xl flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase">Mã Giảm Giá 50k</p>
-                  <p className="text-lg font-black text-orange-600">CRAVEDASH50</p>
+                  <p className="text-lg font-black text-orange-600">FOODDELIVERY50</p>
                   <span className="text-[11px] text-slate-500">Giảm tối đa 50k cho đơn 150k</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleCopyCoupon('CRAVEDASH50')}
+                  onClick={() => handleCopyCoupon('FOODDELIVERY50')}
                   className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-primary text-primary hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
                 >
                   <Copy className="w-3.5 h-3.5" />
