@@ -6,6 +6,16 @@ export const authApi = {
     return response.data
   },
 
+  googleLogin: async (googleData) => {
+    const response = await axiosClient.post('/auth/google', googleData)
+    return response.data
+  },
+
+  facebookLogin: async (facebookData) => {
+    const response = await axiosClient.post('/auth/facebook', facebookData)
+    return response.data
+  },
+
   register: async (userData) => {
     const response = await axiosClient.post('/auth/register', userData)
     return response.data

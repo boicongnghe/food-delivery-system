@@ -54,6 +54,28 @@ export const login = asyncHandler(async (req, res) => {
   });
 });
 
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { idToken, accessToken } = req.body;
+  const result = await authService.loginWithGoogle({ idToken, accessToken });
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
+export const facebookLogin = asyncHandler(async (req, res) => {
+  const { accessToken, userID } = req.body;
+  const result = await authService.loginWithFacebook({ accessToken, userID });
+
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message,
+  });
+});
+
 export const getMe = asyncHandler(async (req, res) => {
   const user = await authService.getCurrentUser(req.user._id);
 

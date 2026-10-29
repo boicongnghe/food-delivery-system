@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
@@ -166,7 +167,7 @@ export const verifyEmail = async (token) => {
   const enrichedUser = await enrichUserData(user);
 
   return {
-    message: 'Kích hoạt tài khoản thành công! Chào mừng bạn đến với hệ thống CraveDash.',
+    message: 'Kích hoạt tài khoản thành công! Chào mừng bạn đến với hệ thống FoodDelivery.',
     token: authToken,
     user: enrichedUser,
   };
@@ -486,3 +487,164 @@ export const setDefaultUserAddress = async (userId, addressId) => {
 // Aliases for compatibility
 export const login = async (email, password) => loginUser({ email, password });
 export const getMe = async (userId) => getCurrentUser(userId);
+
+/**
+ * Đăng nhập / Đăng ký bằng tài khoản Google (hỗ trợ cả idToken và accessToken)
+ */
+export const loginWithGoogle = async ({ idToken, accessToken }) => {
+  let payload = null;
+
+  if (idToken) {
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } else if (accessToken) {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      throw new ApiError(401, 'Không thể lấy thông tin người dùng từ Google Access Token');
+    }
+    payload = await response.json();
+  } else {
+    throw new ApiError(400, 'Thiếu thông tin xác thực Google (cần idToken hoặc accessToken)');
+  }
+
+  if (!payload || !payload.email) {
+    throw new ApiError(400, 'Không lấy được thông tin email từ tài khoản Google.');
+  }
+
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  let user = await User.findOne({
+    $or: [{ email: normalizedEmail }, { googleId: payload.sub }],
+  });
+
+  if (user) {
+    if (!user.isActive) {
+      throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
+    }
+
+    let changed = false;
+    if (!user.googleId) {
+      user.googleId = payload.sub;
+      changed = true;
+    }
+    if (!user.isVerified) {
+      user.isVerified = true;
+      user.verificationToken = null;
+      user.verificationTokenExpires = null;
+      changed = true;
+    }
+    if ((!user.avatar || user.avatar.includes('unsplash.com')) && payload.picture) {
+      user.avatar = payload.picture;
+      changed = true;
+    }
+    if (changed) {
+      await user.save();
+    }
+  } else {
+    // Tạo tài khoản khách hàng mới cho người dùng Google
+    user = await User.create({
+      fullName: payload.name || 'Khách hàng Google',
+      email: normalizedEmail,
+      googleId: payload.sub,
+      avatar: payload.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      role: 'customer',
+      authProvider: 'google',
+      isVerified: true,
+      phone: '',
+    });
+  }
+
+  const token = generateToken(user);
+  const enrichedUser = await enrichUserData(user);
+
+  return {
+    message: 'Đăng nhập bằng tài khoản Google thành công! 🎉',
+    token,
+    user: enrichedUser,
+  };
+};
+
+/**
+ * Đăng nhập / Đăng ký bằng tài khoản Facebook
+ */
+export const loginWithFacebook = async ({ accessToken, userID }) => {
+  if (!accessToken) {
+    throw new ApiError(400, 'Thiếu Facebook Access Token');
+  }
+
+  // Gọi Graph API của Facebook để xác thực token và lấy thông tin cơ bản (ID, Tên, Avatar)
+  const fbRes = await fetch(
+    `https://graph.facebook.com/me?fields=id,name,picture.type(large)&access_token=${accessToken}`
+  );
+
+  if (!fbRes.ok) {
+    const errorData = await fbRes.json().catch(() => ({}));
+    throw new ApiError(401, errorData?.error?.message || 'Không thể xác thực Facebook Access Token');
+  }
+
+  const fbData = await fbRes.json();
+  const facebookId = fbData.id || userID;
+  const fullName = fbData.name || 'Người dùng Facebook';
+  const avatar =
+    fbData.picture?.data?.url ||
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+
+  // Định danh tài khoản Facebook độc lập theo facebookId
+  const email = fbData.email
+    ? fbData.email.trim().toLowerCase()
+    : `fb_${facebookId}@fooddelivery.vn`;
+
+  let user = await User.findOne({
+    $or: [{ facebookId }, { email }],
+  });
+
+  if (user) {
+    if (!user.isActive) {
+      throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
+    }
+
+    let changed = false;
+    if (!user.facebookId) {
+      user.facebookId = facebookId;
+      changed = true;
+    }
+    if (!user.isVerified) {
+      user.isVerified = true;
+      user.verificationToken = null;
+      user.verificationTokenExpires = null;
+      changed = true;
+    }
+    if ((!user.avatar || user.avatar.includes('unsplash.com')) && avatar) {
+      user.avatar = avatar;
+      changed = true;
+    }
+    if (changed) {
+      await user.save();
+    }
+  } else {
+    user = await User.create({
+      fullName,
+      email,
+      facebookId,
+      avatar,
+      role: 'customer',
+      authProvider: 'facebook',
+      isVerified: true,
+      phone: '',
+    });
+  }
+
+  const token = generateToken(user);
+  const enrichedUser = await enrichUserData(user);
+
+  return {
+    message: 'Đăng nhập bằng tài khoản Facebook thành công! 🎉',
+    token,
+    user: enrichedUser,
+  };
+};

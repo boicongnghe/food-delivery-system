@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Mail,
@@ -9,13 +9,13 @@ import {
   Star,
   Zap,
   ArrowRight,
-  ArrowLeft,
   UtensilsCrossed,
   Gift,
   Coins,
   Truck,
   AlertCircle,
   RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
@@ -24,12 +24,15 @@ import ForgotPasswordModal from '../../components/ForgotPasswordModal/ForgotPass
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login, resendVerification } = useAuth()
+  const { login, loginWithGoogle, loginWithFacebook, resendVerification } = useAuth()
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    rememberMe: false,
+  const [formData, setFormData] = useState(() => {
+    const savedEmail = localStorage.getItem('remembered_email') || ''
+    return {
+      email: savedEmail,
+      password: '',
+      rememberMe: Boolean(savedEmail),
+    }
   })
 
   const [showPassword, setShowPassword] = useState(false)
@@ -40,6 +43,51 @@ export default function Login() {
   const [resendingMail, setResendingMail] = useState(false)
 
   const pendingDish = location.state?.selectedDish
+
+  // Xử lý callback OAuth trả về từ popup Facebook
+  useEffect(() => {
+    // 1. Nếu trang hiện tại là cửa sổ popup sau khi Facebook redirect về (chứa #access_token=...)
+    if (window.location.hash.includes('access_token=')) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const accessToken = hashParams.get('access_token')
+
+      if (accessToken) {
+        if (window.opener) {
+          // Báo cho tab chính rằng đã nhận được token và đóng cửa sổ popup
+          window.opener.postMessage({ type: 'FB_OAUTH_TOKEN', accessToken }, window.location.origin)
+          window.close()
+          return
+        }
+
+        // Trường hợp không có opener (redirect thẳng trên cùng tab)
+        window.history.replaceState(null, '', window.location.pathname)
+        loginWithFacebook({ accessToken }).then((res) => {
+          if (res.success) handleLoginSuccess(res)
+          else toast.error(res.message || 'Đăng nhập Facebook không thành công')
+        })
+        return
+      }
+    }
+
+    // 2. Lắng nghe thông điệp accessToken từ popup gửi sang cho tab chính
+    const handleAuthMessage = async (event) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data?.type === 'FB_OAUTH_TOKEN' && event.data.accessToken) {
+        setSocialLoading(null)
+        const toastId = toast.loading('Đang xác thực thông tin tài khoản Facebook...')
+        const result = await loginWithFacebook({ accessToken: event.data.accessToken })
+        toast.dismiss(toastId)
+        if (result.success) {
+          handleLoginSuccess(result)
+        } else {
+          toast.error(result.message || 'Đăng nhập Facebook thất bại.')
+        }
+      }
+    }
+
+    window.addEventListener('message', handleAuthMessage)
+    return () => window.removeEventListener('message', handleAuthMessage)
+  }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -61,10 +109,16 @@ export default function Login() {
     const result = await login({
       email: formData.email.trim(),
       password: formData.password,
+      rememberMe: formData.rememberMe,
     })
     setLoading(false)
 
     if (result.success) {
+      if (formData.rememberMe) {
+        localStorage.setItem('remembered_email', formData.email.trim())
+      } else {
+        localStorage.removeItem('remembered_email')
+      }
       setUnverifiedEmail(null)
       handleLoginSuccess(result)
     } else {
@@ -128,25 +182,101 @@ export default function Login() {
 
   // Đăng nhập nhanh bằng Google / Facebook / Apple
   const handleSocialLogin = async (provider) => {
-    setSocialLoading(provider)
-    const label = provider.charAt(0).toUpperCase() + provider.slice(1)
-    const toastId = toast.loading(`Đang kết nối tài khoản ${label}...`)
-
-    setTimeout(async () => {
-      const result = await login({
-        email: 'khachhang@fooddelivery.vn',
-        password: 'password123',
-      })
-      toast.dismiss(toastId)
-      setSocialLoading(null)
-
-      if (result.success) {
-        toast.success(`Đăng nhập thành công với ${label}! 🎉`)
-        handleLoginSuccess(result)
-      } else {
-        toast.error(`Không thể kết nối ${label}. Vui lòng thử lại.`)
+    if (provider === 'google') {
+      const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+      if (!googleClientId) {
+        toast.error('Chưa cấu hình VITE_GOOGLE_CLIENT_ID trong file .env')
+        return
       }
-    }, 900)
+
+      if (!window.google?.accounts?.oauth2) {
+        toast.error('Đang tải thư viện Google, vui lòng thử lại sau vài giây...')
+        return
+      }
+
+      setSocialLoading('google')
+      const toastId = toast.loading('Đang mở cửa sổ đăng nhập Google...')
+
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse) => {
+            toast.dismiss(toastId)
+            if (tokenResponse.error) {
+              setSocialLoading(null)
+              toast.error(`Đăng nhập Google thất bại: ${tokenResponse.error}`)
+              return
+            }
+
+            const verifyToast = toast.loading('Đang xác thực thông tin tài khoản...')
+            const result = await loginWithGoogle({ accessToken: tokenResponse.access_token })
+            toast.dismiss(verifyToast)
+            setSocialLoading(null)
+
+            if (result.success) {
+              handleLoginSuccess(result)
+            } else {
+              toast.error(result.message || 'Đăng nhập Google thất bại.')
+            }
+          },
+          error_callback: (err) => {
+            toast.dismiss(toastId)
+            setSocialLoading(null)
+            if (err?.type !== 'popup_closed') {
+              toast.error('Đăng nhập Google không thành công.')
+            }
+          },
+        })
+
+        tokenClient.requestAccessToken({ prompt: 'select_account' })
+      } catch (err) {
+        toast.dismiss(toastId)
+        setSocialLoading(null)
+        toast.error('Có lỗi xảy ra khi khởi tạo Google Login.')
+      }
+      return
+    }
+
+    if (provider === 'facebook') {
+      const fbAppId = import.meta.env.VITE_FACEBOOK_APP_ID
+      if (!fbAppId) {
+        toast.error('Chưa cấu hình VITE_FACEBOOK_APP_ID trong file client/.env')
+        return
+      }
+
+      setSocialLoading('facebook')
+      const redirectUri = `${window.location.origin}/login`
+      const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&response_type=token&scope=public_profile`
+
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+
+      const popup = window.open(
+        fbAuthUrl,
+        'FacebookOAuthPopup',
+        `width=${width},height=${height},left=${left},top=${top},status=yes,scrollbars=yes`
+      )
+
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        setSocialLoading(null)
+        toast.error('Trình duyệt đang chặn cửa sổ Popup. Vui lòng cho phép popup để tiếp tục đăng nhập Facebook.')
+        return
+      }
+
+      // Theo dõi nếu người dùng tự đóng popup
+      const pollTimer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(pollTimer)
+          setSocialLoading((curr) => (curr === 'facebook' ? null : curr))
+        }
+      }, 800)
+      return
+    }
   }
 
   const handleDemoFill = (role) => {
@@ -183,27 +313,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
-      {/* Top Header Bar with Back Button */}
-      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 py-4 flex items-center justify-between border-b border-orange-100/60 dark:border-slate-800/80 bg-white/70 dark:bg-[#181A20]/70 backdrop-blur-md">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span>Quay lại Trang chủ</span>
-        </Link>
-
-        {/* Brand Logo in Header */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-md shadow-orange-500/20">
-            <UtensilsCrossed className="w-4 h-4" />
-          </div>
-          <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-            Crave<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Dash</span>
-          </span>
-        </Link>
-      </div>
-
       {/* Main Full-Width 2-Column Content */}
       <div className="w-full flex-1 px-4 sm:px-8 lg:px-12 2xl:px-16 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
@@ -258,7 +367,7 @@ export default function Login() {
                   <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
                     Tích điểm hoàn tiền đến 15%
                     <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                      CravePoint
+                      FoodPoint
                     </span>
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -534,61 +643,69 @@ export default function Login() {
                   </div>
                 </div>
 
-                {/* Social Login Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Social Login Buttons: Google & Facebook */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => handleSocialLogin('google')}
                     disabled={!!socialLoading || loading}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60"
+                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs"
                   >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>Google</span>
+                    {socialLoading === 'google' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 shrink-0 animate-spin text-primary" />
+                        <span>Đang kết nối...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>Google</span>
+                      </>
+                    )}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleSocialLogin('facebook')}
                     disabled={!!socialLoading || loading}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60"
+                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs"
                   >
-                    <svg className="w-4 h-4 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                    </svg>
-                    <span>Facebook</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin('apple')}
-                    disabled={!!socialLoading || loading}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60"
-                  >
-                    <span className="text-base"></span>
-                    <span>Apple</span>
+                    {socialLoading === 'facebook' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 shrink-0 animate-spin text-[#1877F2]" />
+                        <span>Đang kết nối...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                        </svg>
+                        <span>Facebook</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
                 {/* Bottom Register Redirect */}
                 <div className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  Chưa có tài khoản CraveDash?{' '}
+                  Chưa có tài khoản FoodDelivery?{' '}
                   <Link
                     to="/register"
                     className="font-bold text-primary hover:underline inline-flex items-center gap-0.5"
