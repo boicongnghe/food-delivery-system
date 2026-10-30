@@ -3,6 +3,7 @@ import { Outlet, Link } from 'react-router-dom'
 import { UtensilsCrossed, Phone, Mail, MapPin, ShieldCheck, Heart, ArrowUpRight, Sparkles } from 'lucide-react'
 import Navbar from '../components/Navbar/Navbar.jsx'
 import CartDrawer from '../components/CartDrawer.jsx'
+import ChatBox from '../components/ChatBox/ChatBox.jsx'
 
 function MainLayout() {
   const [isCartOpen, setIsCartOpen] = useState(false)
@@ -19,6 +20,9 @@ function MainLayout() {
 
       {/* Slide-Over Cart Drawer */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+      {/* AI Assistant ChatBox Widget */}
+      <ChatBox />
 
       {/* Full-Width Edge-to-Edge Footer */}
       <footer className="w-full bg-slate-900 text-slate-300 dark:bg-[#0B0C0E] border-t border-slate-800 transition-colors">
