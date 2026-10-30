@@ -38,7 +38,7 @@ export default function NotificationBell({ isDark = false }) {
   const [isOpen, setIsOpen] = useState(false)
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
 
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)

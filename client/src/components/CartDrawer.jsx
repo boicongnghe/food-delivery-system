@@ -22,7 +22,7 @@ function CartDrawer({ isOpen, onClose }) {
     if (code === 'FREESHIP15K') {
       setAppliedDiscount(15000)
       toast.success('Đã áp dụng mã miễn phí giao hàng 15.000đ! 🎉')
-    } else if (code === 'CRAVEDASH50') {
+    } else if (code === 'FOODDELIVERY50' || code === 'CRAVEDASH50') {
       const discount = Math.min(Math.round(subtotal * 0.2), 50000)
       setAppliedDiscount(discount)
       toast.success(`Đã áp dụng mã giảm giá ${discount.toLocaleString('vi-VN')}đ! 🎉`)
@@ -97,7 +97,7 @@ function CartDrawer({ isOpen, onClose }) {
                   Giỏ hàng đang trống
                 </h3>
                 <p className="text-xs max-w-xs mx-auto text-slate-500 leading-relaxed">
-                  Bạn chưa chọn món nào. Khám phá menu món ngon phong phú ngay trên CraveDash nhé!
+                  Bạn chưa chọn món nào. Khám phá menu món ngon phong phú ngay trên FoodDelivery nhé!
                 </p>
               </div>
             ) : (

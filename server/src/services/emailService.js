@@ -31,7 +31,7 @@ const getTransporter = () => {
 export const sendVerificationEmail = async ({ email, fullName, token }) => {
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
   const verificationUrl = `${clientUrl}/verify-email?token=${token}`;
-  const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || '"CraveDash Food Delivery" <no-reply@cravedash.vn>';
+  const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || '"FoodDelivery System" <no-reply@fooddelivery.vn>';
 
   const mailTransporter = getTransporter();
 
@@ -42,7 +42,7 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Kích hoạt tài khoản CraveDash</title>
+      <title>Kích hoạt tài khoản FoodDelivery</title>
     </head>
     <body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B;">
       <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F8FAFC; padding: 30px 10px;">
@@ -54,7 +54,7 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
               <tr>
                 <td style="background: linear-gradient(135deg, #FF4B2B 0%, #FF416C 50%, #FF8008 100%); padding: 36px 30px; text-align: center;">
                   <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
-                    Crave<span style="color: #FFE600;">Dash</span>
+                    Food<span style="color: #FFE600;">Delivery</span>
                   </h1>
                   <p style="margin: 6px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px; font-weight: 500;">
                     Hệ thống đặt & giao đồ ăn trực tuyến
@@ -69,7 +69,7 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
                     Xin chào ${fullName || 'bạn'}, 👋
                   </h2>
                   <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #475569;">
-                    Cảm ơn bạn đã đăng ký tài khoản tại <strong>CraveDash Food Delivery</strong>. Để đảm bảo an toàn bảo mật và bắt đầu trải nghiệm dịch vụ đặt món, vui lòng xác nhận địa chỉ email của bạn.
+                    Cảm ơn bạn đã đăng ký tài khoản tại <strong>FoodDelivery</strong>. Để đảm bảo an toàn bảo mật và bắt đầu trải nghiệm dịch vụ đặt món, vui lòng xác nhận địa chỉ email của bạn.
                   </p>
                   
                   <!-- Action Button -->
@@ -101,7 +101,7 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
                     Nếu bạn không thực hiện đăng ký tài khoản này, vui lòng bỏ qua email này.
                   </p>
                   <p style="margin: 0; font-size: 12px; color: #94A3B8; font-weight: 500;">
-                    © ${new Date().getFullYear()} CraveDash Food Delivery. All rights reserved.
+                    © ${new Date().getFullYear()} FoodDelivery System. All rights reserved.
                   </p>
                 </td>
               </tr>
@@ -120,7 +120,7 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
       await mailTransporter.sendMail({
         from: senderEmail,
         to: email,
-        subject: '✨ [CraveDash] Xác nhận kích hoạt tài khoản của bạn',
+        subject: '✨ [FoodDelivery] Xác nhận kích hoạt tài khoản của bạn',
         html: htmlContent,
       });
       console.log(`[EmailService] Verification email sent to: ${email}`);

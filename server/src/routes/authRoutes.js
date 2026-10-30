@@ -11,6 +11,7 @@ import {
   changePasswordSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  deleteAccountSchema,
 } from '../validations/authValidation.js';
 
 const router = Router();
@@ -20,9 +21,12 @@ router.get('/verify-email', authController.verifyEmail);
 router.post('/verify-email', validate(verifyEmailSchema), authController.verifyEmail);
 router.post('/resend-verification', resendVerificationRateLimit, validate(resendVerificationSchema), authController.resendVerification);
 router.post('/login', loginRateLimit, validate(loginSchema), authController.login);
+router.post('/google', loginRateLimit, authController.googleLogin);
+router.post('/facebook', loginRateLimit, authController.facebookLogin);
 router.post('/forgot-password', forgotPasswordRateLimit, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 router.put('/change-password', protect, validate(changePasswordSchema), authController.changePassword);
+router.delete('/delete-account', protect, validate(deleteAccountSchema), authController.deleteAccount);
 router.get('/me', protect, authController.getMe);
 
 export default router;
