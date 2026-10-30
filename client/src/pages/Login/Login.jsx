@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Mail,
@@ -41,6 +41,8 @@ export default function Login() {
   const [showForgotModal, setShowForgotModal] = useState(false)
   const [unverifiedEmail, setUnverifiedEmail] = useState(null)
   const [resendingMail, setResendingMail] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const fbPollTimerRef = useRef(null)
 
   const pendingDish = location.state?.selectedDish
 
@@ -73,6 +75,10 @@ export default function Login() {
     const handleAuthMessage = async (event) => {
       if (event.origin !== window.location.origin) return
       if (event.data?.type === 'FB_OAUTH_TOKEN' && event.data.accessToken) {
+        if (fbPollTimerRef.current) {
+          clearInterval(fbPollTimerRef.current)
+          fbPollTimerRef.current = null
+        }
         setSocialLoading(null)
         const toastId = toast.loading('Đang xác thực thông tin tài khoản Facebook...')
         const result = await loginWithFacebook({ accessToken: event.data.accessToken })
@@ -86,11 +92,20 @@ export default function Login() {
     }
 
     window.addEventListener('message', handleAuthMessage)
-    return () => window.removeEventListener('message', handleAuthMessage)
+    return () => {
+      window.removeEventListener('message', handleAuthMessage)
+      if (fbPollTimerRef.current) {
+        clearInterval(fbPollTimerRef.current)
+        fbPollTimerRef.current = null
+      }
+    }
   }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: '' }))
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -100,11 +115,24 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!formData.email.trim() || !formData.password) {
-      toast.error('Vui lòng điền đầy đủ email và mật khẩu.')
+    const errors = {}
+    if (!formData.email.trim()) {
+      errors.email = 'Vui lòng nhập địa chỉ email.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Định dạng email không hợp lệ.'
+    }
+
+    if (!formData.password) {
+      errors.password = 'Vui lòng nhập mật khẩu.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      toast.error('Vui lòng kiểm tra lại thông tin đăng nhập.')
       return
     }
 
+    setFieldErrors({})
     setLoading(true)
     const result = await login({
       email: formData.email.trim(),
@@ -269,9 +297,11 @@ export default function Login() {
       }
 
       // Theo dõi nếu người dùng tự đóng popup
-      const pollTimer = setInterval(() => {
+      if (fbPollTimerRef.current) clearInterval(fbPollTimerRef.current)
+      fbPollTimerRef.current = setInterval(() => {
         if (popup.closed) {
-          clearInterval(pollTimer)
+          clearInterval(fbPollTimerRef.current)
+          fbPollTimerRef.current = null
           setSocialLoading((curr) => (curr === 'facebook' ? null : curr))
         }
       }, 800)
@@ -555,9 +585,19 @@ export default function Login() {
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all bg-slate-50/70 dark:bg-slate-900 focus:bg-white"
+                        className={`w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border transition-all ${
+                          fieldErrors.email
+                            ? 'border-red-500 bg-red-50/30 dark:bg-red-950/20 text-slate-900 dark:text-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/70 dark:bg-slate-900 focus:bg-white'
+                        }`}
                       />
                     </div>
+                    {fieldErrors.email && (
+                      <p className="text-[11px] font-semibold text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{fieldErrors.email}</span>
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -577,17 +617,27 @@ export default function Login() {
                         value={formData.password}
                         onChange={handleChange}
                         required
-                        className="w-full pl-11 pr-11 py-3 text-xs sm:text-sm rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all bg-slate-50/70 dark:bg-slate-900 focus:bg-white"
+                        className={`w-full pl-11 pr-11 py-3 text-xs sm:text-sm rounded-2xl border transition-all ${
+                          fieldErrors.password
+                            ? 'border-red-500 bg-red-50/30 dark:bg-red-950/20 text-slate-900 dark:text-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/70 dark:bg-slate-900 focus:bg-white'
+                        }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 w-9 h-9 flex items-center justify-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
                         aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.password && (
+                      <p className="text-[11px] font-semibold text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{fieldErrors.password}</span>
+                      </p>
+                    )}
 
                     {/* Remember Me & Forgot Password */}
                     <div className="flex items-center justify-between pt-2.5">
@@ -615,7 +665,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white text-xs sm:text-sm font-black shadow-lg shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white text-xs sm:text-sm font-black shadow-lg shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   >
                     {loading ? (
                       <>
@@ -649,7 +699,7 @@ export default function Login() {
                     type="button"
                     onClick={() => handleSocialLogin('google')}
                     disabled={!!socialLoading || loading}
-                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs"
+                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {socialLoading === 'google' ? (
                       <>
@@ -685,7 +735,7 @@ export default function Login() {
                     type="button"
                     onClick={() => handleSocialLogin('facebook')}
                     disabled={!!socialLoading || loading}
-                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs"
+                    className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-60 shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {socialLoading === 'facebook' ? (
                       <>

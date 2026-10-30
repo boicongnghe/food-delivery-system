@@ -22,14 +22,21 @@ import {
   Check,
   Building,
   Home,
+  AlertTriangle,
+  ShieldAlert,
+  Loader2,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+import { useCart } from '../../context/CartContext.jsx'
 import authApi from '../../api/authApi.js'
 import uploadApi from '../../api/uploadApi.js'
 
 export default function ProfileModal({ isOpen, onClose }) {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, deleteAccount } = useAuth()
+  const { clearCart } = useCart() || {}
+  const navigate = useNavigate()
   const fileInputRef = useRef(null)
 
   const [activeTab, setActiveTab] = useState('info') // 'info' | 'addresses' | 'password'
@@ -40,6 +47,13 @@ export default function ProfileModal({ isOpen, onClose }) {
   const [fullName, setFullName] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  // Customer Self-Delete Account State
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
+  const [showDeletePass, setShowDeletePass] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Tab 2: Addresses State (Customers only)
   const [addresses, setAddresses] = useState([])
@@ -282,6 +296,44 @@ export default function ProfileModal({ isOpen, onClose }) {
     }
   }
 
+  // Check if current user logged in with local password
+  const hasPassword = !user?.authProvider || user?.authProvider === 'local' || (!user?.googleId && !user?.facebookId)
+
+  // Handler: Customer Self-Deletes Account
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault()
+
+    if (hasPassword && !deletePassword) {
+      toast.error('Vui lòng nhập mật khẩu hiện tại để xác thực xóa tài khoản.')
+      return
+    }
+
+    if (!hasPassword && deleteConfirmationText.trim().toUpperCase() !== 'XÓA TÀI KHOẢN') {
+      toast.error('Vui lòng nhập chính xác cụm từ "XÓA TÀI KHOẢN" để xác nhận.')
+      return
+    }
+
+    setDeletingAccount(true)
+    const res = await deleteAccount({
+      password: deletePassword,
+      confirmationText: deleteConfirmationText,
+    })
+    setDeletingAccount(false)
+
+    if (res.success) {
+      toast.success(res.message || 'Tài khoản của bạn đã được xóa vĩnh viễn khỏi hệ thống.', {
+        duration: 4500,
+        icon: '👋',
+      })
+      if (clearCart) clearCart()
+      setShowDeleteModal(false)
+      onClose()
+      navigate('/', { replace: true })
+    } else {
+      toast.error(res.message || 'Xóa tài khoản không thành công.')
+    }
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col my-auto">
@@ -502,6 +554,34 @@ export default function ProfileModal({ isOpen, onClose }) {
                   {savingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
+
+              {/* DANGER ZONE - CHỈ CHO KHÁCH HÀNG (CUSTOMER) */}
+              {isCustomer && (
+                <div className="pt-5 border-t border-red-100">
+                  <div className="p-4 rounded-2xl bg-red-50/60 border border-red-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <h5 className="text-xs font-black uppercase tracking-wider text-red-600 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-red-500" /> Vùng nguy hiểm
+                      </h5>
+                      <p className="text-xs text-slate-600">
+                        Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu cá nhân của bạn khỏi hệ thống.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeletePassword('')
+                        setDeleteConfirmationText('')
+                        setShowDeleteModal(true)
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-white border border-red-300 hover:bg-red-600 hover:text-white text-red-600 text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa tài khoản</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </form>
           )}
 
@@ -858,6 +938,118 @@ export default function ProfileModal({ isOpen, onClose }) {
             </form>
           )}
         </div>
+
+        {/* POPUP XÁC NHẬN XÓA TÀI KHOẢN VĨNH VIỄN */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[10001] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-red-200 space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-900">
+                    Xác nhận xóa tài khoản?
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Hành động này là tức thì và KHÔNG THỂ hoàn tác
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-red-50/70 border border-red-200/80 text-xs text-red-900 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                  Bạn sắp xóa tài khoản khách hàng:
+                </p>
+                <p className="text-slate-700">
+                  • Họ và tên: <strong>{user.fullName}</strong>
+                </p>
+                <p className="text-slate-700">
+                  • Email: <strong>{user.email}</strong>
+                </p>
+                <p className="text-slate-600 text-[11px] pt-1">
+                  Toàn bộ thông tin cá nhân và sổ địa chỉ sẽ bị xóa sạch khỏi hệ thống. Nếu có đơn hàng đang giao, hệ thống sẽ từ chối để bảo vệ quyền lợi đơn hàng.
+                </p>
+              </div>
+
+              <form onSubmit={handleDeleteAccount} className="space-y-4 pt-1">
+                {hasPassword ? (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Nhập mật khẩu hiện tại để xác nhận <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type={showDeletePass ? 'text' : 'password'}
+                        placeholder="Nhập mật khẩu của bạn"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        required
+                        className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowDeletePass(!showDeletePass)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                        aria-label={showDeletePass ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                      >
+                        {showDeletePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Để xác nhận, vui lòng nhập chính xác chữ: <strong className="text-red-600">XÓA TÀI KHOẢN</strong>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="XÓA TÀI KHOẢN"
+                      value={deleteConfirmationText}
+                      onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 uppercase font-bold transition-all"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteModal(false)
+                      setDeletePassword('')
+                      setDeleteConfirmationText('')
+                    }}
+                    disabled={deletingAccount}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={deletingAccount}
+                    className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md shadow-red-500/25 disabled:opacity-60 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    {deletingAccount ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang xóa vĩnh viễn...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Xác nhận xóa tài khoản</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body

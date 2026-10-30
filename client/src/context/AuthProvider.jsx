@@ -387,6 +387,35 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const deleteAccount = async (confirmationData) => {
+    try {
+      const response = await authApi.deleteAccount(confirmationData)
+      const userEmail = user?.email
+      clearStoredAuth()
+      setToken(null)
+      setUser(null)
+      try {
+        localStorage.removeItem('food_delivery_cart')
+        if (userEmail && localStorage.getItem('remembered_email') === userEmail) {
+          localStorage.removeItem('remembered_email')
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return {
+        success: true,
+        message: response.message || 'Xóa tài khoản thành công',
+      }
+    } catch (error) {
+      const message =
+        error.response?.data?.message || 'Xóa tài khoản không thành công. Vui lòng thử lại.'
+      return {
+        success: false,
+        message,
+      }
+    }
+  }
+
   const value = {
     user,
     token,
@@ -400,6 +429,7 @@ export function AuthProvider({ children }) {
     resendVerification,
     logout,
     updateProfile,
+    deleteAccount,
     setUser,
   }
 

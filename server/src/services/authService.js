@@ -4,6 +4,8 @@ import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
+import Order from '../models/Order.js';
+import Notification from '../models/Notification.js';
 import ApiError from '../utils/ApiError.js';
 import * as emailService from './emailService.js';
 
@@ -646,5 +648,77 @@ export const loginWithFacebook = async ({ accessToken, userID }) => {
     message: 'Đăng nhập bằng tài khoản Facebook thành công! 🎉',
     token,
     user: enrichedUser,
+  };
+};
+
+export const deleteCustomerAccount = async (userId, { password, confirmationText } = {}) => {
+  const user = await User.findById(userId).select('+password');
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy thông tin tài khoản người dùng.');
+  }
+
+  // 1. Chỉ cho phép vai trò 'customer' tự xóa tài khoản
+  if (user.role !== 'customer') {
+    throw new ApiError(
+      403,
+      'Chức năng tự xóa tài khoản hiện tại chỉ áp dụng cho tài khoản Khách hàng. Đối tác Quán ăn hoặc Tài xế vui lòng liên hệ Ban Quản trị để đối soát tài chính và giải quyết hợp đồng.'
+    );
+  }
+
+  // 2. Bảo vệ tài khoản demo mẫu của hệ thống
+  const demoEmails = [
+    'khachhang@fooddelivery.vn',
+    'chuquan@fooddelivery.vn',
+    'taixe@fooddelivery.vn',
+    'admin@fooddelivery.vn',
+  ];
+  if (demoEmails.includes(user.email)) {
+    throw new ApiError(
+      403,
+      'Đây là tài khoản mẫu thử nghiệm của hệ thống, không thể xóa. Bạn có thể đăng ký một tài khoản mới để thử nghiệm tính năng xóa tài khoản.'
+    );
+  }
+
+  // 3. Không cho phép xóa nếu đang có đơn hàng chưa hoàn tất hoặc đang giao
+  const activeOrder = await Order.findOne({
+    customer: user._id,
+    status: { $in: ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'] },
+  });
+
+  if (activeOrder) {
+    const orderRef = activeOrder.orderCode || activeOrder.orderNumber || 'đang xử lý';
+    throw new ApiError(
+      400,
+      `Không thể xóa tài khoản khi đang có đơn hàng (${orderRef}) chưa hoàn tất hoặc đang giao. Vui lòng đợi nhận hàng hoặc hủy đơn trước khi xóa.`
+    );
+  }
+
+  // 4. Xác thực bảo mật:
+  // Nếu tài khoản có mật khẩu: Bắt buộc kiểm tra mật khẩu hiện tại
+  if (user.password) {
+    if (!password) {
+      throw new ApiError(400, 'Vui lòng nhập mật khẩu hiện tại để xác nhận xóa tài khoản.');
+    }
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      throw new ApiError(400, 'Mật khẩu xác nhận không chính xác.');
+    }
+  } else {
+    // Tài khoản mạng xã hội (Google / Facebook) không có mật khẩu: Bắt buộc nhập cụm từ xác nhận
+    const normalizedConfirmation = (confirmationText || '').trim().toUpperCase();
+    if (normalizedConfirmation !== 'XÓA TÀI KHOẢN') {
+      throw new ApiError(400, 'Vui lòng nhập chính xác cụm từ "XÓA TÀI KHOẢN" để xác nhận.');
+    }
+  }
+
+  // 5. Xóa thông báo liên quan của khách hàng
+  await Notification.deleteMany({ recipient: user._id });
+
+  // 6. Xóa vĩnh viễn tài khoản người dùng khỏi hệ thống
+  await User.findByIdAndDelete(user._id);
+
+  return {
+    success: true,
+    message: 'Tài khoản của bạn đã được xóa vĩnh viễn khỏi hệ thống.',
   };
 };

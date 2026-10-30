@@ -172,3 +172,12 @@ export const setDefaultAddress = asyncHandler(async (req, res) => {
     message: 'Đã đặt làm địa chỉ mặc định',
   });
 });
+
+export const deleteAccount = asyncHandler(async (req, res) => {
+  const result = await authService.deleteCustomerAccount(req.user._id, req.body);
+  res.status(200).json({
+    success: true,
+    data: result,
+    message: result.message || 'Xóa tài khoản thành công',
+  });
+});

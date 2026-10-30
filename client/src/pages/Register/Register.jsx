@@ -183,6 +183,7 @@ export default function Register() {
               </body>
             </html>
           `)
+          win.document.close()
         } else {
           win.document.write(`
             <!DOCTYPE html>
@@ -199,6 +200,7 @@ export default function Register() {
               </body>
             </html>
           `)
+          win.document.close()
         }
       } else {
         toast.error('Trình duyệt đã chặn cửa sổ pop-up. Vui lòng cho phép để xem trước tệp!')
@@ -563,6 +565,16 @@ export default function Register() {
             )}
 
             <div className="space-y-3">
+              <a
+                href="https://mail.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FF4B2B] hover:opacity-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-orange-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Mail className="w-4 h-4" />
+                <span>Mở hộp thư Gmail ngay ➔</span>
+              </a>
+
               <button
                 type="button"
                 onClick={handleResendFromRegister}
@@ -964,7 +976,8 @@ export default function Register() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 w-9 h-9 flex items-center justify-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
+                            aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>

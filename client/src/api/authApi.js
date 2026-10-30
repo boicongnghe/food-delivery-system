@@ -56,6 +56,11 @@ export const authApi = {
     return response.data
   },
 
+  deleteAccount: async (data) => {
+    const response = await axiosClient.delete('/users/me', { data })
+    return response.data
+  },
+
   getAddresses: async () => {
     const response = await axiosClient.get('/users/addresses')
     return response.data
