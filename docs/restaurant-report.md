@@ -9,7 +9,7 @@ Dùng **cùng quy tắc với báo cáo admin (UC44)** để hai bên luôn ra c
 | Khái niệm | Cách tính |
 | --- | --- |
 | Đơn thuộc ngày nào | Ngày **đặt đơn** theo giờ Việt Nam (UTC+7) |
-| Đơn được tính | Bỏ qua đơn online chưa thanh toán (khách bỏ dở ở trang thanh toán – quán chưa từng thấy đơn) |
+| Đơn được tính | Bỏ qua đơn online chưa từng thanh toán, kể cả khi khách đã hủy ở trang thanh toán (quán chưa từng thấy đơn). Cùng bộ lọc `PLACED_ORDER_FILTER` với báo cáo admin nên số đơn và số đơn hủy hai bên khớp nhau |
 | Doanh thu gộp | `subtotal + packagingFee` của đơn **đã giao** (`delivered`). Không gồm phí giao hàng (thuộc shipper) |
 | Tiền món / Topping | Topping = tổng giá option × số lượng; tiền món = `subtotal` − topping |
 | Phí nền tảng | `round(subtotal × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói không tính hoa hồng |

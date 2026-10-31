@@ -15,7 +15,7 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
     // relative: the sr-only header text is absolutely positioned and must stay inside the scroll box
     <div className="relative overflow-x-auto">
       <table className="w-full min-w-[900px]">
-        <thead className="border-b border-slate-800">
+        <thead className="border-b border-slate-100 dark:border-crave-border">
           <tr>
             <th className={ADMIN_TABLE_HEAD}>Mã / chương trình</th>
             <th className={ADMIN_TABLE_HEAD}>Ưu đãi</th>
@@ -28,17 +28,17 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/70">
+        <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {promotions.map((promotion) => {
             const status = PROMOTION_STATUSES[promotion.status]
             const usedPercent = promotion.usageLimit
               ? Math.min(100, (promotion.usedCount / promotion.usageLimit) * 100)
               : 0
             return (
-              <tr key={promotion._id} className="transition-colors hover:bg-slate-900/60">
+              <tr key={promotion._id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
                 <td className={ADMIN_TABLE_CELL}>
-                  <p className="font-mono font-black text-purple-300">{promotion.code}</p>
-                  <p className="text-xs text-slate-400">{promotion.title}</p>
+                  <p className="font-mono font-black text-primary">{promotion.code}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{promotion.title}</p>
                 </td>
                 <td className={ADMIN_TABLE_CELL}>{describeDiscount(promotion)}</td>
                 <td className={ADMIN_TABLE_CELL}>{formatCurrency(promotion.minOrderValue)}</td>
@@ -48,12 +48,12 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
                 </td>
                 <td className={ADMIN_TABLE_CELL}>
                   <p className="text-xs">
-                    <span className="font-bold text-white">{promotion.usedCount}</span> /{' '}
+                    <span className="font-bold text-slate-900 dark:text-white">{promotion.usedCount}</span> /{' '}
                     {promotion.usageLimit ?? 'Không giới hạn'}
                   </p>
                   {promotion.usageLimit && (
-                    <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">
-                      <div className="h-full rounded-full bg-purple-500" style={{ width: `${usedPercent}%` }} />
+                    <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-crave-border">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${usedPercent}%` }} />
                     </div>
                   )}
                 </td>
@@ -65,7 +65,7 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
                     type="button"
                     onClick={() => onEdit(promotion)}
                     aria-label={`Sửa ${promotion.code}`}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                    className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-crave-border hover:text-slate-900 dark:hover:text-white"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -75,7 +75,7 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
                     disabled={promotion.usedCount > 0}
                     aria-label={`Xóa ${promotion.code}`}
                     title={promotion.usedCount > 0 ? 'Mã đã được dùng: hãy tắt mã thay vì xóa' : 'Xóa mã'}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

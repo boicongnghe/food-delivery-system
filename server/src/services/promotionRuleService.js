@@ -64,32 +64,92 @@ export const listPromotionRules = async ({ page, limit, keyword, status }) => {
   return { ...toPage(rules, { page, limit }, totalItems), counts: Object.fromEntries(countEntries) };
 };
 
+// What a customer was promised once the code could be applied: changing it would treat customers
+// of the same code differently and confuse anyone on the checkout page right now
+const LOCKED_TERMS = ['discountType', 'discountValue', 'maxDiscount', 'minOrderValue', 'startDate'];
+const TERM_LABELS = {
+  discountType: 'Loại giảm giá',
+  discountValue: 'Mức giảm',
+  maxDiscount: 'Giảm tối đa',
+  minOrderValue: 'Giá trị đơn tối thiểu',
+  startDate: 'Thời gian bắt đầu',
+};
+
+const fieldError = (field, message) => new ApiError(400, 'Dữ liệu không hợp lệ', [{ field, message }]);
+
+const sameValue = (a, b) =>
+  a instanceof Date || b instanceof Date ? new Date(a).getTime() === new Date(b).getTime() : (a ?? null) === (b ?? null);
+
+// A code is "in use" once it started or a customer applied it
+const isInUse = (rule, now) => rule.usedCount > 0 || rule.startDate <= now;
+
+// Checkout caps a discount at the food subtotal: without a floor a fixed code makes small orders free
+const ensureMinOrderCoversDiscount = (data) => {
+  if (data.discountType === 'fixed' && data.minOrderValue < data.discountValue) {
+    throw fieldError('minOrderValue', 'Với mã giảm số tiền cố định, giá trị đơn tối thiểu phải từ mức giảm trở lên');
+  }
+};
+
+const ensureFutureEndDate = (endDate, now) => {
+  if (endDate <= now) {
+    throw fieldError('endDate', 'Thời gian kết thúc phải ở tương lai (muốn ngừng ngay, hãy tắt mã)');
+  }
+};
+
 export const createPromotionRule = async (data) => {
+  ensureMinOrderCoversDiscount(data);
+  ensureFutureEndDate(data.endDate, new Date());
   await ensureUniqueCode(data.code);
   return PromotionRule.create(toRuleData(data));
 };
 
 export const updatePromotionRule = async (ruleId, data) => {
-  const rule = await PromotionRule.findById(ruleId);
+  const rule = await PromotionRule.findById(ruleId).lean();
   if (!rule) {
     throw new ApiError(404, 'Không tìm thấy mã khuyến mãi');
   }
+  const now = new Date();
+  const next = toRuleData(data);
+  const isCodeChanged = next.code !== rule.code;
+
   // Orders keep the code they used: renaming it would break reports
-  if (rule.usedCount > 0 && data.code !== rule.code) {
+  if (rule.usedCount > 0 && isCodeChanged) {
     throw new ApiError(409, 'Mã đã được khách sử dụng, không thể đổi mã', [
       { field: 'code', message: `Đã dùng ${rule.usedCount} lần, hãy giữ nguyên mã ${rule.code}` },
     ]);
   }
-  if (data.usageLimit && data.usageLimit < rule.usedCount) {
-    throw new ApiError(400, 'Dữ liệu không hợp lệ', [
-      { field: 'usageLimit', message: `Không được nhỏ hơn số lượt đã dùng (${rule.usedCount})` },
-    ]);
+  const isLocked = isInUse(rule, now);
+  if (isLocked) {
+    const changedTerms = LOCKED_TERMS.filter((field) => !sameValue(rule[field], next[field]));
+    if (changedTerms.length > 0) {
+      throw new ApiError(
+        409,
+        'Mã đã bắt đầu áp dụng: chỉ được sửa tên, mô tả, thời gian kết thúc, số lượt và bật / tắt',
+        changedTerms.map((field) => ({ field, message: `Không thể đổi ${TERM_LABELS[field].toLowerCase()} khi mã đang áp dụng` })),
+      );
+    }
+  } else {
+    ensureMinOrderCoversDiscount(next);
   }
-  await ensureUniqueCode(data.code, rule._id);
+  // Only a new end date must be in the future: an expired code can still be renamed or turned off
+  if (!sameValue(rule.endDate, next.endDate)) {
+    ensureFutureEndDate(next.endDate, now);
+  }
+  if (next.usageLimit && next.usageLimit < rule.usedCount) {
+    throw fieldError('usageLimit', `Không được nhỏ hơn số lượt đã dùng (${rule.usedCount})`);
+  }
+  await ensureUniqueCode(next.code, rule._id);
 
-  Object.assign(rule, toRuleData(data));
-  await rule.save();
-  return rule;
+  // Checkout may use the code while the admin edits it: the checks above must still hold when saving
+  const guard = { _id: rule._id };
+  if (isCodeChanged || !isLocked) guard.usedCount = 0;
+  if (next.usageLimit) guard.$expr = { $lte: ['$usedCount', next.usageLimit] };
+
+  const updated = await PromotionRule.findOneAndUpdate(guard, { $set: next }, { returnDocument: 'after', runValidators: true });
+  if (!updated) {
+    throw new ApiError(409, 'Mã vừa được khách sử dụng trong lúc bạn sửa, vui lòng tải lại và thử lại');
+  }
+  return updated;
 };
 
 export const deletePromotionRule = async (ruleId) => {

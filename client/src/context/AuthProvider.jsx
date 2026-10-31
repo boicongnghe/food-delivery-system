@@ -165,8 +165,10 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Fallback for demo accounts if backend is unreachable or db IP is not whitelisted
-      if (DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
+      // Fallback for demo accounts only when the backend is unreachable (no HTTP response).
+      // When the server answered (wrong password, account missing or locked...), a mock token would be
+      // rejected by every API with 401 and the axios interceptor would bounce the user back to /login.
+      if (!error.response && DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
         const demoUser = DEMO_ACCOUNTS[normalizedEmail]
         const mockToken = `mock-token-${demoUser.role}`
         if (rememberMe) {

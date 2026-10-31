@@ -1,9 +1,7 @@
 import axiosClient from './axiosClient.js'
 
+// Checkout only; admins manage codes through promotionRuleApi (/admin/promotion-rules)
 export const promotionApi = {
   getPromotions: (params) => axiosClient.get('/promotions', { params }),
   applyPromotion: (data) => axiosClient.post('/promotions/apply', data),
-  createPromotion: (data) => axiosClient.post('/promotions', data),
-  updatePromotion: (id, data) => axiosClient.put(`/promotions/${id}`, data),
-  deletePromotion: (id) => axiosClient.delete(`/promotions/${id}`),
 }
