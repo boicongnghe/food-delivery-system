@@ -22,8 +22,11 @@ import AdminAnalytics from '../pages/AdminAnalytics/AdminAnalytics.jsx'
 import AdminCommissionRules from '../pages/AdminCommissionRules/AdminCommissionRules.jsx'
 import AdminComplaints from '../pages/AdminComplaints/AdminComplaints.jsx'
 import AdminDeliveryIssues from '../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'
+import AdminOrders from '../pages/AdminOrders/AdminOrders.jsx'
 import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
+import AdminRestaurants from '../pages/AdminRestaurants/AdminRestaurants.jsx'
 import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
+import AdminShippers from '../pages/AdminShippers/AdminShippers.jsx'
 import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
@@ -99,6 +102,9 @@ function AppRouter() {
               <Route index element={<AdminDashboard />} />
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="restaurants" element={<AdminRestaurants />} />
+              <Route path="shippers" element={<AdminShippers />} />
+              <Route path="orders" element={<AdminOrders />} />
               <Route path="complaints" element={<AdminComplaints />} />
               <Route path="reviews" element={<AdminReviews />} />
               <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
