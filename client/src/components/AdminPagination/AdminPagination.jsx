@@ -1,5 +1,5 @@
 /**
- * Pagination bar for the dark admin pages: "Hiển thị 1 - 10 / 42 đánh giá"  [Trước] 1 2 3 [Sau]
+ * Pagination bar for the admin pages: "Hiển thị 1 - 10 / 42 đánh giá"  [Trước] 1 2 3 [Sau]
  * @param {{ page: number, limit: number, totalItems: number, totalPages: number }} pagination
  */
 export default function AdminPagination({ pagination, onPageChange, unit = 'mục' }) {
@@ -17,7 +17,7 @@ export default function AdminPagination({ pagination, onPageChange, unit = 'mụ
     'min-w-8 h-8 rounded-lg px-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40'
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 px-5 py-3 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-crave-border px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
       <span>
         Hiển thị {from} - {to} / {totalItems} {unit}
       </span>
@@ -28,19 +28,19 @@ export default function AdminPagination({ pagination, onPageChange, unit = 'mụ
             type="button"
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
-            className={`${buttonClass} bg-slate-800 text-slate-300 hover:bg-slate-700`}
+            className={`${buttonClass} bg-slate-100 dark:bg-crave-border text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700`}
           >
             Trước
           </button>
           {pages.map((pageNumber, index) => (
             <span key={pageNumber} className="flex items-center gap-1">
-              {index > 0 && pageNumber - pages[index - 1] > 1 && <span className="px-1 text-slate-600">…</span>}
+              {index > 0 && pageNumber - pages[index - 1] > 1 && <span className="px-1 text-slate-400 dark:text-slate-600">…</span>}
               <button
                 type="button"
                 onClick={() => onPageChange(pageNumber)}
                 aria-current={pageNumber === page ? 'page' : undefined}
                 className={`${buttonClass} ${
-                  pageNumber === page ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                  pageNumber === page ? 'bg-primary text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-crave-border'
                 }`}
               >
                 {pageNumber}
@@ -51,7 +51,7 @@ export default function AdminPagination({ pagination, onPageChange, unit = 'mụ
             type="button"
             onClick={() => onPageChange(page + 1)}
             disabled={page === totalPages}
-            className={`${buttonClass} bg-slate-800 text-slate-300 hover:bg-slate-700`}
+            className={`${buttonClass} bg-slate-100 dark:bg-crave-border text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700`}
           >
             Sau
           </button>
