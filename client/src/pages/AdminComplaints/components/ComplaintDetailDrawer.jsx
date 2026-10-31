@@ -102,25 +102,25 @@ export default function ComplaintDetailDrawer({ complaintId, onClose, onResolved
       }
     >
       {loadError && (
-        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{loadError}</p>
+        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-300">{loadError}</p>
       )}
       {!complaint && !loadError && (
         <div className="flex justify-center py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       )}
 
       {complaint && (
         <>
-          <AdminSection title="Nội dung khiếu nại" aside={<AdminBadge tone="purple">{COMPLAINT_CATEGORY_LABELS[complaint.category]}</AdminBadge>}>
-            <p className="whitespace-pre-line rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
+          <AdminSection title="Nội dung khiếu nại" aside={<AdminBadge tone="brand">{COMPLAINT_CATEGORY_LABELS[complaint.category]}</AdminBadge>}>
+            <p className="whitespace-pre-line rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4 text-sm text-slate-800 dark:text-slate-200">
               {complaint.description}
             </p>
             {complaint.images.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {complaint.images.map((url) => (
                   <a key={url} href={url} target="_blank" rel="noreferrer">
-                    <img src={url} alt="Ảnh minh chứng" className="h-24 w-24 rounded-xl border border-slate-700 object-cover" />
+                    <img src={url} alt="Ảnh minh chứng" className="h-24 w-24 rounded-xl border border-slate-200 dark:border-slate-700 object-cover" />
                   </a>
                 ))}
               </div>
@@ -156,10 +156,10 @@ export default function ComplaintDetailDrawer({ complaintId, onClose, onResolved
                 onSubmit={handleSubmit}
               />
             ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <p className="text-sm text-slate-200">{complaint.resolution.note}</p>
+              <div className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4">
+                <p className="text-sm text-slate-800 dark:text-slate-200">{complaint.resolution.note}</p>
                 {complaint.resolution.refundAmount > 0 && (
-                  <p className="mt-2 text-sm font-bold text-emerald-300">
+                  <p className="mt-2 text-sm font-bold text-emerald-600 dark:text-emerald-300">
                     Đã hoàn {formatCurrency(complaint.resolution.refundAmount)} cho khách
                   </p>
                 )}

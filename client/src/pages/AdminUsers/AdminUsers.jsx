@@ -9,7 +9,7 @@ import AdminPagination from '../../components/AdminPagination/AdminPagination.js
 import AdminSearchInput from '../../components/AdminSearchInput/AdminSearchInput.jsx'
 import useDebounce from '../../hooks/useDebounce.js'
 import { ADMIN_BUTTON, ADMIN_CARD, ADMIN_INPUT } from '../../utils/adminClassNames.js'
-import { PAGE_SIZE, ROLES } from './constants.js'
+import { PAGE_SIZE, ROLES, USER_PAGE_ROLES } from './constants.js'
 import UserDetailDrawer from './components/UserDetailDrawer.jsx'
 import UserTable from './components/UserTable.jsx'
 
@@ -19,11 +19,11 @@ const EMPTY_LIST = {
   counts: { all: 0, active: 0, locked: 0 },
 }
 
-// UC37 - Manage accounts
+// UC37 - Manage accounts of customers and admins (restaurants and shippers have their own pages)
 export default function AdminUsers() {
   const [data, setData] = useState(EMPTY_LIST)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: 'all', role: 'all', page: 1 })
+  const [filters, setFilters] = useState({ status: 'all', role: USER_PAGE_ROLES[0], page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -74,8 +74,8 @@ export default function AdminUsers() {
     <div className="mx-auto max-w-7xl space-y-6">
       <AdminPageHeader
         icon={Users}
-        title="Quản lý tài khoản"
-        description="Xem chi tiết, phân quyền và khóa / mở khóa tài khoản người dùng"
+        title="Quản lý người dùng"
+        description="Tài khoản khách hàng và quản trị viên: xem chi tiết, phân quyền, khóa / mở khóa"
         actions={
           <button type="button" onClick={refresh} disabled={loading} className={ADMIN_BUTTON.secondary}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới
@@ -84,7 +84,7 @@ export default function AdminUsers() {
       />
 
       <div className={ADMIN_CARD}>
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-crave-border p-5 lg:flex-row lg:items-center lg:justify-between">
           <AdminFilterTabs options={statusTabs} value={filters.status} onChange={(status) => changeFilters({ status })} />
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
@@ -93,10 +93,9 @@ export default function AdminUsers() {
               aria-label="Lọc theo vai trò"
               className={`${ADMIN_INPUT} sm:w-44`}
             >
-              <option value="all">Mọi vai trò</option>
-              {Object.entries(ROLES).map(([value, meta]) => (
+              {USER_PAGE_ROLES.map((value) => (
                 <option key={value} value={value}>
-                  {meta.label}
+                  {ROLES[value].label}
                 </option>
               ))}
             </select>
@@ -110,7 +109,7 @@ export default function AdminUsers() {
 
         {loading && data.items.length === 0 ? (
           <div className="flex justify-center py-16">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : data.items.length === 0 ? (
           <AdminEmptyState>Không tìm thấy tài khoản phù hợp.</AdminEmptyState>

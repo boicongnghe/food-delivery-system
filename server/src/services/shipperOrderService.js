@@ -1,6 +1,11 @@
 import Order from '../models/Order.js';
+import Shipper from '../models/Shipper.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
+
+// Approval status of the shipper's profile, null when the account has none
+export const getShipperStatus = async (userId) =>
+  (await Shipper.findOne({ user: userId }).select('status').lean())?.status ?? null;
 
 // Ready orders that no shipper has taken yet, with a valid payment state
 // (online orders must be paid; COD is collected by the shipper)

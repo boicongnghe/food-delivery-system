@@ -24,8 +24,8 @@ const toFormState = (rule, today) => ({
 
 const radioClass = (checked, disabled) =>
   `flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
-    checked ? 'border-purple-500 bg-purple-500/10 text-purple-200' : 'border-slate-700 text-slate-300'
-  } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-purple-500/60'}`
+    checked ? 'border-primary bg-primary/10 text-primary-dark dark:text-orange-200' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+  } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-primary/60'}`
 
 /**
  * UC40 - create / edit a commission rule. `today` is the server's Vietnam day ("YYYY-MM-DD").
@@ -99,7 +99,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
     >
       <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5">
         {isStarted && (
-          <p className="flex gap-2 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">
+          <p className="flex gap-2 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-700 dark:text-sky-200">
             <Info className="h-4 w-4 shrink-0" />
             Quy tắc đã được áp dụng nên chỉ sửa được tên, ghi chú và ngày kết thúc. Muốn đổi tỷ lệ, hãy kết thúc quy
             tắc này và tạo quy tắc mới từ ngày mai.
@@ -133,7 +133,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
                     value={value}
                     checked={form.target === value}
                     onChange={() => update({ target: value })}
-                    className="accent-purple-500"
+                    className="accent-primary"
                   />
                   {target.label}
                 </label>
@@ -170,7 +170,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
                     name="scope"
                     checked={form.scope === 'all'}
                     onChange={() => update({ scope: 'all' })}
-                    className="accent-purple-500"
+                    className="accent-primary"
                   />
                   Tất cả nhà hàng (mặc định)
                 </label>
@@ -180,7 +180,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
                     name="scope"
                     checked={form.scope === 'one'}
                     onChange={() => update({ scope: 'one' })}
-                    className="accent-purple-500"
+                    className="accent-primary"
                   />
                   Riêng một nhà hàng
                 </label>
@@ -214,12 +214,12 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
         </fieldset>
 
         <div>
-          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
               checked={form.hasEnd}
               onChange={(event) => update({ hasEnd: event.target.checked })}
-              className="accent-purple-500"
+              className="accent-primary"
             />
             Có ngày kết thúc (bỏ chọn = áp dụng không thời hạn)
           </label>
