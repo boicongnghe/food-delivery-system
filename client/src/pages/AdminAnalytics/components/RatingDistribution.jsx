@@ -11,8 +11,8 @@ export default function RatingDistribution({ reviews }) {
 
   return (
     <section className={`${ADMIN_CARD} p-5`}>
-      <h2 className="text-base font-bold text-white">Phân bố số sao (nhà hàng)</h2>
-      <p className="mt-0.5 text-xs text-slate-400">
+      <h2 className="text-base font-bold text-slate-900 dark:text-white">Phân bố số sao (nhà hàng)</h2>
+      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
         {reviews.total} đánh giá · trung bình nhà hàng {reviews.restaurantAverage}★, shipper {reviews.shipperAverage}★
         {reviews.hidden > 0 && ` · ${reviews.hidden} đánh giá đã ẩn không được tính`}
       </p>
@@ -20,8 +20,8 @@ export default function RatingDistribution({ reviews }) {
       <ul className="mt-4 space-y-2.5">
         {reviews.distribution.map((row) => (
           <li key={row.stars} className="flex items-center gap-3 text-xs">
-            <span className="flex w-8 shrink-0 items-center gap-0.5 font-semibold text-slate-300">
-              {row.stars} <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+            <span className="flex w-8 shrink-0 items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-300">
+              {row.stars} <Star className="h-3 w-3 fill-amber-400 text-amber-600 dark:text-amber-400" />
             </span>
             <div className="h-2.5 flex-1">
               <div
@@ -29,7 +29,7 @@ export default function RatingDistribution({ reviews }) {
                 style={{ width: `${(row.count / maxCount) * 100}%`, backgroundColor: RATING_BAR_COLOR }}
               />
             </div>
-            <span className="w-8 shrink-0 text-right tabular-nums text-slate-300">{row.count}</span>
+            <span className="w-8 shrink-0 text-right tabular-nums text-slate-700 dark:text-slate-300">{row.count}</span>
           </li>
         ))}
       </ul>

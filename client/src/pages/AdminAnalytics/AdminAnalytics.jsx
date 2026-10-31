@@ -150,13 +150,13 @@ export default function AdminAnalytics() {
 
       {!report ? (
         <div className="flex justify-center py-24">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       ) : (
         // Refetch keeps the previous report on screen, dimmed, instead of flashing a loader
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
           {!report.hasCommissionRules && (
-            <p className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <p className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-200">
               <Info className="h-4 w-4 shrink-0" />
               Chưa có quy tắc hoa hồng nào nên hoa hồng đang được tính là 0đ.
               <Link to="/admin/commission-rules" className="font-bold underline">
