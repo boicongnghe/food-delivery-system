@@ -7,9 +7,9 @@ const axiosClient = axios.create({
   },
 })
 
-// Attach JWT from localStorage to every request
+// Attach JWT from localStorage or sessionStorage to every request
 axiosClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -22,6 +22,7 @@ axiosClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
       if (
         !window.location.pathname.includes('/login') &&
         !window.location.pathname.includes('/register')

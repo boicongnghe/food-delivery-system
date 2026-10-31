@@ -93,7 +93,7 @@ const DEFAULT_PARTNERS = [
 
 export default function Home() {
   const { user, isAuthenticated } = useAuth()
-  const { addToCart } = useCart() || { addToCart: () => {} }
+  const { addToCart, itemCount = 0, subtotal = 0 } = useCart() || {}
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -378,7 +378,8 @@ export default function Home() {
   }
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
+    const num = Number(price) || 0
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num)
   }
 
   const QUICK_TAGS = ['🍚 Cơm tấm sườn', '🍜 Phở bò tái lăn', '🍔 Burger Bò Úc', '🧋 Trà sữa đường đen', '🍗 Gà rán giòn', '🥗 Món chay healthy']
@@ -704,11 +705,8 @@ export default function Home() {
           {filteredPartners.map((partner) => (
             <div
               key={partner.id}
-              className="group relative bg-white dark:bg-[#181A20] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-orange-500/15 hover:border-primary/50 transition-all duration-300 flex flex-col justify-between"
+              className="group relative bg-white dark:bg-[#16171E] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-black/50 hover:border-primary/40 dark:hover:border-primary/40 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
             >
-              {/* Shimmer Light Sweep on Hover */}
-              <div className="shimmer-sweep" />
-
               <div>
                 {/* Image Cover Container */}
                 <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
@@ -717,6 +715,10 @@ export default function Home() {
                     alt={partner.name}
                     className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
                     loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80'
+                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
 
@@ -759,14 +761,14 @@ export default function Home() {
                   </div>
 
                   {/* Promo Tag */}
-                  <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-orange-950/40 p-2 rounded-xl border border-orange-200/60 dark:border-orange-800/40">
+                  <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
                     <Tag className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{partner.promo}</span>
                   </div>
 
                   {/* Signature Dishes List */}
                   {partner.signatureDishes && partner.signatureDishes.length > 0 && (
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                         Món bán chạy:
                       </span>
@@ -774,7 +776,7 @@ export default function Home() {
                         {partner.signatureDishes.map((dishName, i) => (
                           <span
                             key={i}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300"
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.04] text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-transparent dark:border-white/[0.05]"
                           >
                             ✓ {dishName}
                           </span>
@@ -799,10 +801,10 @@ export default function Home() {
                       document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
                     }, 50)
                   }}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-primary dark:hover:bg-primary text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white border border-transparent dark:border-white/[0.08] dark:hover:border-primary text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
                 >
                   <span>Xem thực đơn quán</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
             </div>
@@ -887,25 +889,47 @@ export default function Home() {
 
         {/* Dishes Grid (4 columns) */}
         {filteredDishes.length === 0 ? (
-          <div className="bg-white dark:bg-[#181A20] rounded-3xl p-12 text-center border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="w-16 h-16 rounded-full bg-orange-100 text-primary flex items-center justify-center mx-auto text-2xl">
-              🔍
+          <div className="bg-white dark:bg-[#181A20] rounded-3xl p-10 sm:p-14 text-center border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-950/60 text-primary flex items-center justify-center mx-auto text-3xl shadow-inner">
+              🍲
             </div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Không tìm thấy món ăn phù hợp</h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Không có món ăn nào khớp với bộ lọc hoặc từ khóa &quot;{searchQuery}&quot;. Hãy thử đặt lại bộ lọc nhé!
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCategory('all')
-                setSearchQuery('')
-                setPriceFilter('all')
-              }}
-              className="px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold transition-all hover:scale-105"
-            >
-              Đặt lại tất cả bộ lọc
-            </button>
+            <div>
+              <h3 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">Không tìm thấy món ăn phù hợp</h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+                Không có món nào khớp với bộ lọc hoặc từ khóa {searchQuery ? `"${searchQuery}"` : ''}. Bạn hãy thử chọn gợi ý món hot bên dưới nhé!
+              </p>
+            </div>
+            {/* Quick Suggestions to get out of empty state */}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <span className="text-xs font-bold text-slate-400">Gợi ý món ngon:</span>
+              {['🍚 Cơm tấm sườn', '🍜 Phở bò tái', '🧋 Trà sữa', '🍔 Burger Bò'].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory('all')
+                    setPriceFilter('all')
+                    setSearchQuery(item.replace(/^[^\s]+\s/, ''))
+                  }}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold bg-orange-50 dark:bg-orange-950/40 text-primary border border-orange-200 dark:border-orange-800 hover:bg-primary hover:text-white transition-all cursor-pointer"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('all')
+                  setSearchQuery('')
+                  setPriceFilter('all')
+                }}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold transition-all hover:scale-105 active:scale-95 shadow-sm cursor-pointer"
+              >
+                Đặt lại tất cả bộ lọc
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -924,6 +948,10 @@ export default function Home() {
                       alt={dish.name}
                       className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
                       loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80'
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
 
@@ -1082,12 +1110,12 @@ export default function Home() {
               <div className="p-4 rounded-2xl bg-white text-slate-900 shadow-xl flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase">Mã Giảm Giá 50k</p>
-                  <p className="text-lg font-black text-orange-600">CRAVEDASH50</p>
+                  <p className="text-lg font-black text-orange-600">FOODDELIVERY50</p>
                   <span className="text-[11px] text-slate-500">Giảm tối đa 50k cho đơn 150k</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleCopyCoupon('CRAVEDASH50')}
+                  onClick={() => handleCopyCoupon('FOODDELIVERY50')}
                   className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-primary text-primary hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -1141,6 +1169,34 @@ export default function Home() {
             })
           }}
         />
+      )}
+
+      {/* ====================================================================
+          7. MOBILE STICKY CART BAR (FLOATING CONVERSION BAR)
+          ==================================================================== */}
+      {itemCount > 0 && (
+        <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40 animate-in slide-in-from-bottom duration-300">
+          <div className="bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 backdrop-blur-md rounded-2xl p-3 px-4 shadow-2xl flex items-center justify-between border border-slate-700/50 dark:border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-md">
+                {itemCount}
+              </div>
+              <div>
+                <p className="text-xs text-slate-300 dark:text-slate-600 font-medium">Giỏ hàng hiện tại</p>
+                <p className="text-sm font-black text-amber-300 dark:text-primary">
+                  {formatPrice(subtotal)}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/checkout"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-xs font-black shadow-md hover:opacity-95 active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              <span>Xem giỏ hàng</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
       )}
     </div>
   )

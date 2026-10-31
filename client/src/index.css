@@ -618,30 +618,6 @@ textarea {
   animation: cartBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Shimmer Light Sweep on Hover */
-@keyframes shimmerSweep {
-  0% {
-    transform: translateX(-150%) skewX(-25deg);
-  }
-  100% {
-    transform: translateX(250%) skewX(-25deg);
-  }
-}
-
-.shimmer-sweep {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 60%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  pointer-events: none;
-}
-
-.group:hover .shimmer-sweep {
-  animation: shimmerSweep 0.85s ease-in-out;
-}
-
 /* Dark mode transitions */
 html.dark {
   color-scheme: dark;

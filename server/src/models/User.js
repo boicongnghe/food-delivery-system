@@ -35,14 +35,33 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Mật khẩu là bắt buộc'],
+      required: function () {
+        return !this.googleId && !this.facebookId && (!this.authProvider || this.authProvider === 'local');
+      },
       minlength: [6, 'Mật khẩu phải có ít nhất 6 ký tự'],
       select: false,
     },
     phone: {
       type: String,
-      required: [true, 'Số điện thoại là bắt buộc'],
+      default: '',
       trim: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google', 'facebook'],
+      default: 'local',
+    },
+    googleId: {
+      type: String,
+      default: null,
+      sparse: true,
+      index: true,
+    },
+    facebookId: {
+      type: String,
+      default: null,
+      sparse: true,
+      index: true,
     },
     role: {
       type: String,
@@ -109,7 +128,7 @@ const userSchema = new mongoose.Schema(
 
 // Encrypt password before saving
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return;
   }
   const salt = await bcrypt.genSalt(10);

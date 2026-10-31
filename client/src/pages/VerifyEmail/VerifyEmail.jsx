@@ -142,7 +142,7 @@ export default function VerifyEmail() {
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-3">
-              Chào mừng bạn đến với CraveDash! 🎉
+              Chào mừng bạn đến với FoodDelivery! 🎉
             </h2>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto mb-6 leading-relaxed">

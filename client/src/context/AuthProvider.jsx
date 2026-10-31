@@ -62,12 +62,31 @@ const DEMO_ACCOUNTS = {
   },
 }
 
+const getStoredToken = () => localStorage.getItem('token') || sessionStorage.getItem('token')
+const clearStoredAuth = () => {
+  localStorage.removeItem('token')
+  sessionStorage.removeItem('token')
+  localStorage.removeItem('demo_user')
+  sessionStorage.removeItem('demo_user')
+}
+const persistToken = (receivedToken, rememberMe = true) => {
+  if (rememberMe) {
+    localStorage.setItem('token', receivedToken)
+    sessionStorage.removeItem('token')
+  } else {
+    sessionStorage.setItem('token', receivedToken)
+    localStorage.removeItem('token')
+  }
+  localStorage.removeItem('demo_user')
+  sessionStorage.removeItem('demo_user')
+}
+
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem('token'))
+  const [token, setToken] = useState(() => getStoredToken())
   const [user, setUser] = useState(() => {
-    const savedToken = localStorage.getItem('token')
+    const savedToken = getStoredToken()
     if (savedToken && savedToken.startsWith('mock-token-')) {
-      const savedDemoUser = localStorage.getItem('demo_user')
+      const savedDemoUser = localStorage.getItem('demo_user') || sessionStorage.getItem('demo_user')
       if (savedDemoUser) {
         try {
           return JSON.parse(savedDemoUser)
@@ -80,12 +99,12 @@ export function AuthProvider({ children }) {
   })
 
   const [loading, setLoading] = useState(() => {
-    const savedToken = localStorage.getItem('token')
+    const savedToken = getStoredToken()
     return !!savedToken && !savedToken.startsWith('mock-token-')
   })
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
+    const savedToken = getStoredToken()
     if (!savedToken || savedToken.startsWith('mock-token-')) {
       return
     }
@@ -101,8 +120,7 @@ export function AuthProvider({ children }) {
       })
       .catch(() => {
         if (isMounted) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('demo_user')
+          clearStoredAuth()
           setToken(null)
           setUser(null)
         }
@@ -118,15 +136,14 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = async ({ email, password }) => {
+  const login = async ({ email, password, rememberMe = true }) => {
     const normalizedEmail = (email || '').trim().toLowerCase()
 
     try {
       const response = await authApi.login({ email: normalizedEmail, password })
       const { token: receivedToken, user: receivedUser } = response.data
 
-      localStorage.setItem('token', receivedToken)
-      localStorage.removeItem('demo_user')
+      persistToken(receivedToken, rememberMe)
       setToken(receivedToken)
       setUser(receivedUser)
 
@@ -152,8 +169,17 @@ export function AuthProvider({ children }) {
       if (DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
         const demoUser = DEMO_ACCOUNTS[normalizedEmail]
         const mockToken = `mock-token-${demoUser.role}`
-        localStorage.setItem('token', mockToken)
-        localStorage.setItem('demo_user', JSON.stringify(demoUser))
+        if (rememberMe) {
+          localStorage.setItem('token', mockToken)
+          localStorage.setItem('demo_user', JSON.stringify(demoUser))
+          sessionStorage.removeItem('token')
+          sessionStorage.removeItem('demo_user')
+        } else {
+          sessionStorage.setItem('token', mockToken)
+          sessionStorage.setItem('demo_user', JSON.stringify(demoUser))
+          localStorage.removeItem('token')
+          localStorage.removeItem('demo_user')
+        }
         setToken(mockToken)
         setUser(demoUser)
         return {
@@ -169,6 +195,60 @@ export function AuthProvider({ children }) {
         success: false,
         requiresVerification: Boolean(error.response?.data?.requiresVerification),
         unverifiedEmail: error.response?.data?.unverifiedEmail || normalizedEmail,
+        message,
+        errors: error.response?.data?.errors || [],
+      }
+    }
+  }
+
+  const loginWithGoogle = async (googleAuthPayload) => {
+    try {
+      const response = await authApi.googleLogin(googleAuthPayload)
+      const { token: receivedToken, user: receivedUser } = response.data || {}
+
+      if (receivedToken) {
+        persistToken(receivedToken, true)
+        setToken(receivedToken)
+        setUser(receivedUser)
+      }
+
+      return {
+        success: true,
+        user: receivedUser,
+        message: response.message || 'Đăng nhập Google thành công!',
+      }
+    } catch (error) {
+      const message =
+        error.response?.data?.message || 'Đăng nhập bằng tài khoản Google không thành công. Vui lòng thử lại.'
+      return {
+        success: false,
+        message,
+        errors: error.response?.data?.errors || [],
+      }
+    }
+  }
+
+  const loginWithFacebook = async (facebookAuthPayload) => {
+    try {
+      const response = await authApi.facebookLogin(facebookAuthPayload)
+      const { token: receivedToken, user: receivedUser } = response.data || {}
+
+      if (receivedToken) {
+        persistToken(receivedToken, true)
+        setToken(receivedToken)
+        setUser(receivedUser)
+      }
+
+      return {
+        success: true,
+        user: receivedUser,
+        message: response.message || 'Đăng nhập Facebook thành công!',
+      }
+    } catch (error) {
+      const message =
+        error.response?.data?.message || 'Đăng nhập bằng tài khoản Facebook không thành công. Vui lòng thử lại.'
+      return {
+        success: false,
         message,
         errors: error.response?.data?.errors || [],
       }
@@ -196,8 +276,7 @@ export function AuthProvider({ children }) {
 
       const { token: receivedToken, user: receivedUser } = data
       if (receivedToken) {
-        localStorage.setItem('token', receivedToken)
-        localStorage.removeItem('demo_user')
+        persistToken(receivedToken, true)
         setToken(receivedToken)
         setUser(receivedUser)
       }
@@ -224,8 +303,7 @@ export function AuthProvider({ children }) {
       const { token: receivedToken, user: receivedUser } = response.data || {}
 
       if (receivedToken && receivedUser) {
-        localStorage.setItem('token', receivedToken)
-        localStorage.removeItem('demo_user')
+        persistToken(receivedToken, true)
         setToken(receivedToken)
         setUser(receivedUser)
       }
@@ -263,22 +341,25 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('demo_user')
+    clearStoredAuth()
     setToken(null)
     setUser(null)
   }
 
   const updateProfile = async (profileData) => {
     try {
-      const savedToken = localStorage.getItem('token')
+      const savedToken = getStoredToken()
 
       if (savedToken && savedToken.startsWith('mock-token-')) {
         const updated = {
           ...user,
           ...profileData,
         }
-        localStorage.setItem('demo_user', JSON.stringify(updated))
+        if (localStorage.getItem('token')) {
+          localStorage.setItem('demo_user', JSON.stringify(updated))
+        } else {
+          sessionStorage.setItem('demo_user', JSON.stringify(updated))
+        }
         setUser(updated)
         return {
           success: true,
@@ -306,17 +387,49 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const deleteAccount = async (confirmationData) => {
+    try {
+      const response = await authApi.deleteAccount(confirmationData)
+      const userEmail = user?.email
+      clearStoredAuth()
+      setToken(null)
+      setUser(null)
+      try {
+        localStorage.removeItem('food_delivery_cart')
+        if (userEmail && localStorage.getItem('remembered_email') === userEmail) {
+          localStorage.removeItem('remembered_email')
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return {
+        success: true,
+        message: response.message || 'Xóa tài khoản thành công',
+      }
+    } catch (error) {
+      const message =
+        error.response?.data?.message || 'Xóa tài khoản không thành công. Vui lòng thử lại.'
+      return {
+        success: false,
+        message,
+      }
+    }
+  }
+
   const value = {
     user,
     token,
     loading,
     isAuthenticated: !!user,
     login,
+    loginWithGoogle,
+    loginWithFacebook,
     register,
     verifyEmail,
     resendVerification,
     logout,
     updateProfile,
+    deleteAccount,
     setUser,
   }
 

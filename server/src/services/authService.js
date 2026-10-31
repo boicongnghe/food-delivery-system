@@ -1,8 +1,11 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
+import Order from '../models/Order.js';
+import Notification from '../models/Notification.js';
 import ApiError from '../utils/ApiError.js';
 import * as emailService from './emailService.js';
 
@@ -166,7 +169,7 @@ export const verifyEmail = async (token) => {
   const enrichedUser = await enrichUserData(user);
 
   return {
-    message: 'Kích hoạt tài khoản thành công! Chào mừng bạn đến với hệ thống CraveDash.',
+    message: 'Kích hoạt tài khoản thành công! Chào mừng bạn đến với hệ thống FoodDelivery.',
     token: authToken,
     user: enrichedUser,
   };
@@ -486,3 +489,236 @@ export const setDefaultUserAddress = async (userId, addressId) => {
 // Aliases for compatibility
 export const login = async (email, password) => loginUser({ email, password });
 export const getMe = async (userId) => getCurrentUser(userId);
+
+/**
+ * Đăng nhập / Đăng ký bằng tài khoản Google (hỗ trợ cả idToken và accessToken)
+ */
+export const loginWithGoogle = async ({ idToken, accessToken }) => {
+  let payload = null;
+
+  if (idToken) {
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } else if (accessToken) {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      throw new ApiError(401, 'Không thể lấy thông tin người dùng từ Google Access Token');
+    }
+    payload = await response.json();
+  } else {
+    throw new ApiError(400, 'Thiếu thông tin xác thực Google (cần idToken hoặc accessToken)');
+  }
+
+  if (!payload || !payload.email) {
+    throw new ApiError(400, 'Không lấy được thông tin email từ tài khoản Google.');
+  }
+
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  let user = await User.findOne({
+    $or: [{ email: normalizedEmail }, { googleId: payload.sub }],
+  });
+
+  if (user) {
+    if (!user.isActive) {
+      throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
+    }
+
+    let changed = false;
+    if (!user.googleId) {
+      user.googleId = payload.sub;
+      changed = true;
+    }
+    if (!user.isVerified) {
+      user.isVerified = true;
+      user.verificationToken = null;
+      user.verificationTokenExpires = null;
+      changed = true;
+    }
+    if ((!user.avatar || user.avatar.includes('unsplash.com')) && payload.picture) {
+      user.avatar = payload.picture;
+      changed = true;
+    }
+    if (changed) {
+      await user.save();
+    }
+  } else {
+    // Tạo tài khoản khách hàng mới cho người dùng Google
+    user = await User.create({
+      fullName: payload.name || 'Khách hàng Google',
+      email: normalizedEmail,
+      googleId: payload.sub,
+      avatar: payload.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      role: 'customer',
+      authProvider: 'google',
+      isVerified: true,
+      phone: '',
+    });
+  }
+
+  const token = generateToken(user);
+  const enrichedUser = await enrichUserData(user);
+
+  return {
+    message: 'Đăng nhập bằng tài khoản Google thành công! 🎉',
+    token,
+    user: enrichedUser,
+  };
+};
+
+/**
+ * Đăng nhập / Đăng ký bằng tài khoản Facebook
+ */
+export const loginWithFacebook = async ({ accessToken, userID }) => {
+  if (!accessToken) {
+    throw new ApiError(400, 'Thiếu Facebook Access Token');
+  }
+
+  // Gọi Graph API của Facebook để xác thực token và lấy thông tin cơ bản (ID, Tên, Avatar)
+  const fbRes = await fetch(
+    `https://graph.facebook.com/me?fields=id,name,picture.type(large)&access_token=${accessToken}`
+  );
+
+  if (!fbRes.ok) {
+    const errorData = await fbRes.json().catch(() => ({}));
+    throw new ApiError(401, errorData?.error?.message || 'Không thể xác thực Facebook Access Token');
+  }
+
+  const fbData = await fbRes.json();
+  const facebookId = fbData.id || userID;
+  const fullName = fbData.name || 'Người dùng Facebook';
+  const avatar =
+    fbData.picture?.data?.url ||
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+
+  // Định danh tài khoản Facebook độc lập theo facebookId
+  const email = fbData.email
+    ? fbData.email.trim().toLowerCase()
+    : `fb_${facebookId}@fooddelivery.vn`;
+
+  let user = await User.findOne({
+    $or: [{ facebookId }, { email }],
+  });
+
+  if (user) {
+    if (!user.isActive) {
+      throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
+    }
+
+    let changed = false;
+    if (!user.facebookId) {
+      user.facebookId = facebookId;
+      changed = true;
+    }
+    if (!user.isVerified) {
+      user.isVerified = true;
+      user.verificationToken = null;
+      user.verificationTokenExpires = null;
+      changed = true;
+    }
+    if ((!user.avatar || user.avatar.includes('unsplash.com')) && avatar) {
+      user.avatar = avatar;
+      changed = true;
+    }
+    if (changed) {
+      await user.save();
+    }
+  } else {
+    user = await User.create({
+      fullName,
+      email,
+      facebookId,
+      avatar,
+      role: 'customer',
+      authProvider: 'facebook',
+      isVerified: true,
+      phone: '',
+    });
+  }
+
+  const token = generateToken(user);
+  const enrichedUser = await enrichUserData(user);
+
+  return {
+    message: 'Đăng nhập bằng tài khoản Facebook thành công! 🎉',
+    token,
+    user: enrichedUser,
+  };
+};
+
+export const deleteCustomerAccount = async (userId, { password, confirmationText } = {}) => {
+  const user = await User.findById(userId).select('+password');
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy thông tin tài khoản người dùng.');
+  }
+
+  // 1. Chỉ cho phép vai trò 'customer' tự xóa tài khoản
+  if (user.role !== 'customer') {
+    throw new ApiError(
+      403,
+      'Chức năng tự xóa tài khoản hiện tại chỉ áp dụng cho tài khoản Khách hàng. Đối tác Quán ăn hoặc Tài xế vui lòng liên hệ Ban Quản trị để đối soát tài chính và giải quyết hợp đồng.'
+    );
+  }
+
+  // 2. Bảo vệ tài khoản demo mẫu của hệ thống
+  const demoEmails = [
+    'khachhang@fooddelivery.vn',
+    'chuquan@fooddelivery.vn',
+    'taixe@fooddelivery.vn',
+    'admin@fooddelivery.vn',
+  ];
+  if (demoEmails.includes(user.email)) {
+    throw new ApiError(
+      403,
+      'Đây là tài khoản mẫu thử nghiệm của hệ thống, không thể xóa. Bạn có thể đăng ký một tài khoản mới để thử nghiệm tính năng xóa tài khoản.'
+    );
+  }
+
+  // 3. Không cho phép xóa nếu đang có đơn hàng chưa hoàn tất hoặc đang giao
+  const activeOrder = await Order.findOne({
+    customer: user._id,
+    status: { $in: ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'] },
+  });
+
+  if (activeOrder) {
+    const orderRef = activeOrder.orderCode || activeOrder.orderNumber || 'đang xử lý';
+    throw new ApiError(
+      400,
+      `Không thể xóa tài khoản khi đang có đơn hàng (${orderRef}) chưa hoàn tất hoặc đang giao. Vui lòng đợi nhận hàng hoặc hủy đơn trước khi xóa.`
+    );
+  }
+
+  // 4. Xác thực bảo mật:
+  // Nếu tài khoản có mật khẩu: Bắt buộc kiểm tra mật khẩu hiện tại
+  if (user.password) {
+    if (!password) {
+      throw new ApiError(400, 'Vui lòng nhập mật khẩu hiện tại để xác nhận xóa tài khoản.');
+    }
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      throw new ApiError(400, 'Mật khẩu xác nhận không chính xác.');
+    }
+  } else {
+    // Tài khoản mạng xã hội (Google / Facebook) không có mật khẩu: Bắt buộc nhập cụm từ xác nhận
+    const normalizedConfirmation = (confirmationText || '').trim().toUpperCase();
+    if (normalizedConfirmation !== 'XÓA TÀI KHOẢN') {
+      throw new ApiError(400, 'Vui lòng nhập chính xác cụm từ "XÓA TÀI KHOẢN" để xác nhận.');
+    }
+  }
+
+  // 5. Xóa thông báo liên quan của khách hàng
+  await Notification.deleteMany({ recipient: user._id });
+
+  // 6. Xóa vĩnh viễn tài khoản người dùng khỏi hệ thống
+  await User.findByIdAndDelete(user._id);
+
+  return {
+    success: true,
+    message: 'Tài khoản của bạn đã được xóa vĩnh viễn khỏi hệ thống.',
+  };
+};

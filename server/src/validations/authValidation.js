@@ -209,3 +209,8 @@ export const resendVerificationSchema = Joi.object({
   }),
 });
 
+export const deleteAccountSchema = Joi.object({
+  password: Joi.string().allow('', null).optional(),
+  confirmationText: Joi.string().allow('', null).optional(),
+});
+
