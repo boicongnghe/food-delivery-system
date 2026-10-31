@@ -45,6 +45,12 @@ const shipperSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected', 'suspended'],
       default: 'approved',
     },
+    // Last admin decision on the status (reason of a rejection / suspension)
+    statusChange: {
+      note: { type: String, trim: true, maxlength: 500, default: '' },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      at: { type: Date, default: null },
+    },
     isOnline: {
       type: Boolean,
       default: true,

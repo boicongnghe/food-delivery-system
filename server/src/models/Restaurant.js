@@ -18,6 +18,9 @@ const openingHourSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// Approval status of a partner profile (restaurant or shipper)
+export const PARTNER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
+
 const restaurantSchema = new mongoose.Schema(
   {
     owner: {
@@ -61,8 +64,14 @@ const restaurantSchema = new mongoose.Schema(
     ratingCount: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected', 'suspended'],
+      enum: PARTNER_STATUSES,
       default: 'pending',
+    },
+    // Last admin decision on the status (reason of a rejection / suspension)
+    statusChange: {
+      note: { type: String, trim: true, maxlength: 500, default: '' },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      at: { type: Date, default: null },
     },
     // Bank account that receives the weekly settlement (shown masked in reports)
     payoutAccount: {
