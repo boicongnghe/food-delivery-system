@@ -49,6 +49,7 @@ TODO: nhóm chốt thiết kế – thông tin riêng của shipper (biển số
 | `openingHours` | Object | ví dụ `{ open: "08:00", close: "22:00" }` |
 | `rating` | Number | điểm trung bình, cập nhật khi có review |
 | `status` | String | enum gợi ý: `pending`, `approved`, `rejected`, `suspended` (admin duyệt) |
+| `statusChange` | Object | `{ note, by, at }`: quyết định gần nhất của admin (lý do từ chối / đình chỉ). Collection `shippers` có cùng trường |
 
 TODO: nhóm chốt thiết kế.
 
@@ -117,13 +118,13 @@ stateDiagram-v2
 - Khách chỉ được hủy khi đơn còn `pending`. Bảng bếp hiển thị đơn khách vừa hủy trong 10 phút.
 - Chủ quán chỉ thấy số điện thoại khách đã che (`090***456`).
 - **Điều kiện thanh toán** (bộ lọc dùng chung trong `server/src/services/orderPolicy.js`):
-  - Đơn online (MoMo/VNPay) **chưa thanh toán** (`unpaid`) là đơn khách đang trả tiền: quán **không thấy** và không thao tác được.
+  - Đơn online (MoMo/VNPay/chuyển khoản) **chưa từng thanh toán** (`unpaid`, hoặc `cancelled` khi khách hủy ở trang thanh toán) không phải đơn thật: quán **không thấy**, không thao tác được, báo cáo không tính và khách không khiếu nại được (`PLACED_ORDER_FILTER`).
   - Nhận đơn và chuyển "sẵn sàng" chỉ khi: COD đang `unpaid` (shipper thu tiền) **hoặc** online đã `paid`. Điều kiện này nằm ngay trong câu lệnh cập nhật atomic.
   - Danh sách cho shipper cũng chỉ gồm đơn có thanh toán hợp lệ.
 - **Trạng thái nhà hàng khi xử lý đơn** (khác quy tắc sửa thực đơn):
   - **Nhận đơn mới**: chỉ nhà hàng `approved`.
   - **Từ chối (hoàn tiền) và báo "Đã xong"**: được phép ở mọi trạng thái, kể cả `suspended`, để đơn đã nhận không bị kẹt và khách luôn được hoàn tiền.
-  - Admin duyệt nhà hàng qua `PATCH /api/admin/restaurants/:id/status` (module Admin). Với dữ liệu demo, `npm run seed:orders` tự đặt nhà hàng thành `approved`.
+  - Admin duyệt nhà hàng qua `PATCH /api/admin/restaurants/:id/status` (module Admin, xem [post-delivery-admin.md](post-delivery-admin.md)). Với dữ liệu demo, `npm run seed:orders` tự đặt nhà hàng thành `approved`.
 - **Chi tiết đơn / phiếu bếp (UC23):**
   - `GET /api/restaurants/me/orders/:id` trả thêm `customerInsight: { completedOrders, isRegular }`. **Khách quen** = ≥ 3 đơn giao thành công tại quán trong 90 ngày; không trả thêm thông tin nào khác của khách.
   - `GET /api/restaurants/me/orders/lookup?code=GN-0042` tra cứu đơn của quán mình theo mã (mọi trạng thái).
