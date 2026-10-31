@@ -8,6 +8,10 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
     1,
     ...earningsByHour.map(item => item.base + item.bonus + item.tip),
   )
+  const activeEarning = Number.isInteger(hovered) ? earningsByHour[hovered] : null
+  const activeTotal = activeEarning
+    ? activeEarning.base + activeEarning.bonus + activeEarning.tip
+    : 0
 
   return (
     <div className="section-card" id="earnings-chart-section">
@@ -24,11 +28,11 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
         <div className="chart-legend">
           <div className="chart-legend-item">
             <div className="legend-dot" style={{ background: '#6b7280' }} />
-            Cước gốc (Surge x1.4)
+            Cước cơ bản
           </div>
           <div className="chart-legend-item">
             <div className="legend-dot" style={{ background: '#d93025' }} />
-            Thưởng surge
+            Thưởng
           </div>
           <div className="chart-legend-item">
             <div className="legend-dot" style={{ background: '#d97706' }} />
@@ -40,8 +44,28 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
           </div>
         </div>
 
+        {activeEarning ? (
+          <div className="chart-detail-panel" aria-live="polite">
+            <div className="chart-detail-heading">
+              <strong>{activeEarning.hour}</strong>
+              <strong>{activeTotal.toLocaleString('vi-VN')}đ</strong>
+            </div>
+            <div className="chart-detail-values">
+              <span>Cước {activeEarning.base.toLocaleString('vi-VN')}đ</span>
+              {activeEarning.bonus > 0 && (
+                <span className="bonus">Thưởng +{activeEarning.bonus.toLocaleString('vi-VN')}đ</span>
+              )}
+              {activeEarning.tip > 0 && (
+                <span className="tip">Tip +{activeEarning.tip.toLocaleString('vi-VN')}đ</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="chart-interaction-hint">Chọn một cột để xem chi tiết thu nhập.</p>
+        )}
+
         {/* Bars */}
-        <div className="chart-bars-wrap" role="img" aria-label="Hourly earnings chart" style={{ position: 'relative' }}>
+        <div className="chart-bars-wrap" role="group" aria-label="Hourly earnings chart" style={{ position: 'relative' }}>
           <div className="chart-gridlines" aria-hidden="true">
             {[0,1,2,3].map(i => <div key={i} className="chart-gridline" />)}
           </div>
@@ -52,42 +76,25 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
             const baseH  = (d.base  / maxTotal) * MAX_BAR_H
             const bonusH = (d.bonus / maxTotal) * MAX_BAR_H
             const tipH   = (d.tip   / maxTotal) * MAX_BAR_H
-            const totalH = baseH + bonusH + tipH
 
             return (
               <div
                 key={i}
-                className={`chart-bar-group ${d.surge ? 'surge' : ''}`}
+                className="chart-bar-group"
                 onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(i)}
+                onClick={() => setHovered(i)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setHovered(i)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={hovered === i}
                 aria-label={`${d.hour}: ${total.toLocaleString('vi-VN')}đ`}
               >
-                {hovered === i && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: `${totalH + 30}px`,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: '#fff',
-                    border: '1px solid var(--border)',
-                    borderRadius: 6,
-                    padding: '7px 10px',
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    zIndex: 10,
-                    whiteSpace: 'nowrap',
-                    boxShadow: 'var(--shadow-md)',
-                  }}>
-                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>
-                      {d.hour} — {total.toLocaleString('vi-VN')}đ
-                    </div>
-                    <div>Cước: {d.base.toLocaleString('vi-VN')}đ</div>
-                    {d.bonus > 0 && <div style={{ color: 'var(--brand)' }}>Thưởng: +{d.bonus.toLocaleString('vi-VN')}đ</div>}
-                    {d.tip > 0   && <div style={{ color: 'var(--amber)' }}>Tip: +{d.tip.toLocaleString('vi-VN')}đ</div>}
-                    {d.surge && <div style={{ color: 'var(--brand)', fontWeight: 700, marginTop: 3 }}>🔥 Surge x1.4</div>}
-                  </div>
-                )}
-
                 <div className="chart-bars-inner">
                   {tipH   > 0 && <div className="chart-bar tip"   style={{ height: `${tipH}px` }} />}
                   {bonusH > 0 && <div className="chart-bar bonus" style={{ height: `${bonusH}px` }} />}

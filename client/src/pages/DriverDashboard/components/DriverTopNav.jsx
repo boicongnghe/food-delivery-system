@@ -1,9 +1,10 @@
 const NAV_TABS = [
   { id: 'dashboard', label: 'Bảng điều khiển & Thu nhập', icon: '📊' },
+  { id: 'orders', label: 'Đơn giao hàng', icon: '📦' },
   { id: 'history', label: 'Lịch sử chuyến xe', icon: '🗂️' },
   { id: 'wallet', label: 'Ví tài xế & Rút tiền', icon: '💳' },
   { id: 'ranking', label: 'Xếp hạng & Thưởng', icon: '🏆' },
-  { id: 'support', label: 'Hỗ trợ 24/7', icon: '🎧' },
+  { id: 'support', label: 'Hỗ trợ', icon: '🎧' },
   { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
 ]
 

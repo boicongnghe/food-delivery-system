@@ -219,7 +219,6 @@ function Checkout() {
       setErrorMsg('Vui lòng chọn một địa chỉ nhận hàng từ danh sách.')
       return
     }
-
     deliveryAddress = {
       recipientName: chosenAddress.recipientName,
       phone: chosenAddress.phone,
@@ -389,7 +388,6 @@ function Checkout() {
                           <div style={{ fontSize: '0.92rem', color: 'var(--text-main)', marginTop: 6, lineHeight: 1.4 }}>
                             {addr.addressLine}
                           </div>
-
                           {addr.note && (
                             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
                               💬 Ghi chú: {addr.note}

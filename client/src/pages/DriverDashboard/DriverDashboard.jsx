@@ -12,6 +12,7 @@ import DailyMissions from './components/DailyMissions'
 import CustomerPraise from './components/CustomerPraise'
 import HotspotMap from './components/HotspotMap'
 import DriverSettings from './components/DriverSettings'
+import DeliveryOrders from './components/DeliveryOrders'
 import './DriverDashboard.css'
 
 const DATE_TABS = [
@@ -71,6 +72,10 @@ function SupportCenter() {
 
 function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [theme, setTheme] = useState(() => (
+    window.localStorage.getItem('shipper-dashboard-theme') === 'dark' ? 'dark' : 'light'
+  ))
+  const [mobilePreview, setMobilePreview] = useState(false)
   const [period, setPeriod] = useState('today')
   const [dashboard, setDashboard] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -102,6 +107,17 @@ function DriverDashboard() {
     return () => controller.abort()
   }, [period, reloadCount])
 
+  useEffect(() => {
+    const refreshTimer = window.setInterval(() => {
+      setReloadCount(count => count + 1)
+    }, 5 * 60 * 1000)
+    return () => window.clearInterval(refreshTimer)
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('shipper-dashboard-theme', theme)
+  }, [theme])
+
   const handleOnlineToggle = async (isOnline) => {
     setStatusUpdating(true)
     setActionError('')
@@ -130,7 +146,17 @@ function DriverDashboard() {
     : ''
 
   return (
-    <div className="driver-shell">
+    <div
+      className="driver-shell"
+      data-theme={theme}
+      data-mobile-preview={mobilePreview ? 'true' : 'false'}
+    >
+      {mobilePreview && (
+        <div className="mobile-preview-toolbar">
+          <span>Đang xem trước giao diện mobile</span>
+          <button type="button" onClick={() => setMobilePreview(false)}>Thoát xem trước</button>
+        </div>
+      )}
       <Navbar />
       <div className="driver-home-banner">
         <div className="driver-home-banner-inner">
@@ -165,7 +191,7 @@ function DriverDashboard() {
               title="Đổi ảnh đại diện"
             >
               <img
-                src={profile.avatarUrl || '/driver-avatar.png'}
+                src={profile.avatarUrl}
                 alt={profile.name}
                 className="profile-avatar-lg"
                 onError={event => { event.currentTarget.style.display = 'none' }}
@@ -272,9 +298,6 @@ function DriverDashboard() {
                       </p>
                     </div>
                   </div>
-                  {summary.earningsByHour?.some(item => item.surge) && (
-                    <span className="receipt-banner-badge">🔥 Có thu nhập giờ cao điểm trong kỳ</span>
-                  )}
                 </div>
                 <div className="dashboard-columns">
                   <div className="dashboard-main">
@@ -356,8 +379,18 @@ function DriverDashboard() {
 
             {activeTab === 'support' && <SupportCenter />}
 
+            {activeTab === 'orders' && (
+              <DeliveryOrders onOrderChanged={() => setReloadCount(count => count + 1)} />
+            )}
+
             {activeTab === 'settings' && (
-              <DriverSettings onProfileUpdated={handleProfileUpdated} />
+              <DriverSettings
+                onProfileUpdated={handleProfileUpdated}
+                theme={theme}
+                onThemeChange={setTheme}
+                mobilePreview={mobilePreview}
+                onMobilePreviewChange={setMobilePreview}
+              />
             )}
           </>
         )}

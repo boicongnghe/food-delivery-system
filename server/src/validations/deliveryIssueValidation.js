@@ -6,7 +6,7 @@ import {
   PENALTY_TARGETS,
 } from '../models/DeliveryIssue.js';
 import { keywordQuery, pageQueryKeys } from './commonValidation.js';
-import { evidenceImages, issueDescription, resolutionNote } from './complaintValidation.js';
+import { evidenceImages, resolutionNote } from './complaintValidation.js';
 
 // POST /api/orders/:id/delivery-issues (shipper of the order)
 export const createDeliveryIssueSchema = Joi.object({
@@ -14,7 +14,7 @@ export const createDeliveryIssueSchema = Joi.object({
     .valid(...DELIVERY_ISSUE_TYPES)
     .required()
     .messages({ 'any.only': 'Loại sự cố không hợp lệ', 'any.required': 'Vui lòng chọn loại sự cố' }),
-  description: issueDescription,
+  description: Joi.string().trim().max(1000).allow('').default(''),
   images: evidenceImages,
 });
 
