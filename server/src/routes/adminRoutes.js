@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import * as adminController from '../controllers/adminController.js';
+import * as adminOrderController from '../controllers/adminOrderController.js';
+import * as adminPartnerController from '../controllers/adminPartnerController.js';
 import * as adminUserController from '../controllers/adminUserController.js';
 import * as analyticsController from '../controllers/analyticsController.js';
 import * as commissionRuleController from '../controllers/commissionRuleController.js';
@@ -9,9 +11,11 @@ import * as promotionRuleController from '../controllers/promotionRuleController
 import * as reviewController from '../controllers/reviewController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import validate from '../middlewares/validate.js';
+import { adminOrderQuerySchema } from '../validations/adminOrderValidation.js';
 import { adminUserQuerySchema, updateUserRoleSchema, updateUserStatusSchema } from '../validations/adminUserValidation.js';
+import { partnerQuerySchema, partnerStatusSchema } from '../validations/adminValidation.js';
 import { analyticsQuerySchema } from '../validations/analyticsValidation.js';
-import { commissionRuleSchema, restaurantOptionsQuerySchema } from '../validations/commissionRuleValidation.js';
+import { commissionRuleSchema } from '../validations/commissionRuleValidation.js';
 import { idParamSchema } from '../validations/commonValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
 import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
@@ -24,19 +28,30 @@ const validateId = validate(idParamSchema, 'params');
 // Tất cả endpoint của Admin yêu cầu đăng nhập và có role là 'admin'
 router.use(protect, authorize('admin'));
 
+// Dashboard - approval queue and system counters
 router.get('/pending-approvals', adminController.getPendingApprovals);
-router.patch('/restaurants/:id/status', adminController.updateRestaurantStatus);
-router.patch('/shippers/:id/status', adminController.updateShipperStatus);
 router.get('/stats', adminController.getAdminStats);
 
-// UC37 - Accounts
+// Restaurants & shippers - list, review the registration, approve / reject / suspend / reopen
+// (the restaurant list also feeds the restaurant picker of the commission rule form)
+router.get('/restaurants', validate(partnerQuerySchema, 'query'), adminPartnerController.listRestaurants);
+router.get('/restaurants/:id', validateId, adminPartnerController.getRestaurantDetail);
+router.patch('/restaurants/:id/status', validateId, validate(partnerStatusSchema), adminPartnerController.changeRestaurantStatus);
+router.get('/shippers', validate(partnerQuerySchema, 'query'), adminPartnerController.listShippers);
+router.get('/shippers/:id', validateId, adminPartnerController.getShipperDetail);
+router.patch('/shippers/:id/status', validateId, validate(partnerStatusSchema), adminPartnerController.changeShipperStatus);
+
+// Platform orders - read only
+router.get('/orders', validate(adminOrderQuerySchema, 'query'), adminOrderController.listOrders);
+router.get('/orders/:id', validateId, adminOrderController.getOrderDetail);
+
+// UC37 - Accounts of every role (lock / unlock, modify role)
 router.get('/users', validate(adminUserQuerySchema, 'query'), adminUserController.listUsers);
 router.get('/users/:id', validateId, adminUserController.getUserDetail);
 router.patch('/users/:id/role', validateId, validate(updateUserRoleSchema), adminUserController.updateUserRole);
 router.patch('/users/:id/status', validateId, validate(updateUserStatusSchema), adminUserController.updateUserStatus);
 
-// UC40 - Commission rules (+ restaurant picker for a rule that applies to one restaurant)
-router.get('/restaurants', validate(restaurantOptionsQuerySchema, 'query'), commissionRuleController.searchRestaurants);
+// UC40 - Commission rules
 router.get('/commission-rules', commissionRuleController.listCommissionRules);
 router.post('/commission-rules', validate(commissionRuleSchema), commissionRuleController.createCommissionRule);
 router.put(

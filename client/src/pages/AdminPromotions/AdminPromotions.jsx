@@ -103,7 +103,7 @@ export default function AdminPromotions() {
       />
 
       <div className={ADMIN_CARD}>
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-crave-border p-5 xl:flex-row xl:items-center xl:justify-between">
           <AdminFilterTabs
             options={tabs}
             value={filters.status}
@@ -117,7 +117,7 @@ export default function AdminPromotions() {
 
         {loading && data.items.length === 0 ? (
           <div className="flex justify-center py-16">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : data.items.length === 0 ? (
           <AdminEmptyState>Không có mã khuyến mãi phù hợp.</AdminEmptyState>

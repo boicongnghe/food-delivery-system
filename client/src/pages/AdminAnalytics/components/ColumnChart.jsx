@@ -8,8 +8,9 @@ const MAX_BAR_WIDTH = 24
 const SEGMENT_GAP = 2 // surface gap between stacked segments
 const END_RADIUS = 4
 const MIN_LABEL_SPACING = 56 // px between x-axis labels
-const GRID_COLOR = '#1e293b' // slate-800: one step off the slate-950 surface
-const BASELINE_COLOR = '#334155' // slate-700
+// Classes instead of fixed colors so the grid follows the light / dark theme
+const GRID_CLASS = 'stroke-slate-100 dark:stroke-crave-border'
+const BASELINE_CLASS = 'stroke-slate-300 dark:stroke-slate-700'
 
 /**
  * Stacked column chart (one series = plain columns), drawn at the container's real width.
@@ -50,12 +51,12 @@ export default function ColumnChart({ points, series, height = 240, integer = fa
           onFocus={() => setActiveIndex((index) => index ?? points.length - 1)}
           onBlur={() => setActiveIndex(null)}
           onKeyDown={handleKeyDown}
-          className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/60"
+          className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         >
           <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
             {ticks.map((tick) => (
               <g key={tick} transform={`translate(0,${plotHeight - scale(tick)})`}>
-                {tick > 0 && <line x2={plotWidth} stroke={GRID_COLOR} strokeWidth="1" />}
+                {tick > 0 && <line x2={plotWidth} className={GRID_CLASS} strokeWidth="1" />}
                 <text x="-8" dy="0.32em" textAnchor="end" className="fill-slate-500 text-[10px] tabular-nums">
                   {formatTick(tick)}
                 </text>
@@ -90,7 +91,7 @@ export default function ColumnChart({ points, series, height = 240, integer = fa
               )
             })}
 
-            <line y1={plotHeight} y2={plotHeight} x2={plotWidth} stroke={BASELINE_COLOR} strokeWidth="1" />
+            <line y1={plotHeight} y2={plotHeight} x2={plotWidth} className={BASELINE_CLASS} strokeWidth="1" />
             {points.map(
               (point, index) =>
                 index % labelEvery === 0 && (

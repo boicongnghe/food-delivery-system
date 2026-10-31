@@ -8,7 +8,7 @@ export default function UserTable({ users, onSelect }) {
     // relative: the sr-only header text is absolutely positioned and must stay inside the scroll box
     <div className="relative overflow-x-auto">
       <table className="w-full min-w-[720px]">
-        <thead className="border-b border-slate-800">
+        <thead className="border-b border-slate-100 dark:border-crave-border">
           <tr>
             <th className={ADMIN_TABLE_HEAD}>Người dùng</th>
             <th className={ADMIN_TABLE_HEAD}>Số điện thoại</th>
@@ -20,14 +20,14 @@ export default function UserTable({ users, onSelect }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/70">
+        <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {users.map((user) => (
-            <tr key={user._id} className="transition-colors hover:bg-slate-900/60">
+            <tr key={user._id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
               <td className={ADMIN_TABLE_CELL}>
                 <div className="flex items-center gap-3">
                   <img src={user.avatar} alt="" className="h-9 w-9 rounded-xl object-cover" />
                   <div className="min-w-0">
-                    <p className="truncate font-bold text-white">{user.fullName}</p>
+                    <p className="truncate font-bold text-slate-900 dark:text-white">{user.fullName}</p>
                     <p className="truncate text-xs text-slate-500">{user.email}</p>
                   </div>
                 </div>
@@ -48,7 +48,7 @@ export default function UserTable({ users, onSelect }) {
                 <button
                   type="button"
                   onClick={() => onSelect(user._id)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-bold text-purple-300 hover:bg-purple-500/10"
+                  className="rounded-lg px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10"
                 >
                   Chi tiết
                 </button>

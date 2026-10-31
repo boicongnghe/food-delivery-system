@@ -10,7 +10,7 @@ export default function ComplaintTable({ complaints, onSelect }) {
     // relative: the sr-only header text is absolutely positioned and must stay inside the scroll box
     <div className="relative overflow-x-auto">
       <table className="w-full min-w-[860px]">
-        <thead className="border-b border-slate-800">
+        <thead className="border-b border-slate-100 dark:border-crave-border">
           <tr>
             <th className={ADMIN_TABLE_HEAD}>Mã</th>
             <th className={ADMIN_TABLE_HEAD}>Khách hàng</th>
@@ -23,20 +23,20 @@ export default function ComplaintTable({ complaints, onSelect }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/70">
+        <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {complaints.map((complaint) => (
-            <tr key={complaint._id} className="transition-colors hover:bg-slate-900/60">
+            <tr key={complaint._id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
               <td className={ADMIN_TABLE_CELL}>
-                <p className="font-mono font-bold text-white">{complaint.code}</p>
+                <p className="font-mono font-bold text-slate-900 dark:text-white">{complaint.code}</p>
                 <p className="font-mono text-xs text-slate-500">{complaint.orderCode}</p>
               </td>
               <td className={ADMIN_TABLE_CELL}>
-                <p className="text-slate-200">{complaint.customer?.fullName}</p>
+                <p className="text-slate-800 dark:text-slate-200">{complaint.customer?.fullName}</p>
                 <p className="text-xs text-slate-500">{complaint.customer?.email}</p>
               </td>
               <td className={ADMIN_TABLE_CELL}>{complaint.restaurant?.name}</td>
               <td className={`${ADMIN_TABLE_CELL} max-w-xs`}>
-                <p className="flex items-center gap-1.5 font-semibold text-slate-200">
+                <p className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
                   {COMPLAINT_CATEGORY_LABELS[complaint.category]}
                   {complaint.images.length > 0 && <ImageIcon className="h-3.5 w-3.5 text-slate-500" />}
                 </p>
@@ -52,7 +52,7 @@ export default function ComplaintTable({ complaints, onSelect }) {
                 <button
                   type="button"
                   onClick={() => onSelect(complaint._id)}
-                  className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-purple-300 hover:bg-purple-500/10"
+                  className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10"
                 >
                   {complaint.status === 'open' ? 'Xử lý' : 'Xem'}
                 </button>

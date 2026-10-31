@@ -8,7 +8,7 @@ export default function DeliveryIssueTable({ issues, onSelect }) {
     // relative: the sr-only header text is absolutely positioned and must stay inside the scroll box
     <div className="relative overflow-x-auto">
       <table className="w-full min-w-[820px]">
-        <thead className="border-b border-slate-800">
+        <thead className="border-b border-slate-100 dark:border-crave-border">
           <tr>
             <th className={ADMIN_TABLE_HEAD}>Mã</th>
             <th className={ADMIN_TABLE_HEAD}>Shipper báo cáo</th>
@@ -21,22 +21,22 @@ export default function DeliveryIssueTable({ issues, onSelect }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/70">
+        <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {issues.map((issue) => {
             const status = DELIVERY_ISSUE_STATUSES[issue.status]
             return (
-              <tr key={issue._id} className="transition-colors hover:bg-slate-900/60">
+              <tr key={issue._id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
                 <td className={ADMIN_TABLE_CELL}>
-                  <p className="font-mono font-bold text-white">{issue.code}</p>
+                  <p className="font-mono font-bold text-slate-900 dark:text-white">{issue.code}</p>
                   <p className="font-mono text-xs text-slate-500">{issue.orderCode}</p>
                 </td>
                 <td className={ADMIN_TABLE_CELL}>
-                  <p className="text-slate-200">{issue.shipper?.fullName}</p>
+                  <p className="text-slate-800 dark:text-slate-200">{issue.shipper?.fullName}</p>
                   <p className="text-xs text-slate-500">{issue.shipper?.phone}</p>
                 </td>
                 <td className={ADMIN_TABLE_CELL}>{issue.restaurant?.name}</td>
                 <td className={`${ADMIN_TABLE_CELL} max-w-xs`}>
-                  <p className="font-semibold text-slate-200">{DELIVERY_ISSUE_TYPE_LABELS[issue.type]}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">{DELIVERY_ISSUE_TYPE_LABELS[issue.type]}</p>
                   <p className="line-clamp-1 text-xs text-slate-500">{issue.description}</p>
                 </td>
                 <td className={`${ADMIN_TABLE_CELL} whitespace-nowrap text-xs`}>{formatDateTime(issue.createdAt)}</td>
@@ -47,7 +47,7 @@ export default function DeliveryIssueTable({ issues, onSelect }) {
                   <button
                     type="button"
                     onClick={() => onSelect(issue._id)}
-                    className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-purple-300 hover:bg-purple-500/10"
+                    className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10"
                   >
                     {issue.status === 'open' ? 'Xử lý' : 'Xem'}
                   </button>
