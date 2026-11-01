@@ -11,8 +11,8 @@ export const CATEGORIES = [
 export const DISHES = [
   {
     id: 'dish-1',
-    name: 'Cơm Tấm Sườn Bì Chả Đặc Biệt',
-    restaurant: 'Cơm Tấm Ba Ghiền - Sài Gòn',
+    name: 'Cơm Gà Nướng Than Hoa Sốt Cay',
+    restaurant: 'Cơm Gà Nướng & Cơm Rang 99 - Tân Xã',
     price: 65000,
     originalPrice: 75000,
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80',
@@ -39,7 +39,7 @@ export const DISHES = [
   {
     id: 'dish-2',
     name: 'Phở Bò Tái Nạm Gầu Bát Đá',
-    restaurant: 'Phở Thìn Lò Đúc Hà Nội',
+    restaurant: 'Phở Bò Gia Truyền Cụ Chiêu - Hòa Lạc',
     price: 70000,
     originalPrice: 80000,
     image: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=700&q=80',
@@ -66,7 +66,7 @@ export const DISHES = [
   {
     id: 'dish-3',
     name: 'Burger Bò Nướng Phô Mai Double Cheesy',
-    restaurant: 'The Grill Burger House',
+    restaurant: 'Hola Fastfood - Burger & Gà Rán F-Ville',
     price: 89000,
     originalPrice: 110000,
     image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80',
@@ -120,7 +120,7 @@ export const DISHES = [
   {
     id: 'dish-5',
     name: 'Trà Sữa Trân Châu Đường Đen Hoàng Kim',
-    restaurant: 'The Alley & Tea House',
+    restaurant: 'Tiệm Trà Sữa & Ăn Vặt Hola Tea - Ngã 3 Thạch Hòa',
     price: 45000,
     originalPrice: 55000,
     image: 'https://images.unsplash.com/photo-1558857563-b37cf5a9320e?auto=format&fit=crop&w=700&q=80',

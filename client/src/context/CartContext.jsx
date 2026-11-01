@@ -23,25 +23,43 @@ export function CartProvider({ children }) {
   }, [cart])
 
   const addToCart = (food, quantity = 1, note = '') => {
-    const restaurantId = food.restaurantId || food.restaurant?._id || (typeof food.restaurant === 'string' && food.restaurant.length === 24 ? food.restaurant : '6ad719cbf02e3385602cfd0c')
-    const restaurantName = food.restaurantName || (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) || 'Quán Ăn'
+    // 1. Xác định tên quán ăn
+    const restaurantName =
+      food.restaurantName ||
+      (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
+      'Quán Ăn'
+
+    // 2. Xác định ID quán ăn chính xác (tuyệt đối không dùng chung ID mặc định)
+    const restaurantId =
+      food.restaurantId ||
+      food.restaurant?._id ||
+      (typeof food.restaurant === 'string' && food.restaurant.length === 24
+        ? food.restaurant
+        : `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`)
 
     setCart((prev) => {
-      // Check if item is from another restaurant
-      if (prev.restaurant && prev.restaurant.id !== restaurantId && prev.items.length > 0) {
+      // Kiểm tra xem món mới có thuộc quán khác với quán hiện tại trong giỏ không
+      const isDifferentRestaurant =
+        prev.restaurant &&
+        prev.items.length > 0 &&
+        ((prev.restaurant.id && prev.restaurant.id !== restaurantId) ||
+          (prev.restaurant.name &&
+            prev.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
+
+      if (isDifferentRestaurant) {
         const confirmChange = window.confirm(
-          `Giỏ hàng của bạn đang có món từ "${prev.restaurant.name}". Bạn có muốn xóa giỏ hàng hiện tại để chọn món từ "${restaurantName}" không?`
+          `Giỏ hàng của bạn đang có món từ "${prev.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nBạn có muốn XÓA giỏ hàng hiện tại để chọn món từ "${restaurantName}" không?`
         )
         if (!confirmChange) return prev
 
-        // Reset cart for new restaurant
+        // Xóa giỏ hàng cũ và thêm món mới của quán mới
         return {
           restaurant: { id: restaurantId, name: restaurantName },
           items: [{ food, quantity, note }],
         }
       }
 
-      // Same restaurant or empty cart
+      // Cùng quán hoặc giỏ hàng đang trống
       const existingIndex = prev.items.findIndex(
         (item) => (item.food._id || item.food.id) === (food._id || food.id)
       )

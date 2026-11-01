@@ -374,7 +374,9 @@ function OrderTracking() {
             <span>{order.subtotal?.toLocaleString('vi-VN')}đ</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Phí vận chuyển:</span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              Phí vận chuyển {order.distanceKm ? `(${order.distanceKm} km)` : ''}:
+            </span>
             <span>{order.shippingFee?.toLocaleString('vi-VN')}đ</span>
           </div>
           {order.promotion?.discountAmount > 0 && (

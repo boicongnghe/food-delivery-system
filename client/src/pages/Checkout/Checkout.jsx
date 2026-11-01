@@ -24,7 +24,9 @@ function Checkout() {
     addressLine: '',
     note: '',
     isDefault: true,
+    location: null,
   })
+  const [isLocating, setIsLocating] = useState(false)
   const [savingAddress, setSavingAddress] = useState(false)
 
   // Promotions (UC14)
@@ -41,7 +43,14 @@ function Checkout() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  const shippingFee = 15000
+  // Distance & Shipping states
+  const [shippingFee, setShippingFee] = useState(15000)
+  const [distanceKm, setDistanceKm] = useState(null)
+  const [durationMinutes, setDurationMinutes] = useState(null)
+  const [isDeliverable, setIsDeliverable] = useState(true)
+  const [shippingError, setShippingError] = useState('')
+  const [loadingShipping, setLoadingShipping] = useState(false)
+
   const totalPrice = Math.max(0, subtotal + shippingFee - discountAmount)
 
   // Redirect if cart is empty (chỉ chuyển về trang chủ nếu chưa đặt đơn hàng)
@@ -76,6 +85,7 @@ function Checkout() {
                 addressLine: [ua.street, ua.ward, ua.district, ua.city].filter(Boolean).join(', '),
                 isDefault: ua.isDefault,
                 note: '',
+                location: ua.location || null,
               }))
             }
           } catch {
@@ -97,6 +107,53 @@ function Checkout() {
     fetchCheckoutData()
   }, [user])
 
+  // Tự động tính phí vận chuyển dựa trên khoảng cách GPS từ nhà hàng đến địa chỉ nhận
+  useEffect(() => {
+    const fetchShippingFee = async () => {
+      const restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
+      if (!restaurantId || !selectedAddressId) return
+
+      const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
+      const params = { restaurantId, addressId: selectedAddressId }
+      if (chosenAddr?.location?.lat && chosenAddr?.location?.lng) {
+        params.lat = chosenAddr.location.lat
+        params.lng = chosenAddr.location.lng
+      }
+
+      setLoadingShipping(true)
+      try {
+        const res = await orderApi.estimateShipping(params)
+        const info = res.data?.data
+        if (info) {
+          setDistanceKm(info.distanceKm)
+          setDurationMinutes(info.durationMinutes || null)
+          setShippingFee(info.shippingFee || 15000)
+          setIsDeliverable(info.isDeliverable !== false)
+          if (!info.isDeliverable) {
+            setShippingError(
+              info.message ||
+                `Khoảng cách giao hàng (${info.distanceKm} km) vượt quá bán kính tối đa cho phép (${info.maxDistanceKm} km).`
+            )
+          } else {
+            setShippingError('')
+          }
+        }
+      } catch (err) {
+        const msg = err.response?.data?.message || 'Không thể tính phí giao hàng'
+        const data = err.response?.data?.data
+        if (data?.distanceKm) {
+          setDistanceKm(data.distanceKm)
+        }
+        setIsDeliverable(false)
+        setShippingError(msg)
+      } finally {
+        setLoadingShipping(false)
+      }
+    }
+
+    fetchShippingFee()
+  }, [selectedAddressId, cart?.restaurant?.id, cart?.restaurant?._id, addresses])
+
   const handleOpenAddAddressModal = () => {
     setNewAddressForm({
       recipientName: user?.fullName || '',
@@ -104,8 +161,63 @@ function Checkout() {
       addressLine: '',
       note: '',
       isDefault: addresses.length === 0,
+      location: null,
     })
     setIsAddressModalOpen(true)
+  }
+
+  // Lấy vị trí GPS hiện tại từ thiết bị
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Trình duyệt của bạn không hỗ trợ định vị GPS')
+      return
+    }
+
+    setIsLocating(true)
+    toast.loading('Đang lấy tọa độ GPS...', { id: 'gps-loading' })
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        setNewAddressForm((prev) => ({
+          ...prev,
+          location: { lat: latitude, lng: longitude },
+        }))
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=vi`
+          )
+          const data = await res.json()
+          if (data && data.display_name) {
+            setNewAddressForm((prev) => ({
+              ...prev,
+              addressLine: prev.addressLine || data.display_name,
+            }))
+          }
+        } catch {
+          // ignore geocoding lookup failures
+        }
+
+        toast.success(`Đã lấy vị trí GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, {
+          id: 'gps-loading',
+        })
+        setIsLocating(false)
+      },
+      (error) => {
+        let msg = 'Không thể lấy vị trí GPS'
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Bạn đã từ chối cấp quyền truy cập vị trí'
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'Thông tin vị trí không khả dụng'
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'Thời gian định vị hết hạn'
+        }
+        toast.error(msg, { id: 'gps-loading' })
+        setIsLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
   }
 
   // Thêm địa chỉ mới vào sổ địa chỉ (UC12)
@@ -124,6 +236,7 @@ function Checkout() {
         addressLine: newAddressForm.addressLine.trim(),
         note: newAddressForm.note.trim(),
         isDefault: newAddressForm.isDefault,
+        location: newAddressForm.location,
       })
       const created = res.data.data
       const updated = created.isDefault
@@ -219,11 +332,22 @@ function Checkout() {
       setErrorMsg('Vui lòng chọn một địa chỉ nhận hàng từ danh sách.')
       return
     }
+
+    if (!isDeliverable) {
+      setErrorMsg(
+        shippingError ||
+          `Khoảng cách giao hàng (${distanceKm} km) vượt quá bán kính phục vụ tối đa (10 km). Vui lòng chọn địa chỉ khác gần hơn.`
+      )
+      return
+    }
+
     deliveryAddress = {
       recipientName: chosenAddress.recipientName,
       phone: chosenAddress.phone,
       addressLine: chosenAddress.addressLine,
       note: chosenAddress.note || '',
+      addressId: chosenAddress._id,
+      location: chosenAddress.location || null,
     }
 
     try {
@@ -523,9 +647,24 @@ function Checkout() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Items Summary (UC13) */}
           <div className="card">
-            <h2 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 700 }}>
-              📦 Tóm tắt đơn hàng ({cart.items.length} món)
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
+                📦 Tóm tắt đơn hàng ({cart.items.length} món)
+              </h2>
+              {cart.restaurant?.name && (
+                <span style={{
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  color: 'var(--primary, #FF4B2B)',
+                  background: '#FFF0EB',
+                  border: '1px solid #FFE0D6',
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                }}>
+                  🏪 {cart.restaurant.name}
+                </span>
+              )}
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
               {cart.items.map((item) => (
@@ -640,9 +779,13 @@ function Checkout() {
                 <span style={{ color: 'var(--text-muted)' }}>Tiền món:</span>
                 <span>{subtotal.toLocaleString('vi-VN')}đ</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Phí vận chuyển:</span>
-                <span>{shippingFee.toLocaleString('vi-VN')}đ</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Phí vận chuyển {distanceKm != null ? `(${distanceKm} km${durationMinutes ? ` · ~${durationMinutes} phút` : ''})` : ''}:
+                </span>
+                <span style={{ fontWeight: 600 }}>
+                  {loadingShipping ? 'Đang tính...' : `${shippingFee.toLocaleString('vi-VN')}đ`}
+                </span>
               </div>
               {discountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
@@ -660,18 +803,45 @@ function Checkout() {
                 fontWeight: 800,
               }}>
                 <span>Tổng thanh toán:</span>
-                <span style={{ color: 'var(--primary)' }}>{totalPrice.toLocaleString('vi-VN')}đ</span>
+                <span style={{ color: !isDeliverable ? '#dc2626' : 'var(--primary)' }}>
+                  {!isDeliverable ? 'Không thể giao' : `${totalPrice.toLocaleString('vi-VN')}đ`}
+                </span>
               </div>
             </div>
+
+            {shippingError && (
+              <div style={{
+                marginTop: 14,
+                padding: '12px 14px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '10px',
+                color: '#dc2626',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                lineHeight: 1.4,
+              }}>
+                ⚠️ {shippingError}
+              </div>
+            )}
 
             <button
               type="button"
               className="btn btn-primary btn-lg"
-              style={{ width: '100%', marginTop: 24 }}
-              disabled={isSubmitting}
+              style={{
+                width: '100%',
+                marginTop: 20,
+                backgroundColor: !isDeliverable ? '#94a3b8' : undefined,
+                cursor: !isDeliverable ? 'not-allowed' : undefined,
+              }}
+              disabled={isSubmitting || !isDeliverable || loadingShipping}
               onClick={handlePlaceOrder}
             >
-              {isSubmitting ? 'Đang tạo đơn hàng...' : 'Xác nhận Đặt hàng ➔'}
+              {isSubmitting
+                ? 'Đang tạo đơn hàng...'
+                : !isDeliverable
+                ? 'Quá bán kính phục vụ (tối đa 10km)'
+                : 'Xác nhận Đặt hàng ➔'}
             </button>
           </div>
         </div>
@@ -769,9 +939,32 @@ function Checkout() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
-                  Địa chỉ chi tiết (Số nhà, đường, phường/xã, quận/huyện) (*)
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', margin: 0 }}>
+                    Địa chỉ chi tiết (*)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGetCurrentLocation}
+                    disabled={isLocating}
+                    style={{
+                      background: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1px solid #bfdbfe',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: isLocating ? 'wait' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <span>{isLocating ? '⏳' : '📍'}</span>
+                    <span>{isLocating ? 'Đang định vị GPS...' : 'Lấy vị trí GPS hiện tại'}</span>
+                  </button>
+                </div>
                 <textarea
                   className="form-input"
                   rows={3}
@@ -781,6 +974,12 @@ function Checkout() {
                   required
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'vertical' }}
                 />
+                {newAddressForm.location && (
+                  <div style={{ marginTop: 6, fontSize: '0.78rem', color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>✓ Tọa độ GPS:</span>
+                    <span>{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
+                  </div>
+                )}
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
