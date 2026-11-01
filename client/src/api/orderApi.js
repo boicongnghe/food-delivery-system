@@ -5,6 +5,7 @@ const RESTAURANT_ORDER_URL = '/restaurants/me/orders'
 export const orderApi = {
   // ----- Customer orders -----
   createOrder: (data) => axiosClient.post('/orders', data),
+  estimateShipping: (params) => axiosClient.get('/orders/estimate-shipping', { params }),
   getOrderById: (id) => axiosClient.get(`/orders/${id}`),
   getCustomerOrders: (params) => axiosClient.get('/orders', { params }),
   cancelOrder: (id, data) => axiosClient.post(`/orders/${id}/cancel`, data),
