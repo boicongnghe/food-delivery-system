@@ -48,6 +48,38 @@ export const orderApi = {
     const response = await axiosClient.get('/orders/available-for-pickup', { params })
     return response.data
   },
+  getAvailableOrderDetail: async (id) => {
+    const response = await axiosClient.get(`/orders/available-for-pickup/${id}`)
+    return response.data
+  },
+  getShipperActiveOrders: async () => {
+    const response = await axiosClient.get('/orders/shipper/active')
+    return response.data
+  },
+  acceptDeliveryOrder: async (id) => {
+    const response = await axiosClient.patch(`/orders/${id}/shipper/accept`)
+    return response.data
+  },
+  cancelDeliveryAcceptance: async id => {
+    const response = await axiosClient.patch(`/orders/${id}/shipper/cancel-acceptance`)
+    return response.data
+  },
+  confirmDeliveryPickup: async (id) => {
+    const response = await axiosClient.patch(`/orders/${id}/shipper/picked-up`)
+    return response.data
+  },
+  startCustomerWait: async id => {
+    const response = await axiosClient.post(`/orders/${id}/shipper/customer-wait`)
+    return response.data
+  },
+  recordUnansweredCall: async id => {
+    const response = await axiosClient.post(`/orders/${id}/shipper/unanswered-call`)
+    return response.data
+  },
+  confirmDeliveryDelivered: async id => {
+    const response = await axiosClient.patch(`/orders/${id}/shipper/delivered`)
+    return response.data
+  },
 }
 
 export default orderApi

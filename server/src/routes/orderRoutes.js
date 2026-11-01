@@ -8,9 +8,9 @@ import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { requireApprovedShipper } from '../middlewares/shipperMiddleware.js';
 import validate from '../middlewares/validate.js';
 import { idParamSchema } from '../validations/commonValidation.js';
+import { paginationQuerySchema } from '../validations/orderValidation.js';
 import { createComplaintSchema } from '../validations/complaintValidation.js';
 import { createDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
-import { paginationQuerySchema } from '../validations/orderValidation.js';
 import { createReviewSchema } from '../validations/reviewValidation.js';
 
 // Mounted at /api/orders
@@ -25,6 +25,61 @@ router.get(
   requireApprovedShipper,
   validate(paginationQuerySchema, 'query'),
   shipperOrderController.listAvailableForPickup,
+);
+router.get(
+  '/available-for-pickup/:id',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.getAvailableOrderDetail,
+);
+router.get(
+  '/shipper/active',
+  protect,
+  authorize('shipper'),
+  shipperOrderController.getActiveOrders,
+);
+router.patch(
+  '/:id/shipper/accept',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.acceptOrder,
+);
+router.patch(
+  '/:id/shipper/cancel-acceptance',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.cancelAcceptance,
+);
+router.patch(
+  '/:id/shipper/picked-up',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.confirmPickup,
+);
+router.post(
+  '/:id/shipper/customer-wait',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.startCustomerWait,
+);
+router.post(
+  '/:id/shipper/unanswered-call',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.recordUnansweredCall,
+);
+router.patch(
+  '/:id/shipper/delivered',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.confirmDelivered,
 );
 
 // Customer / General Order endpoints

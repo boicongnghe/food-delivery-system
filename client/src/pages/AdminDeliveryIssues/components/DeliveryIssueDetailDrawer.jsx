@@ -144,6 +144,12 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
             <p className="whitespace-pre-line rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4 text-sm text-slate-800 dark:text-slate-200">
               {issue.description}
             </p>
+            {['customer_unreachable', 'customer_refused'].includes(issue.type) && (
+              <div className="mt-3 space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                <AdminInfoRow label="Thời gian chờ khách">{issue.waitedMinutes || 0} phút</AdminInfoRow>
+                <AdminInfoRow label="Cuộc gọi không được trả lời">{issue.unansweredCalls || 0}</AdminInfoRow>
+              </div>
+            )}
             {issue.images.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {issue.images.map((url) => (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Monitor, Moon, Smartphone, Sun } from 'lucide-react'
 import driverApi from '../../../api/driverApi'
 
 const EMPTY_SETTINGS = {
@@ -6,8 +7,9 @@ const EMPTY_SETTINGS = {
   email: '',
   phone: '',
   avatarUrl: '',
-  vehicle: '',
-  licensePlate: '',
+  citizenIdMasked: '',
+  vehicleInfo: '',
+  shipperStatus: '',
   bankName: '',
   bankAccountName: '',
   bankAccountNumber: '',
@@ -17,7 +19,13 @@ function getErrorMessage(error) {
   return error.response?.data?.message || error.message || 'Không thể lưu cài đặt.'
 }
 
-function DriverSettings({ onProfileUpdated }) {
+function DriverSettings({
+  onProfileUpdated,
+  theme,
+  onThemeChange,
+  mobilePreview,
+  onMobilePreviewChange,
+}) {
   const [settings, setSettings] = useState(EMPTY_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -73,7 +81,22 @@ function DriverSettings({ onProfileUpdated }) {
     setProfileSuccess('')
 
     try {
-      const updated = await driverApi.updateSettings(settings)
+      const {
+        fullName,
+        phone,
+        avatarUrl,
+        bankName,
+        bankAccountName,
+        bankAccountNumber,
+      } = settings
+      const updated = await driverApi.updateSettings({
+        fullName,
+        phone,
+        avatarUrl,
+        bankName,
+        bankAccountName,
+        bankAccountNumber,
+      })
       onProfileUpdated(updated)
       setProfileSuccess('Đã lưu thông tin tài xế.')
     } catch (error) {
@@ -135,11 +158,62 @@ function DriverSettings({ onProfileUpdated }) {
 
   return (
     <div className="settings-page">
+      <section className="section-card settings-card settings-appearance-card">
+        <div className="section-card-header">
+          <h1 className="section-card-title">
+            <span className="section-card-title-icon" aria-hidden="true">🎨</span>
+            Giao diện ứng dụng
+          </h1>
+          <span className="section-card-badge">Tùy chỉnh hiển thị</span>
+        </div>
+        <div className="settings-form">
+          <div className="settings-appearance-row">
+            <div className="settings-appearance-copy">
+              <h2>Chế độ màu</h2>
+              <p>Chọn giao diện sáng hoặc tối cho trang tài xế.</p>
+            </div>
+            <div className="settings-choice-group" role="group" aria-label="Chế độ màu">
+              <button
+                type="button"
+                className={`settings-choice-button ${theme === 'light' ? 'active' : ''}`}
+                aria-pressed={theme === 'light'}
+                onClick={() => onThemeChange('light')}
+              >
+                <Sun size={16} /> Sáng
+              </button>
+              <button
+                type="button"
+                className={`settings-choice-button ${theme === 'dark' ? 'active' : ''}`}
+                aria-pressed={theme === 'dark'}
+                onClick={() => onThemeChange('dark')}
+              >
+                <Moon size={16} /> Tối
+              </button>
+            </div>
+          </div>
+          <div className="settings-appearance-row">
+            <div className="settings-appearance-copy">
+              <h2>Xem trước trên điện thoại</h2>
+              <p>Thu giao diện vào khung điện thoại để xem cách bố trí trên màn hình nhỏ.</p>
+            </div>
+            <button
+              type="button"
+              className={`settings-choice-button ${mobilePreview ? 'active' : ''}`}
+              aria-pressed={mobilePreview}
+              onClick={() => onMobilePreviewChange(!mobilePreview)}
+            >
+              {mobilePreview ? <Monitor size={16} /> : <Smartphone size={16} />}
+              {mobilePreview ? 'Tắt xem trước' : 'Xem trên mobile'}
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="section-card settings-card">
         <div className="section-card-header">
           <h1 className="section-card-title">
             <span className="section-card-title-icon" aria-hidden="true">⚙️</span>
-            Cài đặt tài xế
+            Hồ sơ tài xế
           </h1>
           <span className="section-card-badge">Thông tin tài khoản</span>
         </div>
@@ -172,47 +246,36 @@ function DriverSettings({ onProfileUpdated }) {
                 value={settings.phone}
               />
             </label>
-            <label className="settings-field settings-field-wide">
-              <span>Đường dẫn ảnh đại diện</span>
-              <input
-                autoComplete="url"
-                maxLength="500"
-                name="avatarUrl"
-                onChange={updateSetting}
-                placeholder="https://..."
-                type="url"
-                value={settings.avatarUrl}
-              />
-            </label>
           </div>
 
           <div className="settings-section-heading">
-            <h2>Phương tiện giao hàng</h2>
+            <h2>Thông tin đã khai báo để xác minh</h2>
+            <p>CCCD và phương tiện được cố định sau khi gửi đăng ký. Muốn thay đổi, vui lòng liên hệ quản trị viên.</p>
+            {settings.shipperStatus && (
+              <p>
+                Trạng thái hồ sơ:{' '}
+                <strong>
+                  {settings.shipperStatus === 'approved'
+                    ? 'Đã xác minh'
+                    : settings.shipperStatus === 'pending'
+                      ? 'Đang chờ xác minh'
+                      : settings.shipperStatus === 'rejected'
+                        ? 'Không được duyệt'
+                        : settings.shipperStatus}
+                </strong>
+              </p>
+            )}
           </div>
           <div className="settings-fields-grid">
             <label className="settings-field">
-              <span>Loại xe</span>
-              <input
-                maxLength="100"
-                name="vehicle"
-                onChange={updateSetting}
-                placeholder="Ví dụ: Honda Wave"
-                value={settings.vehicle}
-              />
+              <span>Số CCCD (đã che)</span>
+              <input aria-readonly="true" readOnly value={settings.citizenIdMasked || 'Chưa có thông tin'} />
             </label>
             <label className="settings-field">
-              <span>Biển số xe</span>
-              <input
-                autoCapitalize="characters"
-                maxLength="20"
-                name="licensePlate"
-                onChange={updateSetting}
-                placeholder="Ví dụ: 29A1-123.45"
-                value={settings.licensePlate}
-              />
+              <span>Phương tiện / biển số đã khai báo</span>
+              <input aria-readonly="true" readOnly value={settings.vehicleInfo || 'Chưa có thông tin'} />
             </label>
           </div>
-
           <div className="settings-section-heading">
             <h2>Tài khoản nhận tiền</h2>
             <p>Thông tin chỉ được lưu để tham khảo; ứng dụng chưa hỗ trợ chuyển khoản.</p>

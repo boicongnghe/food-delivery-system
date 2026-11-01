@@ -4,8 +4,6 @@ export const updateDriverSettingsSchema = Joi.object({
   fullName: Joi.string().trim().min(2).max(100),
   phone: Joi.string().trim().max(20).allow(''),
   avatarUrl: Joi.string().trim().max(500).uri({ scheme: ['http', 'https'] }).allow(''),
-  vehicle: Joi.string().trim().max(100).allow(''),
-  licensePlate: Joi.string().trim().max(20).allow(''),
   bankName: Joi.string().trim().max(100).allow(''),
   bankAccountName: Joi.string().trim().max(100).allow(''),
   bankAccountNumber: Joi.string().trim().pattern(/^\d{6,20}$/).allow(''),
