@@ -1,11 +1,23 @@
 import Order from '../models/Order.js';
 import Food from '../models/Food.js';
 import Restaurant from '../models/Restaurant.js';
+import Address from '../models/Address.js';
 import PromotionRule from '../models/PromotionRule.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import ApiError from '../utils/ApiError.js';
 import { validateAndApplyPromotion } from './promotionService.js';
 import { sendRealtimeNotification } from '../socket.js';
+import User from '../models/User.js';
+import { isRestaurantOpenNow } from '../utils/openingHours.js';
+import {
+  getRouteDistanceAndDuration,
+  resolveLocationFromAddress,
+  calculateShippingFee,
+  MAX_DELIVERY_DISTANCE_KM,
+  BASE_DISTANCE_KM,
+  BASE_SHIPPING_FEE,
+  PER_KM_FEE,
+} from '../utils/distance.js';
 
 const generateOrderNumber = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -31,6 +43,17 @@ export const createOrder = async (userId, data) => {
   const restaurant = await Restaurant.findById(restaurantId);
   if (!restaurant) {
     throw new ApiError(404, 'Nhà hàng không tồn tại');
+  }
+
+  if (restaurant.status !== 'approved') {
+    throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
+  }
+
+  if (!isRestaurantOpenNow(restaurant.openingHours)) {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" hiện đang đóng cửa (ngoài giờ phục vụ). Vui lòng đặt món trong khung giờ hoạt động của quán.`,
+    );
   }
 
   // Verify and fetch fresh food prices from database (never trust client prices)
@@ -64,8 +87,59 @@ export const createOrder = async (userId, data) => {
     });
   }
 
-  // Shipping fee
-  const shippingFee = 15000;
+  // Shipping fee calculation based on GPS distance
+  let restLat = restaurant.location?.lat;
+  let restLng = restaurant.location?.lng;
+  if (restLat == null || restLng == null) {
+    const resolvedRest = await resolveLocationFromAddress(restaurant.address);
+    restLat = resolvedRest.lat;
+    restLng = resolvedRest.lng;
+  }
+
+  let destLat = deliveryAddress.location?.lat;
+  let destLng = deliveryAddress.location?.lng;
+  let destText = deliveryAddress.addressLine || '';
+
+  if ((destLat == null || destLng == null) && deliveryAddress.addressId) {
+    const savedAddress = await Address.findById(deliveryAddress.addressId);
+    if (savedAddress) {
+      destText = destText || savedAddress.addressLine;
+      if (savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
+        destLat = savedAddress.location.lat;
+        destLng = savedAddress.location.lng;
+      }
+    } else {
+      const user = await User.findOne({ 'addresses._id': deliveryAddress.addressId }, 'addresses');
+      const embedded = user?.addresses?.id(deliveryAddress.addressId);
+      if (embedded) {
+        destText =
+          destText ||
+          [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ');
+        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+          destLat = embedded.location.lat;
+          destLng = embedded.location.lng;
+        }
+      }
+    }
+  }
+
+  if ((destLat == null || destLng == null) && destText) {
+    const resolved = await resolveLocationFromAddress(destText);
+    destLat = resolved.lat;
+    destLng = resolved.lng;
+  }
+
+  const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);
+  const distanceKm = routeInfo.distanceKm;
+
+  if (distanceKm > MAX_DELIVERY_DISTANCE_KM) {
+    throw new ApiError(
+      400,
+      `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính giao hàng tối đa cho phép (${MAX_DELIVERY_DISTANCE_KM} km). Vui lòng chọn địa chỉ giao hàng gần hơn.`,
+    );
+  }
+
+  const shippingFee = calculateShippingFee(distanceKm);
 
   // Validate promotion
   let discountAmount = 0;
@@ -95,7 +169,9 @@ export const createOrder = async (userId, data) => {
       phone: deliveryAddress.phone,
       addressLine: deliveryAddress.addressLine,
       note: deliveryAddress.note || '',
+      location: destLat != null && destLng != null ? { lat: destLat, lng: destLng } : null,
     },
+    distanceKm,
     subtotal,
     shippingFee,
     promotion: {
@@ -278,4 +354,103 @@ export const progressOrderStatus = async (orderId, user, nextStatus, note = '') 
   });
 
   return order;
+};
+
+export const estimateShipping = async (userId, params) => {
+  const { restaurantId, addressId, lat, lng } = params;
+
+  if (!restaurantId) {
+    throw new ApiError(400, 'Thiếu thông tin nhà hàng (restaurantId)');
+  }
+
+  const restaurant = await Restaurant.findById(restaurantId);
+  if (!restaurant) {
+    throw new ApiError(404, 'Nhà hàng không tồn tại');
+  }
+
+  if (restaurant.status !== 'approved') {
+    throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
+  }
+
+  if (!isRestaurantOpenNow(restaurant.openingHours)) {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" hiện đang đóng cửa (ngoài giờ phục vụ). Vui lòng đặt món trong khung giờ hoạt động của quán.`,
+    );
+  }
+
+  let restLat = restaurant.location?.lat;
+  let restLng = restaurant.location?.lng;
+  if (restLat == null || restLng == null) {
+    const resolvedRest = await resolveLocationFromAddress(restaurant.address);
+    restLat = resolvedRest.lat;
+    restLng = resolvedRest.lng;
+  }
+
+  let destLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : null;
+  let destLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : null;
+  let destinationAddressText = '';
+
+  if ((destLat == null || destLng == null) && addressId) {
+    // 1. Kiểm tra trong Address collection
+    const address = await Address.findById(addressId);
+    if (address) {
+      destinationAddressText = address.addressLine;
+      if (address.location?.lat != null && address.location?.lng != null) {
+        destLat = address.location.lat;
+        destLng = address.location.lng;
+      }
+    } else {
+      // 2. Kiểm tra trong User.addresses (địa chỉ nhúng trong User)
+      const user = await User.findOne({ 'addresses._id': addressId }, 'addresses');
+      const embedded = user?.addresses?.id(addressId);
+      if (embedded) {
+        destinationAddressText = [embedded.street, embedded.ward, embedded.district, embedded.city]
+          .filter(Boolean)
+          .join(', ');
+        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+          destLat = embedded.location.lat;
+          destLng = embedded.location.lng;
+        }
+      }
+    }
+  }
+
+  // 3. Nếu địa chỉ chưa có tọa độ, tự động geocode từ tên đường qua OpenStreetMap
+  if ((destLat == null || destLng == null) && destinationAddressText) {
+    const resolved = await resolveLocationFromAddress(destinationAddressText);
+    destLat = resolved.lat;
+    destLng = resolved.lng;
+
+    // Lưu lại vào DB để lần sau truy vấn siêu tốc
+    Address.updateOne({ _id: addressId }, { $set: { location: resolved } }).catch(() => {});
+    User.updateOne({ 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
+  }
+
+  const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);
+  const distanceKm = routeInfo.distanceKm;
+  const durationMinutes = routeInfo.durationMinutes;
+
+  const isDeliverable = distanceKm <= MAX_DELIVERY_DISTANCE_KM;
+
+  let shippingFee = 0;
+  let message = null;
+
+  if (isDeliverable) {
+    shippingFee = calculateShippingFee(distanceKm);
+  } else {
+    message = `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính phục vụ tối đa (${MAX_DELIVERY_DISTANCE_KM} km).`;
+  }
+
+  return {
+    distanceKm,
+    durationMinutes,
+    shippingFee,
+    baseDistanceKm: BASE_DISTANCE_KM,
+    baseFee: BASE_SHIPPING_FEE,
+    perKmFee: PER_KM_FEE,
+    maxDistanceKm: MAX_DELIVERY_DISTANCE_KM,
+    isDeliverable,
+    message,
+  };
 };

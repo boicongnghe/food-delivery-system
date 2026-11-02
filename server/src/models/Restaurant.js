@@ -41,6 +41,10 @@ const restaurantSchema = new mongoose.Schema(
       required: [true, 'Địa chỉ là bắt buộc'],
       trim: true,
     },
+    location: {
+      lat: { type: Number, default: 21.0285 },
+      lng: { type: Number, default: 105.8542 },
+    },
     phone: {
       type: String,
       required: [true, 'Số điện thoại là bắt buộc'],

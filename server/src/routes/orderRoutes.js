@@ -83,6 +83,7 @@ router.patch(
 );
 
 // Customer / General Order endpoints
+router.get('/estimate-shipping', protect, orderController.estimateShipping);
 router.post('/', protect, orderController.createOrder);
 router.get('/', protect, orderController.getCustomerOrders);
 router.get('/:id', protect, orderController.getOrderById);

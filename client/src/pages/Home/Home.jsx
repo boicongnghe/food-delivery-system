@@ -26,6 +26,7 @@ import { useCart } from '../../context/CartContext.jsx'
 import { CATEGORIES, DISHES } from '../../data/dishesData.js'
 import { foodApi } from '../../api/foodApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
+import { isOpenNow, getOpeningHoursText } from '../../utils/openingHours.js'
 
 // Partner Restaurants Data Fallback
 const DEFAULT_PARTNERS = [
@@ -209,7 +210,8 @@ export default function Home() {
               r.image ||
               DEFAULT_PARTNERS[idx % DEFAULT_PARTNERS.length]?.image ||
               'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
-            isKitchenActive: true,
+            openingHours: r.openingHours || [],
+            isKitchenActive: isOpenNow(r.openingHours),
             promo: 'Freeship đơn từ 99k',
             signatureDishes: ['Món đặc sắc quán', 'Combo tiết kiệm'],
           }))
@@ -326,6 +328,23 @@ export default function Home() {
     })
   }
 
+  // Lấy trạng thái hoạt động (mở/đóng cửa) của quán ăn sở hữu món này
+  const getDishRestaurantStatus = (dish) => {
+    if (!dish) return { isOpen: true, hoursText: '' }
+    const partner = allPartners.find(
+      (p) =>
+        (dish.restaurantId && (p.id === dish.restaurantId || p._id === dish.restaurantId)) ||
+        (p.name &&
+          dish.restaurant &&
+          p.name.trim().toLowerCase() ===
+            (typeof dish.restaurant === 'string' ? dish.restaurant.trim().toLowerCase() : dish.restaurant?.name?.trim().toLowerCase()))
+    )
+    if (!partner) return { isOpen: true, hoursText: '' }
+    const isOpen = isOpenNow(partner.openingHours)
+    const hoursText = getOpeningHoursText(partner.openingHours)
+    return { isOpen, hoursText, partner }
+  }
+
   // Click on a dish item
   const handleDishClick = (dish) => {
     setActiveDish(dish)
@@ -349,6 +368,16 @@ export default function Home() {
       })
       return
     }
+
+    const { isOpen, hoursText } = getDishRestaurantStatus(dish)
+    if (!isOpen) {
+      toast.error(
+        `Quán "${dish.restaurant}" hiện đang đóng cửa (${hoursText || 'chưa đến giờ phục vụ'})! Quý khách vui lòng chọn món từ quán đang hoạt động.`,
+        { icon: '🛑', duration: 3500 }
+      )
+      return
+    }
+
     addToCart(dish, 1, '')
     toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
       icon: '🛒',
@@ -702,113 +731,137 @@ export default function Home() {
 
         {/* 4-Column Grid: Partner Restaurants */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {filteredPartners.map((partner) => (
-            <div
-              key={partner.id}
-              className="group relative bg-white dark:bg-[#16171E] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-black/50 hover:border-primary/40 dark:hover:border-primary/40 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
-            >
-              <div>
-                {/* Image Cover Container */}
-                <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                  <img
-                    src={partner.image}
-                    alt={partner.name}
-                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null
-                      e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80'
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+          {filteredPartners.map((partner) => {
+            const isOpen = isOpenNow(partner.openingHours)
+            const hoursText = getOpeningHoursText(partner.openingHours)
+            return (
+              <div
+                key={partner.id}
+                className={`group relative bg-white dark:bg-[#16171E] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-black/50 hover:border-primary/40 dark:hover:border-primary/40 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between ${
+                  !isOpen ? 'opacity-85' : ''
+                }`}
+              >
+                <div>
+                  {/* Image Cover Container */}
+                  <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                    <img
+                      src={partner.image}
+                      alt={partner.name}
+                      className={`w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ${!isOpen ? 'filter grayscale-[25%] contrast-90' : ''}`}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80'
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
 
-                  {/* Badge */}
-                  <span
-                    className={`absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-md backdrop-blur-sm ${partner.badgeColor}`}
-                  >
-                    {partner.badge}
-                  </span>
-
-                  {/* Live Kitchen Status Dot */}
-                  <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 text-[11px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 -ml-3.5" />
-                    <span>Bếp đang nấu</span>
-                  </span>
-
-                  {/* Rating & Distance Meta */}
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-bold">
-                    <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
-                      <Star className="w-3.5 h-3.5 fill-amber-300" />
-                      {partner.rating} ({partner.reviewsCount})
+                    {/* Badge */}
+                    <span
+                      className={`absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-md backdrop-blur-sm ${partner.badgeColor}`}
+                    >
+                      {partner.badge}
                     </span>
-                    <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-slate-200 font-medium">
-                      <Clock className="w-3.5 h-3.5" />
-                      {partner.deliveryTime}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Restaurant Content */}
-                <div className="p-5 space-y-3">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1">
-                      {partner.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                      {partner.category}
-                    </p>
-                  </div>
-
-                  {/* Promo Tag */}
-                  <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
-                    <Tag className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{partner.promo}</span>
-                  </div>
-
-                  {/* Signature Dishes List */}
-                  {partner.signatureDishes && partner.signatureDishes.length > 0 && (
-                    <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Món bán chạy:
+                    {/* Live Kitchen Status Dot */}
+                    {isOpen ? (
+                      <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 text-[11px] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 -ml-3.5" />
+                        <span>Bếp đang nấu</span>
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {partner.signatureDishes.map((dishName, i) => (
-                          <span
-                            key={i}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.04] text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-transparent dark:border-white/[0.05]"
-                          >
-                            ✓ {dishName}
-                          </span>
-                        ))}
+                    ) : (
+                      <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-950/85 border border-rose-500/40 backdrop-blur-md text-rose-300 text-[11px] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-rose-400" />
+                        <span>Đã đóng cửa</span>
+                      </span>
+                    )}
+
+                    {/* Rating & Distance Meta */}
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-bold">
+                      <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
+                        <Star className="w-3.5 h-3.5 fill-amber-300" />
+                        {partner.rating} ({partner.reviewsCount})
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-slate-200 font-medium">
+                        <Clock className="w-3.5 h-3.5" />
+                        {partner.deliveryTime}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Restaurant Content */}
+                  <div className="p-5 space-y-3">
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1">
+                        {partner.name}
+                      </h3>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                          {partner.category}
+                        </p>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                            isOpen
+                              ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
+                              : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10'
+                          }`}
+                        >
+                          {isOpen ? 'Mở cửa' : 'Đóng cửa'} ({hoursText})
+                        </span>
                       </div>
                     </div>
-                  )}
+
+                    {/* Promo Tag */}
+                    <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
+                      <Tag className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{partner.promo}</span>
+                    </div>
+
+                    {/* Signature Dishes List */}
+                    {partner.signatureDishes && partner.signatureDishes.length > 0 && (
+                      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Món bán chạy:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {partner.signatureDishes.map((dishName, i) => (
+                            <span
+                              key={i}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.04] text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-transparent dark:border-white/[0.05]"
+                            >
+                              ✓ {dishName}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Footer Actions */}
+                <div className="p-5 pt-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('all')
+                      setPriceFilter('all')
+                      const cleanQuery = partner.name.split('-')[0].trim()
+                      setSearchQuery(cleanQuery)
+                      toast.success(`Đang mở thực đơn: ${partner.name}`, { icon: '🍽️', duration: 2500 })
+                      setTimeout(() => {
+                        document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
+                      }, 50)
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-primary dark:hover:bg-primary text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white border border-transparent dark:border-white/[0.08] dark:hover:border-primary text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
+                  >
+                    <span>{isOpen ? 'Xem thực đơn quán' : 'Xem thực đơn (Tạm đóng cửa)'}</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 </div>
               </div>
-
-              {/* Card Footer Actions */}
-              <div className="p-5 pt-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory('all')
-                    setPriceFilter('all')
-                    const cleanQuery = partner.name.split('-')[0].trim()
-                    setSearchQuery(cleanQuery)
-                    toast.success(`Đang mở thực đơn: ${partner.name}`, { icon: '🍽️', duration: 2500 })
-                    setTimeout(() => {
-                      document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
-                    }, 50)
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-primary dark:hover:bg-primary text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white border border-transparent dark:border-white/[0.08] dark:hover:border-primary text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
-                >
-                  <span>Xem thực đơn quán</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -935,10 +988,13 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDishes.map((dish) => {
               const isFav = favorites.has(dish.id)
+              const { isOpen: isDishOpen, hoursText: dishHoursText } = getDishRestaurantStatus(dish)
               return (
                 <div
                   key={dish.id}
-                  className="group bg-white dark:bg-[#181A20] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between cursor-pointer"
+                  className={`group bg-white dark:bg-[#181A20] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between cursor-pointer ${
+                    !isDishOpen ? 'opacity-85' : ''
+                  }`}
                   onClick={() => handleDishClick(dish)}
                 >
                   {/* Dish Image */}
@@ -946,7 +1002,7 @@ export default function Home() {
                     <img
                       src={dish.image}
                       alt={dish.name}
-                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                      className={`w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ${!isDishOpen ? 'filter grayscale-[25%] contrast-90' : ''}`}
                       loading="lazy"
                       onError={(e) => {
                         e.currentTarget.onerror = null
@@ -956,9 +1012,16 @@ export default function Home() {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
 
                     {/* Tag Badge */}
-                    {dish.tag && (
+                    {isDishOpen && dish.tag && (
                       <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-[11px] font-extrabold shadow-md backdrop-blur-sm">
                         {dish.tag}
+                      </span>
+                    )}
+
+                    {/* Closed Badge */}
+                    {!isDishOpen && (
+                      <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-rose-600/90 text-white text-[11px] font-extrabold shadow-md backdrop-blur-sm z-10">
+                        🔴 Quán đóng cửa
                       </span>
                     )}
 
@@ -992,9 +1055,16 @@ export default function Home() {
                   {/* Content Details */}
                   <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 block truncate">
-                        {dish.restaurant}
-                      </span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                          {dish.restaurant}
+                        </span>
+                        {!isDishOpen && (
+                          <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 shrink-0">
+                            (Đóng cửa)
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1 mt-0.5">
                         {dish.name}
                       </h3>
@@ -1020,8 +1090,12 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={(e) => handleQuickAddToCart(e, dish)}
-                          className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/50 hover:bg-primary text-primary hover:text-white transition-all shadow-xs hover:scale-105 active:scale-95"
-                          title="Thêm nhanh vào giỏ"
+                          className={`p-2.5 rounded-xl transition-all shadow-xs ${
+                            !isDishOpen
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 opacity-60 cursor-not-allowed'
+                              : 'bg-orange-50 dark:bg-orange-950/50 hover:bg-primary text-primary hover:text-white hover:scale-105 active:scale-95 cursor-pointer'
+                          }`}
+                          title={!isDishOpen ? `Quán đóng cửa (${dishHoursText})` : 'Thêm nhanh vào giỏ'}
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -1031,9 +1105,13 @@ export default function Home() {
                             e.stopPropagation()
                             handleDishClick(dish)
                           }}
-                          className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white font-extrabold text-xs shadow-md shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                          className={`px-3.5 py-2.5 rounded-xl text-white font-extrabold text-xs shadow-md transition-all ${
+                            !isDishOpen
+                              ? 'bg-slate-600 dark:bg-slate-700 opacity-90'
+                              : 'bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] shadow-orange-500/20 hover:scale-105 active:scale-95'
+                          }`}
                         >
-                          Chọn món
+                          {isDishOpen ? 'Chọn món' : 'Xem món'}
                         </button>
                       </div>
                     </div>
@@ -1130,46 +1208,58 @@ export default function Home() {
       {/* ====================================================================
           6. DISH DETAIL / ORDER MODAL (PRESERVES SIZES & TOPPINGS)
           ==================================================================== */}
-      {activeDish && (
-        <DishDetailModal
-          dish={activeDish}
-          onClose={() => setActiveDish(null)}
-          onOrderSuccess={(orderData) => {
-            if (!isAuthenticated) {
-              toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
-                icon: '🔒',
-                duration: 3000,
-              })
-              navigate('/login')
-              return
-            }
-            if (user?.role !== 'customer') {
-              toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
-                icon: '⚠️',
-                duration: 3000,
-              })
-              return
-            }
+      {activeDish && (() => {
+        const { isOpen, hoursText } = getDishRestaurantStatus(activeDish)
+        return (
+          <DishDetailModal
+            dish={activeDish}
+            isRestaurantClosed={!isOpen}
+            openingHoursText={hoursText}
+            onClose={() => setActiveDish(null)}
+            onOrderSuccess={(orderData) => {
+              if (!isAuthenticated) {
+                toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
+                  icon: '🔒',
+                  duration: 3000,
+                })
+                navigate('/login')
+                return
+              }
+              if (user?.role !== 'customer') {
+                toast.error('Chỉ tài khoản Khách hàng mới có thể thêm món vào giỏ hàng!', {
+                  icon: '⚠️',
+                  duration: 3000,
+                })
+                return
+              }
 
-            // Enrich customized food with size and toppings to preserve total price in Cart
-            const customizedFood = {
-              ...orderData.dish,
-              id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${(orderData.selectedToppings || []).map((t) => t.name).join('-')}`,
-              name: orderData.selectedSize?.name
-                ? `${orderData.dish.name} (${orderData.selectedSize.name})`
-                : orderData.dish.name,
-              price: Math.round(orderData.totalPrice / (orderData.quantity || 1)),
-              selectedSize: orderData.selectedSize,
-              selectedToppings: orderData.selectedToppings,
-            }
+              if (!isOpen) {
+                toast.error(`Quán "${activeDish.restaurant}" hiện đang đóng cửa!`, {
+                  icon: '🛑',
+                })
+                return
+              }
 
-            addToCart(customizedFood, orderData.quantity, orderData.note)
-            toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
-              icon: '🛒',
-            })
-          }}
-        />
-      )}
+              // Enrich customized food with size and toppings to preserve total price in Cart
+              const customizedFood = {
+                ...orderData.dish,
+                id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${(orderData.selectedToppings || []).map((t) => t.name).join('-')}`,
+                name: orderData.selectedSize?.name
+                  ? `${orderData.dish.name} (${orderData.selectedSize.name})`
+                  : orderData.dish.name,
+                price: Math.round(orderData.totalPrice / (orderData.quantity || 1)),
+                selectedSize: orderData.selectedSize,
+                selectedToppings: orderData.selectedToppings,
+              }
+
+              addToCart(customizedFood, orderData.quantity, orderData.note)
+              toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
+                icon: '🛒',
+              })
+            }}
+          />
+        )
+      })()}
 
       {/* ====================================================================
           7. MOBILE STICKY CART BAR (FLOATING CONVERSION BAR)

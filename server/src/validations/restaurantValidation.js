@@ -59,6 +59,10 @@ export const updateRestaurantProfileSchema = Joi.object({
     'string.pattern.base': 'Số điện thoại không hợp lệ',
     'any.required': 'Số điện thoại là bắt buộc',
   }),
+  location: Joi.object({
+    lat: Joi.number().min(-90).max(90).required(),
+    lng: Joi.number().min(-180).max(180).required(),
+  }).optional(),
   categories: Joi.array().items(Joi.string().trim().max(30)).max(5).unique().default([]).messages({
     'array.max': 'Chọn tối đa 5 phân loại',
   }),

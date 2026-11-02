@@ -11,6 +11,10 @@ const addressSchema = new mongoose.Schema(
     district: { type: String, default: '', trim: true },
     city: { type: String, default: 'TP.HCM', trim: true },
     isDefault: { type: Boolean, default: false },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+    },
   },
   { _id: true, timestamps: true }
 );

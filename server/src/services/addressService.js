@@ -6,7 +6,7 @@ export const getAddressesByUser = async (userId) => {
 };
 
 export const createAddress = async (userId, data) => {
-  const { recipientName, phone, addressLine, isDefault, note } = data;
+  const { recipientName, phone, addressLine, isDefault, note, location, latitude, longitude } = data;
   if (!recipientName || !phone || !addressLine) {
     throw new ApiError(400, 'Please provide recipient name, phone, and address line');
   }
@@ -19,6 +19,13 @@ export const createAddress = async (userId, data) => {
     await Address.updateMany({ user: userId }, { isDefault: false });
   }
 
+  let resolvedLocation = null;
+  if (location && location.lat != null && location.lng != null) {
+    resolvedLocation = { lat: Number(location.lat), lng: Number(location.lng) };
+  } else if (latitude != null && longitude != null) {
+    resolvedLocation = { lat: Number(latitude), lng: Number(longitude) };
+  }
+
   const address = await Address.create({
     user: userId,
     recipientName,
@@ -26,6 +33,7 @@ export const createAddress = async (userId, data) => {
     addressLine,
     isDefault: shouldBeDefault,
     note: note || '',
+    ...(resolvedLocation ? { location: resolvedLocation } : {}),
   });
 
   return address;

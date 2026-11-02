@@ -119,6 +119,7 @@ const orderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     packagingFee: { type: Number, min: 0, default: 0 },
     shippingFee: { type: Number, min: 0, default: 0 },
+    distanceKm: { type: Number, min: 0, default: 0 },
     discount: { type: Number, min: 0, default: 0 },
     promotion: {
       code: { type: String, default: null },
@@ -133,12 +134,21 @@ const orderSchema = new mongoose.Schema(
       address: { type: String, default: '' },
       type: { type: String, enum: DELIVERY_TYPES, default: 'standard' },
       expectedAt: { type: Date, default: null },
+      distanceKm: { type: Number, min: 0, default: 0 },
+      location: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null },
+      },
     },
     deliveryAddress: {
       recipientName: { type: String, default: '' },
       phone: { type: String, default: '' },
       addressLine: { type: String, default: '' },
       note: { type: String, default: '' },
+      location: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null },
+      },
     },
     customerNote: { type: String, default: '' },
 
@@ -219,6 +229,8 @@ orderSchema.pre('validate', function () {
       address: this.deliveryAddress.addressLine || '',
       type: 'standard',
       expectedAt: null,
+      distanceKm: this.distanceKm || 0,
+      location: this.deliveryAddress.location || null,
     };
   }
   if (this.delivery && (!this.deliveryAddress || !this.deliveryAddress.addressLine)) {
@@ -227,6 +239,7 @@ orderSchema.pre('validate', function () {
       phone: this.delivery.phone || '',
       addressLine: this.delivery.address || '',
       note: this.customerNote || '',
+      location: this.delivery.location || null,
     };
   }
   syncPaymentAndCancellation(this);
