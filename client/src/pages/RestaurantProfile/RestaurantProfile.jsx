@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Check, CircleAlert, CloudCheck, Lightbulb } from 'lucide-react'
+import { Check, CircleAlert, CloudCheck, Lightbulb, RefreshCw } from 'lucide-react'
 import restaurantApi from '../../api/restaurantApi.js'
 import uploadApi from '../../api/uploadApi.js'
-import { DEFAULT_SHIFT, MAX_CATEGORIES, WEEK_DAYS } from './constants.js'
+import { DEFAULT_PREP_TIME, DEFAULT_SHIFT, MAX_CATEGORIES, WEEK_DAYS } from './constants.js'
 import ImageSection from './components/ImageSection.jsx'
 import BasicInfoSection from './components/BasicInfoSection.jsx'
 import OpeningHoursSection from './components/OpeningHoursSection.jsx'
 import PayoutAccountSection from './components/PayoutAccountSection.jsx'
+import PrepTimeSection from './components/PrepTimeSection.jsx'
 import RestaurantPreviewCard from './components/RestaurantPreviewCard.jsx'
 
 // Build editable form data from the API restaurant (or empty defaults for a new profile)
@@ -27,6 +28,7 @@ function toFormState(restaurant) {
         ? { dayOfWeek, isOpen: saved.isOpen, shifts: saved.shifts.map(({ open, close }) => ({ open, close })) }
         : { dayOfWeek, isOpen: true, shifts: [{ ...DEFAULT_SHIFT }] }
     }),
+    prepTime: restaurant?.prepTime || DEFAULT_PREP_TIME,
     payoutAccount: {
       bankName: restaurant?.payoutAccount?.bankName || '',
       accountNumber: restaurant?.payoutAccount?.accountNumber || '',
@@ -44,16 +46,40 @@ function toFieldErrors(apiErrors = []) {
   }, {})
 }
 
+// An image uploaded for a save that then failed and was abandoned: free it (the server refuses images in use)
+const discardUpload = (url) => {
+  if (url) uploadApi.deleteUnusedImage(url).catch(() => {})
+}
+
 export default function RestaurantProfile() {
   const { restaurant, setRestaurant } = useOutletContext()
 
   const [savedForm, setSavedForm] = useState(() => toFormState(restaurant))
   const [form, setForm] = useState(savedForm)
-  // Images chosen but not uploaded yet: { file, previewUrl }
+  // Images chosen but not saved yet: { file, previewUrl, uploadedUrl? }. uploadedUrl is set once uploaded,
+  // so retrying a failed save reuses the upload instead of sending the file again
   const [pendingCover, setPendingCover] = useState(null)
   const [pendingLogo, setPendingLogo] = useState(null)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  // The profile was changed elsewhere (other tab / device) after this form was loaded
+  const [conflict, setConflict] = useState(false)
+
+  // Leaving the page: free the previews and the uploads that were never saved
+  const pendingRef = useRef([])
+  useEffect(() => {
+    pendingRef.current = [pendingCover, pendingLogo]
+  }, [pendingCover, pendingLogo])
+  useEffect(
+    () => () => {
+      for (const pending of pendingRef.current) {
+        if (!pending) continue
+        URL.revokeObjectURL(pending.previewUrl)
+        discardUpload(pending.uploadedUrl)
+      }
+    },
+    [],
+  )
 
   const isDirty =
     JSON.stringify(form) !== JSON.stringify(savedForm) || Boolean(pendingCover) || Boolean(pendingLogo)
@@ -80,14 +106,21 @@ export default function RestaurantProfile() {
 
   const selectImage = (file, setPending) => {
     setPending((prev) => {
-      if (prev) URL.revokeObjectURL(prev.previewUrl)
+      if (prev) {
+        URL.revokeObjectURL(prev.previewUrl)
+        discardUpload(prev.uploadedUrl) // replaced before it was ever saved
+      }
       return { file, previewUrl: URL.createObjectURL(file) }
     })
   }
 
-  const clearPendingImages = () => {
-    if (pendingCover) URL.revokeObjectURL(pendingCover.previewUrl)
-    if (pendingLogo) URL.revokeObjectURL(pendingLogo.previewUrl)
+  // saved = the uploads now belong to the profile; otherwise they are discarded
+  const clearPendingImages = ({ saved = false } = {}) => {
+    for (const pending of [pendingCover, pendingLogo]) {
+      if (!pending) continue
+      URL.revokeObjectURL(pending.previewUrl)
+      if (!saved) discardUpload(pending.uploadedUrl)
+    }
     setPendingCover(null)
     setPendingLogo(null)
   }
@@ -98,19 +131,44 @@ export default function RestaurantProfile() {
     clearPendingImages()
   }
 
+  // Upload once; a retry after a failed save reuses the URL already uploaded
+  const uploadPending = async (pending, setPending) => {
+    if (pending.uploadedUrl) return pending.uploadedUrl
+    const url = (await uploadApi.uploadImage(pending.file, 'restaurants')).data.url
+    setPending((prev) => (prev?.file === pending.file ? { ...prev, uploadedUrl: url } : prev))
+    return url
+  }
+
+  // Conflict: load the latest saved profile (the changes typed here are dropped on purpose)
+  const reloadLatest = async () => {
+    try {
+      const response = await restaurantApi.getMyRestaurant()
+      const nextForm = toFormState(response.data)
+      setRestaurant(response.data)
+      setSavedForm(nextForm)
+      setForm(nextForm)
+      setErrors({})
+      clearPendingImages()
+      setConflict(false)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Không tải được hồ sơ mới nhất')
+    }
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     setSaving(true)
     setErrors({})
 
     try {
-      const payload = { ...form }
+      // expectedUpdatedAt: the server refuses to overwrite a profile changed after this form was loaded
+      const payload = { ...form, ...(restaurant?.updatedAt && { expectedUpdatedAt: restaurant.updatedAt }) }
       // Upload new images to Cloudinary first, then save their URLs with the profile
       if (pendingCover) {
-        payload.coverImage = (await uploadApi.uploadImage(pendingCover.file, 'restaurants')).data.url
+        payload.coverImage = await uploadPending(pendingCover, setPendingCover)
       }
       if (pendingLogo) {
-        payload.logo = (await uploadApi.uploadImage(pendingLogo.file, 'restaurants')).data.url
+        payload.logo = await uploadPending(pendingLogo, setPendingLogo)
       }
 
       const response = await restaurantApi.updateMyRestaurant(payload)
@@ -119,10 +177,12 @@ export default function RestaurantProfile() {
       setRestaurant(response.data)
       setSavedForm(nextForm)
       setForm(nextForm)
-      clearPendingImages()
+      clearPendingImages({ saved: true })
       toast.success(response.message || 'Đã lưu thay đổi')
     } catch (error) {
       const data = error.response?.data
+      // 409 without field errors = the profile was saved elsewhere meanwhile (field 409s are duplicates)
+      if (error.response?.status === 409 && !data?.errors?.length) setConflict(true)
       setErrors(toFieldErrors(data?.errors))
       toast.error(data?.message || 'Không lưu được thay đổi, vui lòng thử lại')
     } finally {
@@ -140,7 +200,7 @@ export default function RestaurantProfile() {
               <h1 className="font-serif text-3xl font-semibold text-slate-900">Hồ Sơ Nhà Hàng</h1>
               <p className="mt-1 text-sm text-slate-600">Thiết lập thông tin hiển thị trên ứng dụng thực khách</p>
             </div>
-            {restaurant?.isVerified ? (
+            {restaurant?.status === 'approved' ? (
               <span className="rounded bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
                 Đã xác thực
               </span>
@@ -150,6 +210,23 @@ export default function RestaurantProfile() {
               </span>
             )}
           </section>
+
+          {conflict && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+              <span>Hồ sơ vừa được cập nhật ở nơi khác. Tải bản mới nhất rồi chỉnh sửa lại để không ghi đè thay đổi đó.</span>
+              <button
+                type="button"
+                onClick={reloadLatest}
+                className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Tải bản mới nhất
+              </button>
+            </div>
+          )}
 
           <ImageSection
             coverUrl={coverUrl}
@@ -169,6 +246,12 @@ export default function RestaurantProfile() {
             openingHours={form.openingHours}
             error={errors.openingHours}
             onChange={(openingHours) => handleFieldChange('openingHours', openingHours)}
+          />
+
+          <PrepTimeSection
+            prepTime={form.prepTime}
+            error={errors.prepTime}
+            onChange={(prepTime) => handleFieldChange('prepTime', prepTime)}
           />
 
           <PayoutAccountSection
@@ -221,7 +304,7 @@ export default function RestaurantProfile() {
           <RestaurantPreviewCard
             form={form}
             coverUrl={coverUrl}
-            isVerified={restaurant?.isVerified}
+            isVerified={restaurant?.status === 'approved'}
             rating={restaurant?.rating || 0}
             ratingCount={restaurant?.ratingCount || 0}
           />
