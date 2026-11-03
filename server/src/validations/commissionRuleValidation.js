@@ -1,12 +1,6 @@
 import Joi from 'joi';
 import { COMMISSION_TARGETS } from '../models/CommissionRule.js';
-import { dateString, keywordQuery, objectId } from './commonValidation.js';
-
-// GET /api/admin/restaurants - restaurant picker of the rule form
-export const restaurantOptionsQuerySchema = Joi.object({
-  keyword: keywordQuery,
-  limit: Joi.number().integer().min(1).max(50).default(20),
-});
+import { dateString, objectId } from './commonValidation.js';
 
 // "Today or later" depends on whether the rule already started, so the service checks it
 export const commissionRuleSchema = Joi.object({

@@ -9,7 +9,8 @@ import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 
-const UNFINISHED_ORDER_STATUSES = ['pending', 'preparing', 'ready_for_pickup', 'delivering'];
+// confirmed: still written by the demo progress tool of the customer order screen
+const UNFINISHED_ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'];
 const STATUS_FILTERS = { all: {}, active: { isActive: true }, locked: { isActive: false } };
 
 export const listUsers = async ({ page, limit, keyword, role, status }) => {
@@ -36,7 +37,7 @@ export const listUsers = async ({ page, limit, keyword, role, status }) => {
   return { ...toPage(items, { page, limit }, totalItems), counts: { all: active + locked, active, locked } };
 };
 
-const summarizeOrders = async (match) => {
+export const summarizeOrders = async (match) => {
   const [result] = await Order.aggregate([
     { $match: match },
     {

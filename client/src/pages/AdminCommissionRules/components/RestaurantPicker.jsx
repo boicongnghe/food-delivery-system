@@ -17,8 +17,8 @@ export default function RestaurantPicker({ value, initialRestaurant, disabled, o
     let ignore = false
     commissionRuleApi
       .searchRestaurants(keyword)
-      .then((response) => {
-        if (!ignore) setOptions(response.data)
+      .then((restaurants) => {
+        if (!ignore) setOptions(restaurants)
       })
       .catch(() => {
         if (!ignore) setOptions([])

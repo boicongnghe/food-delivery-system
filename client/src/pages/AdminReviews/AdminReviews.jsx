@@ -84,7 +84,7 @@ export default function AdminReviews() {
       />
 
       <div className={ADMIN_CARD}>
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-crave-border p-5 lg:flex-row lg:items-center lg:justify-between">
           <AdminFilterTabs
             options={tabs}
             value={filters.visibility}
@@ -110,7 +110,7 @@ export default function AdminReviews() {
 
         {loading && data.items.length === 0 ? (
           <div className="flex justify-center py-16">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : data.items.length === 0 ? (
           <AdminEmptyState>Không có đánh giá phù hợp.</AdminEmptyState>

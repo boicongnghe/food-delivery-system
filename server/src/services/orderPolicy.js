@@ -3,15 +3,27 @@
 // 'banking' = bank transfer / VietQR from checkout: the money must arrive before the kitchen sees the order
 export const ONLINE_PAYMENT_METHODS = ['momo', 'vnpay', 'banking'];
 
-// Online order whose payment is not confirmed yet: the customer may still be on the payment page.
-// The restaurant must not see or cook it.
-export const AWAITING_ONLINE_PAYMENT_FILTER = {
+// Payment states of an online order whose money never arrived: still on the payment page (unpaid,
+// or pending / failed in data older than the payment field sync), or cancelled there before paying
+// (the Order model turns "unpaid" into "cancelled" on cancellation)
+const NEVER_PAID_STATUSES = ['unpaid', 'pending', 'failed', 'cancelled'];
+
+export const NEVER_PAID_ONLINE_FILTER = {
   'payment.method': { $in: ONLINE_PAYMENT_METHODS },
-  'payment.status': 'unpaid',
+  'payment.status': { $in: NEVER_PAID_STATUSES },
 };
 
-// Orders the restaurant is allowed to see on its board (anything except "still paying online")
-export const VISIBLE_TO_RESTAURANT_FILTER = { $nor: [AWAITING_ONLINE_PAYMENT_FILTER] };
+// Same rule for an order already loaded (needs payment.method and payment.status)
+export const isNeverPaidOnline = (order) =>
+  ONLINE_PAYMENT_METHODS.includes(order.payment?.method) && NEVER_PAID_STATUSES.includes(order.payment?.status);
+
+// Real orders: an abandoned online checkout is not one. Admin statistics, restaurant reports and
+// customer complaints all count with this filter so their numbers agree.
+export const PLACED_ORDER_FILTER = { $nor: [NEVER_PAID_ONLINE_FILTER] };
+
+// The restaurant sees exactly the real orders: never an online order the customer did not pay,
+// not even after the customer cancelled it on the payment page
+export const VISIBLE_TO_RESTAURANT_FILTER = PLACED_ORDER_FILTER;
 
 // Payment state that allows cooking / handing to a shipper:
 // COD -> not collected yet (shipper collects it), online -> already paid
@@ -21,3 +33,25 @@ export const PAYMENT_ALLOWS_FULFILLMENT_FILTER = {
     { 'payment.method': { $in: ONLINE_PAYMENT_METHODS }, 'payment.status': 'paid' },
   ],
 };
+
+// A paid order that gets cancelled owes the customer a refund. Cancelling only requests it:
+// payment.status stays "paid" until an admin confirms the transfer (adminOrderService.resolveRefund).
+export const refundRequestFields = (amount, at) => ({
+  'refund.status': 'pending',
+  'refund.amount': amount,
+  'refund.requestedAt': at,
+});
+
+// Moment the restaurant could first see a pending order: an online order only once it is paid
+// (the customer may spend minutes on the payment page). Needs createdAt, payment.method, payment.paidAt.
+export const waitingSince = (order) => {
+  const createdAt = new Date(order.createdAt);
+  const paidAt = order.payment?.paidAt ? new Date(order.payment.paidAt) : null;
+  return order.payment?.method !== 'cod' && paidAt && paidAt > createdAt ? paidAt : createdAt;
+};
+
+// Cancellations counted as the restaurant's fault (reject rate): its own rejections, and orders it let
+// expire without accepting (TO-03, cancelled by the system with this reason)
+export const RESTAURANT_FAULT_REASONS = ['accept_timeout'];
+export const isRestaurantFault = (cancellation) =>
+  cancellation?.by === 'restaurant' || RESTAURANT_FAULT_REASONS.includes(cancellation?.reason);

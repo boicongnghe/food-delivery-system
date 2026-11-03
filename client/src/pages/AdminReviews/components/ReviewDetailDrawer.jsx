@@ -106,18 +106,18 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
       onClose={onClose}
     >
       {loadError && (
-        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{loadError}</p>
+        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-300">{loadError}</p>
       )}
       {!review && !loadError && (
         <div className="flex justify-center py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       )}
 
       {review && (
         <>
-          <AdminSection title="Đánh giá nhà hàng" aside={<StarRating value={review.restaurantRating} emptyClassName="text-slate-700" />}>
-            <p className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
+          <AdminSection title="Đánh giá nhà hàng" aside={<StarRating value={review.restaurantRating} emptyClassName="text-slate-300 dark:text-slate-700" />}>
+            <p className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4 text-sm text-slate-800 dark:text-slate-200">
               {review.comment || <span className="italic text-slate-500">Không có nhận xét</span>}
             </p>
           </AdminSection>
@@ -125,9 +125,9 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
           {review.shipperRating && (
             <AdminSection
               title={`Đánh giá shipper ${review.shipper?.fullName || ''}`}
-              aside={<StarRating value={review.shipperRating} emptyClassName="text-slate-700" />}
+              aside={<StarRating value={review.shipperRating} emptyClassName="text-slate-300 dark:text-slate-700" />}
             >
-              <p className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
+              <p className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4 text-sm text-slate-800 dark:text-slate-200">
                 {review.shipperComment || <span className="italic text-slate-500">Không có nhận xét</span>}
               </p>
             </AdminSection>
@@ -139,7 +139,7 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
             </AdminInfoRow>
             <AdminInfoRow label="Nhà hàng">
               <span className="inline-flex items-center gap-1">
-                {review.restaurant?.name} · <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                {review.restaurant?.name} · <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-600 dark:text-amber-400" />
                 {review.restaurant?.rating} ({review.restaurant?.ratingCount} lượt)
               </span>
             </AdminInfoRow>
@@ -152,12 +152,12 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
           <AdminSection title="Kiểm duyệt">
             {review.isHidden ? (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm">
-                <p className="font-bold text-red-200">{REVIEW_HIDE_REASON_LABELS[review.moderation.reason]}</p>
-                {review.moderation.note && <p className="mt-1 text-slate-300">{review.moderation.note}</p>}
+                <p className="font-bold text-red-700 dark:text-red-200">{REVIEW_HIDE_REASON_LABELS[review.moderation.reason]}</p>
+                {review.moderation.note && <p className="mt-1 text-slate-700 dark:text-slate-300">{review.moderation.note}</p>}
                 <p className="mt-2 text-xs text-slate-500">
                   Ẩn bởi {review.moderation.by?.fullName || 'quản trị viên'} · {formatDateTime(review.moderation.at)}
                 </p>
-                <p className="mt-2 text-xs text-slate-400">Đánh giá đang ẩn không được tính vào điểm của quán và shipper.</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Đánh giá đang ẩn không được tính vào điểm của quán và shipper.</p>
               </div>
             ) : (
               <HideReviewForm

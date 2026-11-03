@@ -46,12 +46,17 @@ const toPayload = (form) => ({
 /**
  * UC41 - create / edit a promotion code (same PromotionRule that checkout applies).
  * A code already used by customers keeps its name; it can be turned off instead of deleted.
+ * Once it started (or was used) its discount terms are locked, like the server does.
  */
 export default function PromotionFormModal({ promotion, onClose, onSaved }) {
   const [form, setForm] = useState(() => toFormState(promotion))
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const isCodeLocked = promotion?.usedCount > 0
+  // Read once when the form opens; the server checks again when saving
+  const [isTermsLocked] = useState(
+    () => Boolean(promotion) && (promotion.usedCount > 0 || new Date(promotion.startDate) <= new Date()),
+  )
 
   const update = (changes) => {
     setForm((prev) => ({ ...prev, ...changes }))
@@ -65,6 +70,9 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
     if (!form.startDate) nextErrors.startDate = 'Vui lòng chọn thời gian bắt đầu'
     if (!form.endDate) nextErrors.endDate = 'Vui lòng chọn thời gian kết thúc'
     if (form.hasLimit && !Number(form.usageLimit)) nextErrors.usageLimit = 'Vui lòng nhập số lượt sử dụng'
+    if (!isTermsLocked && form.discountType === 'fixed' && Number(form.minOrderValue || 0) < Number(form.discountValue)) {
+      nextErrors.minOrderValue = 'Với mã giảm số tiền cố định, giá trị đơn tối thiểu phải từ mức giảm trở lên'
+    }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
@@ -105,6 +113,12 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
       }
     >
       <form id={FORM_ID} onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        {isTermsLocked && (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200 sm:col-span-2">
+            Mã đã bắt đầu áp dụng nên giữ nguyên điều kiện giảm giá và thời gian bắt đầu. Vẫn sửa được tên, mô tả,
+            thời gian kết thúc, số lượt và bật / tắt. Muốn đổi điều kiện, hãy tắt mã này và tạo mã mới.
+          </p>
+        )}
         <div>
           <label htmlFor="promotion-code" className={ADMIN_LABEL}>
             Mã khuyến mãi *
@@ -162,10 +176,12 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             ].map(([value, label]) => (
               <label
                 key={value}
-                className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                  isTermsLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                } ${
                   form.discountType === value
-                    ? 'border-purple-500 bg-purple-500/10 text-purple-200'
-                    : 'border-slate-700 text-slate-300 hover:border-purple-500/60'
+                    ? 'border-primary bg-primary/10 text-primary-dark dark:text-orange-200'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-primary/60'
                 }`}
               >
                 <input
@@ -173,7 +189,8 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
                   name="discountType"
                   checked={form.discountType === value}
                   onChange={() => update({ discountType: value, discountValue: '' })}
-                  className="accent-purple-500"
+                  disabled={isTermsLocked}
+                  className="accent-primary"
                 />
                 {label}
               </label>
@@ -190,6 +207,7 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             inputMode="numeric"
             value={isPercentage ? form.discountValue : formatNumber(form.discountValue)}
             onChange={(event) => update({ discountValue: parseNumberInput(event.target.value) })}
+            disabled={isTermsLocked}
             placeholder={isPercentage ? 'VD: 20' : 'VD: 30.000'}
             className={ADMIN_INPUT}
           />
@@ -206,6 +224,7 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
               inputMode="numeric"
               value={formatNumber(form.maxDiscount)}
               onChange={(event) => update({ maxDiscount: parseNumberInput(event.target.value) })}
+              disabled={isTermsLocked}
               placeholder="Để trống = không giới hạn"
               className={ADMIN_INPUT}
             />
@@ -222,6 +241,7 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             inputMode="numeric"
             value={formatNumber(form.minOrderValue)}
             onChange={(event) => update({ minOrderValue: parseNumberInput(event.target.value) })}
+            disabled={isTermsLocked}
             placeholder="0"
             className={ADMIN_INPUT}
           />
@@ -237,7 +257,8 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             type="datetime-local"
             value={form.startDate}
             onChange={(event) => update({ startDate: event.target.value })}
-            className={`${ADMIN_INPUT} [color-scheme:dark]`}
+            disabled={isTermsLocked}
+            className={`${ADMIN_INPUT} dark:[color-scheme:dark]`}
           />
           <AdminFieldError message={errors.startDate} />
         </div>
@@ -252,18 +273,18 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             min={form.startDate}
             value={form.endDate}
             onChange={(event) => update({ endDate: event.target.value })}
-            className={`${ADMIN_INPUT} [color-scheme:dark]`}
+            className={`${ADMIN_INPUT} dark:[color-scheme:dark]`}
           />
           <AdminFieldError message={errors.endDate} />
         </div>
 
         <div>
-          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
               checked={form.hasLimit}
               onChange={(event) => update({ hasLimit: event.target.checked })}
-              className="accent-purple-500"
+              className="accent-primary"
             />
             Giới hạn số lượt sử dụng
           </label>
@@ -281,12 +302,12 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
         </div>
 
         <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
               checked={form.isActive}
               onChange={(event) => update({ isActive: event.target.checked })}
-              className="accent-purple-500"
+              className="accent-primary"
             />
             Đang bật (bỏ chọn để tạm ngưng mã)
           </label>

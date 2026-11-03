@@ -62,12 +62,12 @@ Mỗi module nên có 1 người phụ trách chính (owner), làm cả backend 
 
 - [ ] API quản lý người dùng (danh sách, khóa/mở)
 - [ ] API duyệt / từ chối / đình chỉ nhà hàng
-- [ ] API xem toàn bộ đơn hàng
+- [x] API xem toàn bộ đơn hàng
 - [ ] API thống kê (số đơn, doanh thu theo ngày/tháng, top nhà hàng)
 - [ ] `AdminLayout` + trang tổng quan thống kê
 - [ ] Trang quản lý người dùng
 - [ ] Trang quản lý nhà hàng
-- [ ] Trang quản lý đơn hàng
+- [x] Trang quản lý đơn hàng (chỉ xem)
 
 ## Việc chung (cuối mỗi sprint)
 

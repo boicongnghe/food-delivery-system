@@ -2,7 +2,6 @@ import CommissionRule from '../models/CommissionRule.js';
 import Restaurant from '../models/Restaurant.js';
 import ApiError from '../utils/ApiError.js';
 import { vietnamDateString } from '../utils/date.js';
-import { escapeRegex } from '../utils/escapeRegex.js';
 
 const NO_END = '9999-12-31';
 // Reports compute past commission from the rules: these fields must not change once a rule has started
@@ -124,10 +123,4 @@ export const deleteCommissionRule = async (ruleId) => {
     );
   }
   await CommissionRule.deleteOne({ _id: ruleId });
-};
-
-// Restaurant picker of the rule form
-export const searchRestaurants = async ({ keyword, limit }) => {
-  const filter = keyword ? { name: new RegExp(escapeRegex(keyword), 'i') } : {};
-  return Restaurant.find(filter).select('name status').sort({ name: 1 }).limit(limit).lean();
 };

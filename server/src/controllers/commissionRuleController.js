@@ -42,13 +42,3 @@ export const deleteCommissionRule = asyncHandler(async (req, res) => {
     message: 'Đã xóa quy tắc hoa hồng',
   });
 });
-
-export const searchRestaurants = asyncHandler(async (req, res) => {
-  const restaurants = await commissionRuleService.searchRestaurants(req.query);
-
-  res.status(200).json({
-    success: true,
-    data: restaurants,
-    message: 'Lấy danh sách nhà hàng thành công',
-  });
-});

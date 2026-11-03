@@ -1,7 +1,6 @@
-import Food from '../models/Food.js';
-import MenuItem from '../models/MenuItem.js';
 import Restaurant from '../models/Restaurant.js';
 import Order from '../models/Order.js';
+import { getFoods } from './foodService.js';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -254,24 +253,10 @@ export const processChatMessage = async ({ message, history = [], user = null })
   const apiKey = process.env.GEMINI_API_KEY;
   const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
-  // 1. Query available dishes from MongoDB (Food model) to provide accurate ground truth context
+  // 1. Dishes customers can order right now (same catalogue as the storefront) as ground truth context
   let availableItems = [];
   try {
-    // Primary customer food catalog
-    availableItems = await Food.find({ isAvailable: true })
-      .populate('restaurant', 'name address rating image')
-      .sort({ createdAt: -1 })
-      .limit(40)
-      .lean();
-
-    // Fallback to MenuItem if Food is empty
-    if (!availableItems || availableItems.length === 0) {
-      availableItems = await MenuItem.find({ isAvailable: true })
-        .populate('restaurant', 'name address rating image')
-        .sort({ sortOrder: 1, createdAt: -1 })
-        .limit(40)
-        .lean();
-    }
+    availableItems = (await getFoods()).slice(0, 40);
   } catch (dbErr) {
     console.warn('[aiChatService] DB fetch availableItems warning:', dbErr.message);
   }

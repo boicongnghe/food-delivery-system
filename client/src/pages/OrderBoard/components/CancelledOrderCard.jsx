@@ -3,7 +3,12 @@ import OrderItemList from './OrderItemList.jsx'
 
 // Order the customer cancelled before the kitchen accepted it (read-only, shown for a few minutes)
 export default function CancelledOrderCard({ order, onView }) {
-  const isRefunded = order.payment.status === 'refunded'
+  const refundNote =
+    order.payment.status === 'refunded'
+      ? ' Khách đã được hoàn tiền.'
+      : order.refund?.status === 'pending'
+        ? ' Nền tảng sẽ hoàn tiền cho khách.'
+        : ''
 
   return (
     <article className="space-y-2 rounded-lg border-2 border-dashed border-slate-300 bg-white/70 p-4 opacity-80">
@@ -31,7 +36,7 @@ export default function CancelledOrderCard({ order, onView }) {
       <p className="flex items-start gap-1.5 text-xs text-slate-500">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         Khách đã hủy đơn trước khi quán bấm tiếp nhận.
-        {isRefunded ? ' Hệ thống đã tự hoàn tiền.' : ''}
+        {refundNote}
       </p>
     </article>
   )

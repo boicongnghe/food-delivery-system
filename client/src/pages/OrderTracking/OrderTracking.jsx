@@ -315,6 +315,19 @@ function OrderTracking() {
               }}>
                 💰 Trạng thái hoàn tiền: Đã hoàn lại {order.refundAmount?.toLocaleString('vi-VN')}đ về tài khoản ngân hàng của bạn.
               </div>
+            ) : order.refundStatus === 'pending' ? (
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #f59e0b',
+                borderRadius: 'var(--radius-sm)',
+                padding: '12px',
+                display: 'inline-block',
+                color: '#92400e',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+              }}>
+                ⏳ Trạng thái hoàn tiền: Đang xử lý hoàn {order.refundAmount?.toLocaleString('vi-VN')}đ. Bạn sẽ nhận thông báo khi tiền được chuyển trả.
+              </div>
             ) : (
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Đơn hàng chưa thanh toán - Chưa phát sinh chi phí.
@@ -374,7 +387,9 @@ function OrderTracking() {
             <span>{order.subtotal?.toLocaleString('vi-VN')}đ</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Phí vận chuyển:</span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              Phí vận chuyển {order.distanceKm ? `(${order.distanceKm} km)` : ''}:
+            </span>
             <span>{order.shippingFee?.toLocaleString('vi-VN')}đ</span>
           </div>
           {order.promotion?.discountAmount > 0 && (

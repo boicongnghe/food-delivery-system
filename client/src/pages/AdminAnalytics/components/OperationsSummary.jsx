@@ -10,8 +10,8 @@ export default function OperationsSummary({ complaints, deliveryIssues }) {
     <section className={`${ADMIN_CARD} grid gap-6 p-5 sm:grid-cols-2`}>
       <div>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white">Khiếu nại</h2>
-          <Link to="/admin/complaints" className="text-xs font-bold text-purple-300 hover:underline">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Khiếu nại</h2>
+          <Link to="/admin/complaints" className="text-xs font-bold text-primary hover:underline">
             Xử lý →
           </Link>
         </div>
@@ -26,8 +26,8 @@ export default function OperationsSummary({ complaints, deliveryIssues }) {
 
       <div>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white">Sự cố giao hàng</h2>
-          <Link to="/admin/delivery-issues" className="text-xs font-bold text-purple-300 hover:underline">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Sự cố giao hàng</h2>
+          <Link to="/admin/delivery-issues" className="text-xs font-bold text-primary hover:underline">
             Xử lý →
           </Link>
         </div>

@@ -4,6 +4,7 @@ import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { getNextSequence } from './counterService.js';
+import { PLACED_ORDER_FILTER, isNeverPaidOnline } from './orderPolicy.js';
 import {
   COMPLAINT_WINDOW_DAYS,
   FEEDBACK_ORDER_FIELDS,
@@ -30,10 +31,14 @@ const getRefundableAmount = (order) => {
 
 export const createComplaint = async (customerId, orderId, { category, description, images }) => {
   const order = await Order.findOne({ _id: orderId, customer: customerId })
-    .select('orderCode status restaurant shipper statusHistory updatedAt')
+    .select('orderCode status restaurant shipper statusHistory updatedAt payment.method payment.status')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
+  }
+  // Cancelled on the payment page: nothing was paid, cooked or delivered, so nothing to complain about
+  if (isNeverPaidOnline(order)) {
+    throw new ApiError(409, 'Đơn hàng chưa được thanh toán nên không thể khiếu nại');
   }
   if (!COMPLAINABLE_STATUSES.includes(order.status)) {
     throw new ApiError(409, 'Chỉ có thể khiếu nại đơn hàng đã giao hoặc đã hủy');
@@ -79,6 +84,7 @@ export const listComplainableOrders = async (customerId) => {
   const orders = await Order.find({
     customer: customerId,
     ...closedSinceFilter(COMPLAINABLE_STATUSES, daysAgo(COMPLAINT_WINDOW_DAYS)),
+    ...PLACED_ORDER_FILTER,
   })
     .populate('restaurant', 'name logo')
     .populate('shipper', 'fullName')
@@ -130,7 +136,7 @@ export const getComplaintDetail = async (complaintId) => {
     .populate('shipper', 'fullName phone')
     .populate(
       'order',
-      'orderCode items subtotal packagingFee shippingFee discount total delivery payment status statusHistory cancellation createdAt',
+      'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory cancellation createdAt',
     )
     .populate('resolution.by', 'fullName')
     .lean();

@@ -10,21 +10,21 @@ export default function ChartCard({ title, description, legend = [], showTable, 
     <section className={`${ADMIN_CARD} p-5`}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-white">{title}</h2>
-          {description && <p className="mt-0.5 text-xs text-slate-400">{description}</p>}
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">{title}</h2>
+          {description && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{description}</p>}
         </div>
         <button
           type="button"
           onClick={onToggleTable}
           aria-pressed={showTable}
-          className="rounded-lg px-3 py-1.5 text-xs font-bold text-purple-300 hover:bg-purple-500/10"
+          className="rounded-lg px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/10"
         >
           {showTable ? 'Xem biểu đồ' : 'Xem dạng bảng'}
         </button>
       </div>
 
       {legend.length > 1 && (
-        <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-300">
+        <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-700 dark:text-slate-300">
           {legend.map((item) => (
             <li key={item.id} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />

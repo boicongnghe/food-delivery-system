@@ -7,7 +7,7 @@ import Review from '../models/Review.js';
 import { addDays, startOfVietnamDay } from '../utils/date.js';
 import { resolveRate } from './commissionRuleService.js';
 import { countByStatus } from './feedbackPolicy.js';
-import { VISIBLE_TO_RESTAURANT_FILTER } from './orderPolicy.js';
+import { PLACED_ORDER_FILTER } from './orderPolicy.js';
 
 const MAX_DAILY_POINTS = 62; // longer ranges are grouped by month
 const TOP_RESTAURANT_COUNT = 5;
@@ -25,10 +25,11 @@ const listPeriods = (from, to, groupBy) => {
   return keys;
 };
 
-// One row per (Vietnam day, restaurant, status). Online orders never paid are abandoned checkouts, not orders.
+// One row per (Vietnam day, restaurant, status). Online orders never paid (even if cancelled later) are
+// abandoned checkouts, not orders.
 const groupOrders = (start, end) =>
   Order.aggregate([
-    { $match: { createdAt: { $gte: start, $lt: end }, ...VISIBLE_TO_RESTAURANT_FILTER } },
+    { $match: { createdAt: { $gte: start, $lt: end }, ...PLACED_ORDER_FILTER } },
     {
       $group: {
         _id: {
@@ -40,7 +41,10 @@ const groupOrders = (start, end) =>
         total: { $sum: '$total' },
         subtotal: { $sum: '$subtotal' },
         shippingFee: { $sum: '$shippingFee' },
-        discount: { $sum: '$discount' },
+        // Checkout records the voucher in promotion.discountAmount, kitchen / seed orders in discount
+        discount: {
+          $sum: { $cond: [{ $gt: ['$discount', 0] }, '$discount', { $ifNull: ['$promotion.discountAmount', 0] }] },
+        },
         refunded: { $sum: '$payment.refundAmount' },
       },
     },

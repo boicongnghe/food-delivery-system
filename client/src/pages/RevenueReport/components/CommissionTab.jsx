@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
 import { Info } from 'lucide-react'
 import reportApi from '../../../api/reportApi.js'
+import { useKeyedRequest } from '../../../hooks/useKeyedRequest.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDay } from '../../../utils/formatDate.js'
 import { SETTLEMENT_STATUS } from '../constants.js'
 import PayoutAccountInfo from './PayoutAccountInfo.jsx'
+import ReportLoadError from './ReportLoadError.jsx'
 
 const SettlementBadge = ({ status }) => (
   <span className={`inline-flex whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-semibold ${SETTLEMENT_STATUS[status].className}`}>
@@ -23,50 +23,41 @@ const Figure = ({ label, value, tone = 'text-slate-900' }) => (
 // "Chi tiết hoa hồng" tab: weekly settlement cycles and the daily breakdown behind them
 export default function CommissionTab({ range }) {
   // Previous result stays on screen (dimmed) until the one of the current range arrives
-  const requestKey = `${range.from}_${range.to}`
-  const [loaded, setLoaded] = useState({ key: null, data: null })
-  const result = loaded.data
-  const loading = loaded.key !== requestKey
-
-  useEffect(() => {
-    let ignore = false
-    reportApi
-      .getSettlements(range)
-      .then((response) => {
-        if (!ignore) setLoaded({ key: requestKey, data: response.data })
-      })
-      .catch((error) => {
-        if (ignore) return
-        toast.error(error.response?.data?.message || 'Không tải được chi tiết hoa hồng')
-        setLoaded((prev) => ({ ...prev, key: requestKey }))
-      })
-    return () => {
-      ignore = true
-    }
-  }, [range, requestKey])
+  const request = useKeyedRequest(
+    `${range.from}_${range.to}`,
+    () => reportApi.getSettlements(range).then((response) => response.data),
+    'Không tải được chi tiết hoa hồng',
+  )
+  const result = request.data
 
   if (!result) {
-    return <p className="py-16 text-center text-sm text-slate-500">Đang tải…</p>
+    return request.error ? (
+      <ReportLoadError message={request.error} onRetry={request.retry} />
+    ) : (
+      <p className="py-16 text-center text-sm text-slate-500">Đang tải…</p>
+    )
   }
 
   const { totals } = result
 
   return (
-    <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
+    <div className={`space-y-6 transition-opacity ${request.isCurrent ? '' : 'opacity-60'}`} aria-busy={request.loading}>
+      {request.error && <ReportLoadError message={request.error} stale onRetry={request.retry} />}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure label="Doanh thu gộp" value={formatCurrency(totals.grossRevenue)} />
         <Figure label={`Phí nền tảng (${totals.commissionRate}%)`} value={`−${formatCurrency(totals.platformFee)}`} tone="text-red-700" />
-        <Figure label="Đã quyết toán" value={formatCurrency(totals.settledAmount)} tone="text-emerald-700" />
-        <Figure label="Chờ chuyển khoản" value={formatCurrency(totals.pendingAmount)} tone="text-amber-700" />
+        <Figure label="Đến hạn chuyển khoản" value={formatCurrency(totals.settledAmount)} tone="text-emerald-700" />
+        <Figure label="Chưa đến kỳ" value={formatCurrency(totals.pendingAmount)} tone="text-amber-700" />
       </div>
 
       <div className="flex flex-col gap-2 rounded-xl border border-brand-soft/70 bg-brand-light/60 px-4 py-3 text-xs text-slate-600">
         <PayoutAccountInfo account={result.payoutAccount} />
         <p className="flex items-start gap-1.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
-          Quyết toán theo tuần (Thứ Hai – Chủ Nhật), chuyển khoản vào Thứ Hai tuần sau. Phí nền tảng = tiền món × tỉ lệ hoa
-          hồng của ngày đặt đơn; phí đóng gói và phí giao hàng không tính hoa hồng. Voucher hiện do nền tảng tài trợ nên quán
-          nhận đủ tiền món.
+          Quyết toán theo tuần (Thứ Hai – Chủ Nhật), chuyển khoản dự kiến vào Thứ Hai tuần sau. "Đến hạn chuyển khoản" chỉ
+          tính theo lịch, chưa phải xác nhận quán đã nhận tiền; số liệu là ước tính và có thể thay đổi khi đơn thay đổi trạng
+          thái. Phí nền tảng = tiền món × tỉ lệ hoa hồng của ngày đặt đơn; phí đóng gói và phí giao hàng không tính hoa hồng.
+          Voucher hiện do nền tảng tài trợ nên quán nhận đủ tiền món.
         </p>
       </div>
 

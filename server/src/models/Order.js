@@ -10,7 +10,7 @@ import {
 const wasSet = (doc, path) => doc.isModified(path);
 
 const LEGACY_PAYMENT_PATHS = ['paymentMethod', 'paymentStatus', 'refundStatus', 'refundAmount'];
-const CANONICAL_PAYMENT_PATHS = ['payment.method', 'payment.status', 'payment.refundAmount'];
+const CANONICAL_PAYMENT_PATHS = ['payment.method', 'payment.status', 'payment.refundAmount', 'refund.status'];
 
 /**
  * Checkout writes the legacy top-level fields, kitchen/shipper/analytics read the nested ones.
@@ -31,7 +31,7 @@ const syncPaymentAndCancellation = (doc) => {
     doc.payment.refundAmount = next.refundAmount;
   } else if (canonicalChanged || doc.isNew) {
     // New order with no payment given: the two default sets differ, nested ones are the truth
-    doc.set(legacyPaymentFromCanonical(doc.payment));
+    doc.set(legacyPaymentFromCanonical(doc.payment, doc.refund));
   }
 
   if (wasSet(doc, 'cancellation.by')) {
@@ -67,6 +67,8 @@ export const ORDER_STATUSES = [
 export const PAYMENT_METHODS = ['cod', 'momo', 'vnpay', 'banking'];
 export const PAYMENT_STATUSES = ['pending', 'unpaid', 'paid', 'failed', 'refunded', 'cancelled'];
 export const ACTOR_ROLES = ['customer', 'restaurant', 'shipper', 'system'];
+// none -> pending (paid order cancelled) -> succeeded | failed (failed can be confirmed again later)
+export const REFUND_STATUSES = ['none', 'pending', 'succeeded', 'failed'];
 export const DELIVERY_TYPES = ['express', 'standard'];
 
 const orderOptionSchema = new mongoose.Schema(
@@ -119,6 +121,7 @@ const orderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     packagingFee: { type: Number, min: 0, default: 0 },
     shippingFee: { type: Number, min: 0, default: 0 },
+    distanceKm: { type: Number, min: 0, default: 0 },
     discount: { type: Number, min: 0, default: 0 },
     promotion: {
       code: { type: String, default: null },
@@ -133,12 +136,21 @@ const orderSchema = new mongoose.Schema(
       address: { type: String, default: '' },
       type: { type: String, enum: DELIVERY_TYPES, default: 'standard' },
       expectedAt: { type: Date, default: null },
+      distanceKm: { type: Number, min: 0, default: 0 },
+      location: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null },
+      },
     },
     deliveryAddress: {
       recipientName: { type: String, default: '' },
       phone: { type: String, default: '' },
       addressLine: { type: String, default: '' },
       note: { type: String, default: '' },
+      location: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null },
+      },
     },
     customerNote: { type: String, default: '' },
 
@@ -192,6 +204,24 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // When each timeout step already ran for this order (docs/order-timeouts.md): a step runs once
+    timeouts: {
+      acceptRemindedAt: { type: Date, default: null }, // TO-02 restaurant reminded to accept
+      prepWarnedAt: { type: Date, default: null }, // TO-04 kitchen past its declared prepTime
+      prepEscalatedAt: { type: Date, default: null }, // TO-05 handed to the admin
+      shipperAlertedAt: { type: Date, default: null }, // TO-06 admin told: no shipper yet
+    },
+    // Refund owed after a paid order is cancelled. "pending" until an admin confirms the transfer with its
+    // reference; only then payment.status becomes "refunded" (no gateway refund API yet)
+    refund: {
+      status: { type: String, enum: REFUND_STATUSES, default: 'none' },
+      amount: { type: Number, min: 0, default: 0 },
+      requestedAt: { type: Date, default: null },
+      completedAt: { type: Date, default: null },
+      reference: { type: String, trim: true, default: '' },
+      note: { type: String, trim: true, default: '' },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
   },
   {
     timestamps: true,
@@ -219,6 +249,8 @@ orderSchema.pre('validate', function () {
       address: this.deliveryAddress.addressLine || '',
       type: 'standard',
       expectedAt: null,
+      distanceKm: this.distanceKm || 0,
+      location: this.deliveryAddress.location || null,
     };
   }
   if (this.delivery && (!this.deliveryAddress || !this.deliveryAddress.addressLine)) {
@@ -227,6 +259,7 @@ orderSchema.pre('validate', function () {
       phone: this.delivery.phone || '',
       addressLine: this.delivery.address || '',
       note: this.customerNote || '',
+      location: this.delivery.location || null,
     };
   }
   syncPaymentAndCancellation(this);
@@ -255,6 +288,8 @@ orderSchema.pre('validate', function () {
 
 orderSchema.index({ restaurant: 1, status: 1, createdAt: 1 });
 orderSchema.index({ status: 1, shipper: 1, readyAt: 1 });
+orderSchema.index({ status: 1, createdAt: 1 }); // timeout job: pending orders by age
+orderSchema.index({ status: 1, kitchenDueAt: 1 }); // timeout job: orders past their prep time
 
 const Order = mongoose.model('Order', orderSchema);
 

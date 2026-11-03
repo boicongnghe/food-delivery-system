@@ -9,7 +9,7 @@ Dùng **cùng quy tắc với báo cáo admin (UC44)** để hai bên luôn ra c
 | Khái niệm | Cách tính |
 | --- | --- |
 | Đơn thuộc ngày nào | Ngày **đặt đơn** theo giờ Việt Nam (UTC+7) |
-| Đơn được tính | Bỏ qua đơn online chưa thanh toán (khách bỏ dở ở trang thanh toán – quán chưa từng thấy đơn) |
+| Đơn được tính | Bỏ qua đơn online chưa từng thanh toán, kể cả khi khách đã hủy ở trang thanh toán (quán chưa từng thấy đơn). Cùng bộ lọc `PLACED_ORDER_FILTER` với báo cáo admin nên số đơn và số đơn hủy hai bên khớp nhau |
 | Doanh thu gộp | `subtotal + packagingFee` của đơn **đã giao** (`delivered`). Không gồm phí giao hàng (thuộc shipper) |
 | Tiền món / Topping | Topping = tổng giá option × số lượng; tiền món = `subtotal` − topping |
 | Phí nền tảng | `round(subtotal × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói không tính hoa hồng |
@@ -26,13 +26,14 @@ Phí nền tảng hiển thị trên từng đơn (tab Lịch sử đơn hàng, 
 | --- | --- |
 | Hoàn thành | `status = delivered` |
 | Đang xử lý | `pending`, `confirmed`, `preparing`, `ready_for_pickup`, `delivering` |
-| Khách / hệ thống hủy | `cancelled` và `cancellation.by ≠ restaurant` |
-| Quán từ chối | `cancelled` và `cancellation.by = restaurant` (tính vào tỉ lệ từ chối của quán) |
+| Khách / hệ thống hủy | `cancelled`, không phải lỗi của quán (khách hủy, hệ thống hủy vì không có shipper, admin hủy thay khách) |
+| Quán từ chối / không nhận | `cancelled` và (`cancellation.by = restaurant` **hoặc** `cancellation.reason = accept_timeout`: quán để đơn tự hủy vì không nhận kịp, TO-03). Tính vào tỉ lệ từ chối của quán |
 
 ## Quyết toán (mô phỏng, chưa có cổng thanh toán)
 
 - Chu kỳ theo tuần **Thứ Hai – Chủ Nhật** (giờ Việt Nam), chuyển khoản vào **Thứ Hai tuần sau**.
-- Hôm nay ≥ ngày chuyển khoản → **Đã quyết toán**, ngược lại → **Chờ chuyển khoản**.
+- Hôm nay ≥ ngày chuyển khoản dự kiến → **Đến hạn chuyển khoản**, ngược lại → **Chưa đến kỳ** (API giữ giá trị `settled` / `pending`).
+- Trạng thái này **chỉ tính theo lịch**, chưa phải xác nhận quán đã nhận tiền: hệ thống chưa có giao dịch chi trả (payout ledger). Số liệu được tính lại từ đơn, nên một kỳ đã "đến hạn" vẫn có thể thay đổi nếu đơn đổi trạng thái muộn (R10). Màn hình, file CSV và bản in đều ghi rõ là ước tính. Muốn có trạng thái "đã chuyển" thật cần làm tính năng chi trả riêng: lô chi trả, mã giao dịch, kỳ đã chốt không đổi, điều chỉnh bằng bút toán.
 - Ví dụ: đơn đặt 23:30 Chủ Nhật 25/10 thuộc chu kỳ 19/10–25/10, chuyển khoản 26/10; đơn đặt 00:30 Thứ Hai 26/10 thuộc chu kỳ 26/10–01/11.
 - Chu kỳ có một phần nằm ngoài khoảng ngày đang xem được đánh dấu "một phần" – tổng của nó trên màn hình không phải toàn bộ số tiền chuyển khoản.
 

@@ -86,7 +86,7 @@ export default function UserDetailDrawer({ userId, onClose, onChanged }) {
   const footer =
     detail &&
     (isSelf ? (
-      <p className="text-xs text-slate-400">Đây là tài khoản của bạn: không thể tự đổi vai trò hoặc tự khóa.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Đây là tài khoản của bạn: không thể tự đổi vai trò hoặc tự khóa.</p>
     ) : (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex-1">
@@ -137,10 +137,10 @@ export default function UserDetailDrawer({ userId, onClose, onChanged }) {
       closeDisabled={busy || Boolean(confirm)}
       onClose={onClose}
     >
-      {error && <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{error}</p>}
+      {error && <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-300">{error}</p>}
       {!detail && !error && (
         <div className="flex justify-center py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       )}
       {detail && (

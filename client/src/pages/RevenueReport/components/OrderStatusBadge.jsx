@@ -1,10 +1,12 @@
-import { CANCELLED_BY_LABELS, ORDER_STATUS_LABELS, ORDER_TAB_BADGES } from '../constants.js'
+import { CANCEL_REASON_LABELS, CANCELLED_BY_LABELS, ORDER_STATUS_LABELS, ORDER_TAB_BADGES } from '../constants.js'
 
 // Status of a report row; a cancelled order says who cancelled it
 export default function OrderStatusBadge({ order }) {
   const label =
     order.status === 'cancelled'
-      ? CANCELLED_BY_LABELS[order.cancellation?.by] || ORDER_STATUS_LABELS.cancelled
+      ? CANCEL_REASON_LABELS[order.cancellation?.reason] ||
+        CANCELLED_BY_LABELS[order.cancellation?.by] ||
+        ORDER_STATUS_LABELS.cancelled
       : ORDER_STATUS_LABELS[order.status] || order.status
 
   return (

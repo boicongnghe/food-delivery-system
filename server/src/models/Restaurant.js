@@ -18,6 +18,9 @@ const openingHourSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// Approval status of a partner profile (restaurant or shipper)
+export const PARTNER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
+
 const restaurantSchema = new mongoose.Schema(
   {
     owner: {
@@ -38,6 +41,10 @@ const restaurantSchema = new mongoose.Schema(
       required: [true, 'Địa chỉ là bắt buộc'],
       trim: true,
     },
+    location: {
+      lat: { type: Number, default: 21.0285 },
+      lng: { type: Number, default: 105.8542 },
+    },
     phone: {
       type: String,
       required: [true, 'Số điện thoại là bắt buộc'],
@@ -47,7 +54,10 @@ const restaurantSchema = new mongoose.Schema(
     logo: { type: String, default: '' },
     coverImage: { type: String, default: '' },
     image: { type: String, default: '' },
+    // No schedule = closed (TO-09). Shifts never cross midnight (decision D1, docs/order-timeouts.md)
     openingHours: { type: [openingHourSchema], default: [] },
+    // Average minutes the kitchen needs (TO-04): sets the shipper handover time of every accepted order
+    prepTime: { type: Number, min: 5, max: 120, default: 15 },
     ownerCitizenId: { type: String, default: '', trim: true },
     businessLicense: {
       fileName: { type: String, default: '' },
@@ -61,8 +71,14 @@ const restaurantSchema = new mongoose.Schema(
     ratingCount: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected', 'suspended'],
+      enum: PARTNER_STATUSES,
       default: 'pending',
+    },
+    // Last admin decision on the status (reason of a rejection / suspension)
+    statusChange: {
+      note: { type: String, trim: true, maxlength: 500, default: '' },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      at: { type: Date, default: null },
     },
     // Bank account that receives the weekly settlement (shown masked in reports)
     payoutAccount: {

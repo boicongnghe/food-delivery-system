@@ -3,6 +3,7 @@ import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
+import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
 
@@ -177,6 +178,14 @@ export const confirmPickup = async (shipperId, orderId) => {
   if (!updated) {
     throw new ApiError(409, 'Trạng thái đơn vừa thay đổi, vui lòng tải lại');
   }
+  await recordStatusChange({
+    orderId: updated._id,
+    fromStatus: 'ready_for_pickup',
+    toStatus: 'delivering',
+    role: 'shipper',
+    action: 'Shipper đã lấy hàng',
+    note: 'Đơn hàng đang trên đường giao tới bạn',
+  });
   return updated;
 };
 
@@ -320,6 +329,14 @@ export const confirmDelivered = async (shipperId, orderId) => {
       if (!dashboardUpdate.matchedCount) {
         throw new ApiError(409, 'Không thể cập nhật ví tài xế; vui lòng thử lại');
       }
+    });
+    await recordStatusChange({
+      orderId: deliveredOrder._id,
+      fromStatus: 'delivering',
+      toStatus: 'delivered',
+      role: 'shipper',
+      action: 'Giao hàng thành công',
+      note: 'Shipper đã giao món tới khách hàng',
     });
     return { order: deliveredOrder, payout };
   } finally {

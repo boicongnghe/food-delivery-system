@@ -18,9 +18,9 @@ export default function UserActivityStats({ detail }) {
     <AdminSection title={ORDER_STATS_TITLES[user.role]}>
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((tile) => (
-          <div key={tile.label} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+          <div key={tile.label} className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-3">
             <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{tile.label}</p>
-            <p className="mt-1 text-xl font-black text-white">{tile.value}</p>
+            <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{tile.value}</p>
           </div>
         ))}
       </div>

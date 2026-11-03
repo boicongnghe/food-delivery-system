@@ -26,10 +26,10 @@ const commissionRuleApi = {
     return response.data
   },
 
-  // Restaurant picker: [{ _id, name, status }]
+  // Restaurant picker, from the admin restaurant list: [{ _id, name, status, ... }]
   searchRestaurants: async (keyword) => {
     const response = await axiosClient.get('/admin/restaurants', { params: { keyword, limit: 20 } })
-    return response.data
+    return response.data.data.items
   },
 }
 

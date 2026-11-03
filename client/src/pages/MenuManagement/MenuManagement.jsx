@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { UtensilsCrossed } from 'lucide-react'
+import { RefreshCw, UtensilsCrossed, WifiOff } from 'lucide-react'
 import menuApi from '../../api/menuApi.js'
 import useDebounce from '../../hooks/useDebounce.js'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.jsx'
@@ -32,6 +32,8 @@ export default function MenuManagement() {
   const [categoryData, setCategoryData] = useState({ items: [], totalItems: 0 })
   const [menuData, setMenuData] = useState(EMPTY_MENU)
   const [loading, setLoading] = useState(true)
+  // Last load of the dish list failed: shown instead of an empty menu that looks real
+  const [itemsError, setItemsError] = useState('')
   const [filters, setFilters] = useState({ category: 'all', status: 'all', page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
@@ -71,7 +73,9 @@ export default function MenuManagement() {
     menuApi
       .getMenuItems({ ...filters, keyword, limit: PAGE_SIZE })
       .then((response) => {
-        if (!ignore) setMenuData(response.data)
+        if (ignore) return
+        setMenuData(response.data)
+        setItemsError('')
       })
       .catch((error) => {
         if (ignore) return
@@ -80,7 +84,7 @@ export default function MenuManagement() {
           setFilters((prev) => ({ ...prev, category: 'all', page: 1 }))
           return
         }
-        toast.error(getErrorMessage(error, 'Không tải được danh sách món'))
+        setItemsError(getErrorMessage(error, 'Không tải được danh sách món. Kiểm tra kết nối mạng.'))
       })
       .finally(() => {
         if (!ignore) setLoading(false)
@@ -130,7 +134,7 @@ export default function MenuManagement() {
     updateItemLocally(item._id, changes)
     try {
       const response = await request()
-      updateItemLocally(item._id, { soldOutAt: response.data.soldOutAt })
+      updateItemLocally(item._id, { soldOutAt: response.data.soldOutAt, updatedAt: response.data.updatedAt })
       toast.success(response.message)
       refresh() // counters and current tab may change
     } catch (error) {
@@ -261,6 +265,25 @@ export default function MenuManagement() {
             </span>
           </div>
 
+          {itemsError && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
+              <WifiOff className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{itemsError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true)
+                  refresh()
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Thử lại
+              </button>
+            </div>
+          )}
+
+          {itemsError && menuData === EMPTY_MENU ? null : (
           <MenuItemTable
             items={menuData.items}
             loading={loading}
@@ -274,6 +297,7 @@ export default function MenuManagement() {
             onEdit={(item) => setItemForm({ item })}
             onDelete={handleDeleteItem}
           />
+          )}
 
           <div className="border-t border-brand-soft/50 bg-brand-light/30">
             <Pagination

@@ -5,6 +5,7 @@ import * as deliveryIssueController from '../controllers/deliveryIssueController
 import * as reviewController from '../controllers/reviewController.js';
 import * as shipperOrderController from '../controllers/shipperOrderController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
+import { requireApprovedShipper } from '../middlewares/shipperMiddleware.js';
 import validate from '../middlewares/validate.js';
 import { idParamSchema } from '../validations/commonValidation.js';
 import { paginationQuerySchema } from '../validations/orderValidation.js';
@@ -21,6 +22,7 @@ router.get(
   '/available-for-pickup',
   protect,
   authorize('shipper'),
+  requireApprovedShipper,
   validate(paginationQuerySchema, 'query'),
   shipperOrderController.listAvailableForPickup,
 );
@@ -81,6 +83,7 @@ router.patch(
 );
 
 // Customer / General Order endpoints
+router.get('/estimate-shipping', protect, orderController.estimateShipping);
 router.post('/', protect, orderController.createOrder);
 router.get('/', protect, orderController.getCustomerOrders);
 router.get('/:id', protect, orderController.getOrderById);

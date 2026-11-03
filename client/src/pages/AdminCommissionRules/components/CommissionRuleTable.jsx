@@ -14,7 +14,7 @@ export default function CommissionRuleTable({ rules, onEdit, onDelete }) {
     // relative: the sr-only header text is absolutely positioned and must stay inside the scroll box
     <div className="relative overflow-x-auto">
       <table className="w-full min-w-[820px]">
-        <thead className="border-b border-slate-800">
+        <thead className="border-b border-slate-100 dark:border-crave-border">
           <tr>
             <th className={ADMIN_TABLE_HEAD}>Quy tắc</th>
             <th className={ADMIN_TABLE_HEAD}>Đối tượng</th>
@@ -27,21 +27,21 @@ export default function CommissionRuleTable({ rules, onEdit, onDelete }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/70">
+        <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {rules.map((rule) => {
             const state = RULE_STATES[rule.state]
             // A rule already used in reports cannot be deleted (only ended)
             const canDelete = rule.state === 'upcoming'
             return (
-              <tr key={rule._id} className="transition-colors hover:bg-slate-900/60">
+              <tr key={rule._id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
                 <td className={ADMIN_TABLE_CELL}>
-                  <p className="font-bold text-white">{rule.name}</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{rule.name}</p>
                   {rule.note && <p className="text-xs text-slate-500">{rule.note}</p>}
                 </td>
                 <td className={ADMIN_TABLE_CELL}>{TARGETS[rule.target].label}</td>
                 <td className={ADMIN_TABLE_CELL}>{describeScope(rule)}</td>
                 <td className={ADMIN_TABLE_CELL}>
-                  <span className="font-black text-white">{rule.rate}%</span>
+                  <span className="font-black text-slate-900 dark:text-white">{rule.rate}%</span>
                   <span className="block text-xs text-slate-500">{TARGETS[rule.target].base}</span>
                 </td>
                 <td className={ADMIN_TABLE_CELL}>
@@ -55,7 +55,7 @@ export default function CommissionRuleTable({ rules, onEdit, onDelete }) {
                     type="button"
                     onClick={() => onEdit(rule)}
                     aria-label={`Sửa ${rule.name}`}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                    className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-crave-border hover:text-slate-900 dark:hover:text-white"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -65,7 +65,7 @@ export default function CommissionRuleTable({ rules, onEdit, onDelete }) {
                     disabled={!canDelete}
                     aria-label={`Xóa ${rule.name}`}
                     title={canDelete ? 'Xóa quy tắc' : 'Quy tắc đã áp dụng: hãy đặt ngày kết thúc thay vì xóa'}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

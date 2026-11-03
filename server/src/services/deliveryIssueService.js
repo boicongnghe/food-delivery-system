@@ -105,7 +105,7 @@ export const getDeliveryIssueDetail = async (issueId) => {
     .populate('shipper', 'fullName phone email isActive')
     .populate('customer', 'fullName phone email isActive')
     .populate('restaurant', 'name phone address status owner')
-    .populate('order', 'orderCode items subtotal shippingFee total delivery payment status statusHistory createdAt')
+    .populate('order', 'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory createdAt')
     .populate('resolution.by', 'fullName')
     .lean();
   if (!issue) {
@@ -131,10 +131,14 @@ export const getDeliveryIssueDetail = async (issueId) => {
 const getPenaltyTargetUser = (issue, target) =>
   ({ shipper: issue.shipper, customer: issue.customer, restaurant: issue.restaurant.owner })[target];
 
-const applySuspension = async (issue, target) => {
+const applySuspension = async (adminId, issue, target) => {
   if (target === 'restaurant') {
-    // Same as an admin suspension: the restaurant can still finish or refund orders it already accepted
-    await Restaurant.updateOne({ _id: issue.restaurant._id }, { status: 'suspended' });
+    // Same as a suspension from the restaurant page: it can still finish or refund orders it already accepted.
+    // The reason is kept so that page shows why; reopening happens there too.
+    await Restaurant.updateOne(
+      { _id: issue.restaurant._id },
+      { status: 'suspended', statusChange: { note: `Xử phạt sự cố giao hàng ${issue.code}`, by: adminId, at: new Date() } },
+    );
     return;
   }
   // Shipper / customer: lock the account; an admin unlocks it in account management (UC37)
@@ -166,7 +170,7 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
   }
 
   if (penaltyRecord?.action === 'suspend') {
-    await applySuspension(issue, penaltyRecord.target);
+    await applySuspension(adminId, issue, penaltyRecord.target);
   }
   return getDeliveryIssueDetail(issueId);
 };

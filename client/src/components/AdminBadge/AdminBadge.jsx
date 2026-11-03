@@ -1,13 +1,13 @@
 const TONES = {
-  slate: 'border-slate-700 bg-slate-800 text-slate-300',
-  purple: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
-  amber: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-  emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  red: 'border-red-500/30 bg-red-500/10 text-red-300',
-  sky: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  slate: 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-crave-border text-slate-700 dark:text-slate-300',
+  brand: 'border-primary/30 bg-primary/10 text-primary',
+  amber: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+  emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+  red: 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300',
+  sky: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300',
 }
 
-// Small status label on the dark admin theme
+// Small status label of the admin pages
 export default function AdminBadge({ tone = 'slate', children }) {
   return (
     <span

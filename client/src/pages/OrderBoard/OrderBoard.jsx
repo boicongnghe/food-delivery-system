@@ -89,6 +89,8 @@ export default function OrderBoard() {
   const latestRequestIdRef = useRef(0)
   // Pending order IDs from the previous applied load (null = first load, do not ring)
   const knownPendingIdsRef = useRef(null)
+  // Pending orders already reminded (TO-02): the bell rings once per order when it passes acceptRemindAt
+  const remindedIdsRef = useRef(new Set())
   const soundEnabledRef = useRef(soundEnabled)
 
   useEffect(() => {
@@ -124,6 +126,17 @@ export default function OrderBoard() {
       if (soundEnabledRef.current) playNotificationSound()
     }
     knownPendingIdsRef.current = new Set(data.pending.map((order) => order._id))
+
+    const overdue = data.pending.filter(
+      (order) => Date.now() >= new Date(order.acceptRemindAt).getTime() && !remindedIdsRef.current.has(order._id),
+    )
+    if (overdue.length > 0) {
+      overdue.forEach((order) => remindedIdsRef.current.add(order._id))
+      toast.error(`${overdue.length} đơn sắp tự hủy vì chưa được nhận: ${overdue.map((order) => '#' + order.orderCode).join(', ')}`, {
+        duration: 8000,
+      })
+      if (soundEnabledRef.current) playNotificationSound()
+    }
 
     setBoard(data)
     setLastSyncedAt(Date.now())

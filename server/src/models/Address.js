@@ -22,6 +22,10 @@ const addressSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+    },
     isDefault: {
       type: Boolean,
       default: false,
