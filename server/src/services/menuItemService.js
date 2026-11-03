@@ -1,8 +1,9 @@
+import MenuCategory from '../models/MenuCategory.js';
 import MenuItem from '../models/MenuItem.js';
 import ApiError from '../utils/ApiError.js';
 import { getPublicIdFromUrl } from '../utils/cloudinaryUrl.js';
 import * as menuCategoryService from './menuCategoryService.js';
-import { deleteImageQuietly } from './uploadService.js';
+import { assertOwnUpload, deleteImageIfUnused } from './uploadService.js';
 
 // Soft-deleted items are never shown or edited
 const NOT_DELETED = { isDeleted: false };
@@ -81,12 +82,16 @@ const getNextSortOrder = async (restaurantId, categoryId) => {
   return (last?.sortOrder || 0) + 1;
 };
 
-// Remove an old Cloudinary image unless another item (incl. deleted ones kept for order history) uses it
-const cleanupReplacedImage = async (oldPublicId, newPublicId) => {
-  if (!oldPublicId || oldPublicId === newPublicId) return;
-  if (await MenuItem.exists({ imagePublicId: oldPublicId })) return;
-  await deleteImageQuietly(oldPublicId);
-};
+const CONFLICT_MESSAGE = 'Món ăn vừa được cập nhật ở nơi khác. Vui lòng tải lại để xem bản mới nhất.';
+
+const categoryDeletedError = () =>
+  new ApiError(409, 'Danh mục vừa bị xóa, vui lòng chọn danh mục khác', [
+    { field: 'category', message: 'Danh mục không tồn tại' },
+  ]);
+
+// The category is checked before the write but can be deleted in between: check it again afterwards
+const categoryStillExists = (restaurantId, categoryId) =>
+  MenuCategory.exists({ _id: categoryId, restaurant: restaurantId });
 
 export const listMenuItems = async (restaurantId, { page, limit, keyword, category, status }) => {
   // Filter without status: used for the tab counters (Tất cả / Đang bán / Hết / Đang ẩn)
@@ -125,38 +130,72 @@ export const listMenuItems = async (restaurantId, { page, limit, keyword, catego
 
 export const getMenuItem = async (restaurantId, itemId) => getMenuItemOrThrow(restaurantId, itemId);
 
-export const createMenuItem = async (restaurantId, data) => {
-  await ensureCategoryBelongsToRestaurant(restaurantId, data.category);
-  await ensureUniqueSku(restaurantId, data.sku);
+export const createMenuItem = async (restaurantId, data, ownerId) => {
+  const { expectedUpdatedAt, ...fields } = data; // only meaningful for updates
+  await ensureCategoryBelongsToRestaurant(restaurantId, fields.category);
+  await ensureUniqueSku(restaurantId, fields.sku);
+  assertOwnUpload(fields.image, ownerId, ['menu-items'], 'image');
 
-  return MenuItem.create({
-    ...data,
+  const item = await MenuItem.create({
+    ...fields,
     restaurant: restaurantId,
-    imagePublicId: getPublicIdFromUrl(data.image),
-    sortOrder: data.sortOrder ?? (await getNextSortOrder(restaurantId, data.category)),
-    soldOutAt: data.isAvailable ? null : new Date(),
+    imagePublicId: getPublicIdFromUrl(fields.image),
+    sortOrder: fields.sortOrder ?? (await getNextSortOrder(restaurantId, fields.category)),
+    soldOutAt: fields.isAvailable ? null : new Date(),
   });
+
+  if (!(await categoryStillExists(restaurantId, fields.category))) {
+    await MenuItem.deleteOne({ _id: item._id }); // brand-new item, never ordered: safe to remove
+    throw categoryDeletedError();
+  }
+  return item;
 };
 
-export const updateMenuItem = async (restaurantId, itemId, data) => {
+/**
+ * Full update from the edit form. expectedUpdatedAt = version the form was opened with: an item changed
+ * meanwhile (other tab, sold-out toggle) is refused with 409 instead of being overwritten.
+ * The write itself is conditional on the version just read, so two saves at once cannot both win.
+ */
+export const updateMenuItem = async (restaurantId, itemId, data, ownerId) => {
+  const { expectedUpdatedAt, ...fields } = data;
   const item = await getMenuItemOrThrow(restaurantId, itemId);
-  await ensureCategoryBelongsToRestaurant(restaurantId, data.category);
-  await ensureUniqueSku(restaurantId, data.sku, item._id);
-
-  const categoryChanged = String(item.category) !== String(data.category);
-  const sortOrder =
-    data.sortOrder ?? (categoryChanged ? await getNextSortOrder(restaurantId, data.category) : item.sortOrder);
-  const oldPublicId = item.imagePublicId;
-  const newPublicId = getPublicIdFromUrl(data.image);
-
-  const wasAvailable = item.isAvailable;
-  item.set({ ...data, sortOrder, imagePublicId: newPublicId });
-  if (wasAvailable !== data.isAvailable) {
-    item.soldOutAt = data.isAvailable ? null : new Date();
+  if (expectedUpdatedAt && item.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()) {
+    throw new ApiError(409, CONFLICT_MESSAGE);
+  }
+  await ensureCategoryBelongsToRestaurant(restaurantId, fields.category);
+  await ensureUniqueSku(restaurantId, fields.sku, item._id);
+  if (fields.image !== item.image) {
+    assertOwnUpload(fields.image, ownerId, ['menu-items'], 'image');
   }
 
-  const saved = await item.save();
-  await cleanupReplacedImage(oldPublicId, newPublicId); // only after the save succeeded
+  const categoryChanged = String(item.category) !== String(fields.category);
+  const update = {
+    ...fields,
+    sortOrder:
+      fields.sortOrder ?? (categoryChanged ? await getNextSortOrder(restaurantId, fields.category) : item.sortOrder),
+    imagePublicId: getPublicIdFromUrl(fields.image),
+  };
+  if (item.isAvailable !== fields.isAvailable) {
+    update.soldOutAt = fields.isAvailable ? null : new Date();
+  }
+
+  const saved = await MenuItem.findOneAndUpdate(
+    { _id: item._id, restaurant: restaurantId, ...NOT_DELETED, updatedAt: item.updatedAt },
+    { $set: update },
+    { returnDocument: 'after', runValidators: true },
+  );
+  if (!saved) {
+    throw new ApiError(409, CONFLICT_MESSAGE);
+  }
+
+  if (categoryChanged && !(await categoryStillExists(restaurantId, fields.category))) {
+    await MenuItem.updateOne({ _id: item._id }, { $set: { category: item.category, sortOrder: item.sortOrder } });
+    throw categoryDeletedError();
+  }
+  // Only after the save succeeded; kept when an order snapshot or another record still shows it
+  if (item.image !== saved.image) {
+    await deleteImageIfUnused(item.image);
+  }
   return saved;
 };
 
@@ -172,6 +211,8 @@ export const setAvailability = async (restaurantId, itemId, isAvailable) => {
             $cond: [{ $eq: ['$isAvailable', isAvailable] }, '$soldOutAt', isAvailable ? null : '$$NOW'],
           },
           isAvailable,
+          // New version: an edit form opened before this toggle must not overwrite it (R16)
+          updatedAt: '$$NOW',
         },
       },
     ],

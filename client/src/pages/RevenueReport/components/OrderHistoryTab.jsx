@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { Search } from 'lucide-react'
 import reportApi from '../../../api/reportApi.js'
 import Pagination from '../../../components/Pagination/Pagination.jsx'
+import { useKeyedRequest } from '../../../hooks/useKeyedRequest.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { ORDER_PAGE_SIZE, ORDER_TABS, PAYMENT_METHOD_LABELS } from '../constants.js'
 import OrderStatusBadge from './OrderStatusBadge.jsx'
+import ReportLoadError from './ReportLoadError.jsx'
 
 const SEARCH_DELAY_MS = 400
 const EMPTY_COUNTS = { all: 0, delivered: 0, in_progress: 0, cancelled: 0, rejected: 0 }
@@ -27,27 +28,13 @@ export default function OrderHistoryTab({ range, filters, onFiltersChange }) {
   const changePage = (nextPage) => setPageState({ filterKey, page: nextPage })
 
   // Previous page stays on screen (dimmed) until the requested one arrives
-  const requestKey = `${filterKey}_${page}`
-  const [loaded, setLoaded] = useState({ key: null, data: null })
-  const result = loaded.data
-  const loading = loaded.key !== requestKey
-
-  useEffect(() => {
-    let ignore = false
-    reportApi
-      .getOrders({ ...range, ...filters, page, limit: ORDER_PAGE_SIZE })
-      .then((response) => {
-        if (!ignore) setLoaded({ key: requestKey, data: response.data })
-      })
-      .catch((error) => {
-        if (ignore) return
-        toast.error(error.response?.data?.message || 'Không tải được lịch sử đơn hàng')
-        setLoaded((prev) => ({ ...prev, key: requestKey }))
-      })
-    return () => {
-      ignore = true
-    }
-  }, [range, filters, page, requestKey])
+  const request = useKeyedRequest(
+    `${filterKey}_${page}`,
+    () => reportApi.getOrders({ ...range, ...filters, page, limit: ORDER_PAGE_SIZE }).then((response) => response.data),
+    'Không tải được lịch sử đơn hàng',
+  )
+  const result = request.data
+  const loading = !request.isCurrent
 
   useEffect(() => () => clearTimeout(searchTimerRef.current), [])
 
@@ -93,6 +80,11 @@ export default function OrderHistoryTab({ range, filters, onFiltersChange }) {
         </label>
       </div>
 
+      {request.error && (
+        <div className="border-b border-slate-100 p-4">
+          <ReportLoadError message={request.error} stale={Boolean(result)} onRetry={request.retry} />
+        </div>
+      )}
       <div className={`overflow-x-auto transition-opacity ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
         <table className="w-full min-w-[920px] text-sm">
           <thead className="bg-brand-light/50 text-left text-xs uppercase text-slate-500">
@@ -146,7 +138,7 @@ export default function OrderHistoryTab({ range, filters, onFiltersChange }) {
         {result && result.items.length === 0 && (
           <p className="px-4 py-12 text-center text-sm text-slate-500">Không có đơn hàng nào khớp bộ lọc.</p>
         )}
-        {!result && loading && <p className="px-4 py-12 text-center text-sm text-slate-500">Đang tải…</p>}
+        {!result && request.loading && <p className="px-4 py-12 text-center text-sm text-slate-500">Đang tải…</p>}
       </div>
 
       {/* Many pages do not fit a phone: the page buttons scroll instead of the whole page */}

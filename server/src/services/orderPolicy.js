@@ -33,3 +33,25 @@ export const PAYMENT_ALLOWS_FULFILLMENT_FILTER = {
     { 'payment.method': { $in: ONLINE_PAYMENT_METHODS }, 'payment.status': 'paid' },
   ],
 };
+
+// A paid order that gets cancelled owes the customer a refund. Cancelling only requests it:
+// payment.status stays "paid" until an admin confirms the transfer (adminOrderService.resolveRefund).
+export const refundRequestFields = (amount, at) => ({
+  'refund.status': 'pending',
+  'refund.amount': amount,
+  'refund.requestedAt': at,
+});
+
+// Moment the restaurant could first see a pending order: an online order only once it is paid
+// (the customer may spend minutes on the payment page). Needs createdAt, payment.method, payment.paidAt.
+export const waitingSince = (order) => {
+  const createdAt = new Date(order.createdAt);
+  const paidAt = order.payment?.paidAt ? new Date(order.payment.paidAt) : null;
+  return order.payment?.method !== 'cod' && paidAt && paidAt > createdAt ? paidAt : createdAt;
+};
+
+// Cancellations counted as the restaurant's fault (reject rate): its own rejections, and orders it let
+// expire without accepting (TO-03, cancelled by the system with this reason)
+export const RESTAURANT_FAULT_REASONS = ['accept_timeout'];
+export const isRestaurantFault = (cancellation) =>
+  cancellation?.by === 'restaurant' || RESTAURANT_FAULT_REASONS.includes(cancellation?.reason);

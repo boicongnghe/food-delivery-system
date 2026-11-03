@@ -54,11 +54,18 @@ export const createCategory = async (restaurantId, { name, sortOrder }) => {
   }
   await ensureUniqueName(restaurantId, name);
 
-  return MenuCategory.create({
+  const category = await MenuCategory.create({
     restaurant: restaurantId,
     name,
     sortOrder: sortOrder ?? total, // append to the end by default
   });
+
+  // Two creates at once both passed the count above: the one that went over the limit is undone
+  if ((await MenuCategory.countDocuments({ restaurant: restaurantId })) > MAX_CATEGORIES) {
+    await MenuCategory.deleteOne({ _id: category._id });
+    throw new ApiError(400, `Mỗi quán tối đa ${MAX_CATEGORIES} danh mục`);
+  }
+  return category;
 };
 
 export const updateCategory = async (restaurantId, categoryId, { name, sortOrder }) => {
@@ -74,10 +81,23 @@ export const deleteCategory = async (restaurantId, categoryId) => {
   const category = await getCategoryOrThrow(restaurantId, categoryId);
 
   // Soft-deleted items do not block deleting the category (they only serve order history)
-  const itemCount = await MenuItem.countDocuments({ restaurant: restaurantId, category: category._id, isDeleted: false });
+  const countItems = () =>
+    MenuItem.countDocuments({ restaurant: restaurantId, category: category._id, isDeleted: false });
+  const notEmptyError = (count) =>
+    new ApiError(409, `Danh mục còn ${count} món. Hãy chuyển hoặc xóa các món trước khi xóa danh mục.`);
+
+  const itemCount = await countItems();
   if (itemCount > 0) {
-    throw new ApiError(409, `Danh mục còn ${itemCount} món. Hãy chuyển hoặc xóa các món trước khi xóa danh mục.`);
+    throw notEmptyError(itemCount);
   }
 
   await category.deleteOne();
+
+  // A dish may have been added or moved here between the count and the delete: put the category back
+  // (same _id) so that dish never points to a missing category. Item writes re-check on their side too.
+  const lateItems = await countItems();
+  if (lateItems > 0) {
+    await MenuCategory.collection.insertOne(category.toObject());
+    throw notEmptyError(lateItems);
+  }
 };

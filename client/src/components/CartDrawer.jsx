@@ -4,6 +4,7 @@ import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, Tag, Store, Sparkles }
 import toast from 'react-hot-toast'
 import { useCart } from '../context/CartContext.jsx'
 import useAuth from '../hooks/useAuth.js'
+import { cartLineKey } from '../utils/cartLineKey.js'
 
 function CartDrawer({ isOpen, onClose }) {
   const { cart, updateQuantity, removeFromCart, subtotal, clearCart } = useCart()
@@ -103,7 +104,7 @@ function CartDrawer({ isOpen, onClose }) {
             ) : (
               cart.items.map((item) => (
                 <div
-                  key={item.food._id || item.food.id}
+                  key={cartLineKey(item.food)}
                   className="flex gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 transition-all hover:border-orange-200 dark:hover:border-slate-700"
                 >
                   <img
@@ -133,7 +134,7 @@ function CartDrawer({ isOpen, onClose }) {
                       <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-0.5 shadow-2xs">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.food._id || item.food.id, -1)}
+                          onClick={() => updateQuantity(cartLineKey(item.food), -1)}
                           className="w-6 h-6 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors"
                           aria-label="Giảm"
                         >
@@ -144,7 +145,7 @@ function CartDrawer({ isOpen, onClose }) {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.food._id || item.food.id, 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.food), 1)}
                           className="w-6 h-6 rounded-lg text-primary hover:bg-orange-50 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
                           aria-label="Tăng"
                         >
@@ -154,7 +155,7 @@ function CartDrawer({ isOpen, onClose }) {
 
                       <button
                         type="button"
-                        onClick={() => removeFromCart(item.food._id || item.food.id)}
+                        onClick={() => removeFromCart(cartLineKey(item.food))}
                         className="text-xs font-semibold text-red-500 hover:text-red-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

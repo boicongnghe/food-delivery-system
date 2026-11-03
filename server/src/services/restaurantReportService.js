@@ -7,7 +7,7 @@ import { escapeRegex } from '../utils/escapeRegex.js';
 import { maskPhone } from '../utils/maskPhone.js';
 import { toPage } from '../utils/pagination.js';
 import { resolveRate } from './commissionRuleService.js';
-import { VISIBLE_TO_RESTAURANT_FILTER } from './orderPolicy.js';
+import { RESTAURANT_FAULT_REASONS, VISIBLE_TO_RESTAURANT_FILTER, isRestaurantFault } from './orderPolicy.js';
 
 /**
  * Revenue report of the owner's restaurant. Same rules as the admin report (UC44) so both show the same numbers:
@@ -27,13 +27,19 @@ const EXPORT_LIMIT = 5000;
 const VIETNAM_TIMEZONE = '+07:00';
 const IN_PROGRESS_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'];
 
-// Order history tabs: a restaurant rejection is the restaurant's fault, any other cancel is not
+// Order history tabs. "rejected" = the restaurant's fault: its own rejections and the orders it let expire
+// without accepting (TO-03, isRestaurantFault). Any other cancel is not its fault.
+// Wrapped in $and: the base filter already uses $or (keyword) and $nor (never-paid online orders),
+// a top-level $or / $nor here would overwrite them.
+const RESTAURANT_FAULT_FILTER = {
+  $or: [{ 'cancellation.by': 'restaurant' }, { 'cancellation.reason': { $in: RESTAURANT_FAULT_REASONS } }],
+};
 const TAB_FILTERS = {
   all: {},
   delivered: { status: 'delivered' },
   in_progress: { status: { $in: IN_PROGRESS_STATUSES } },
-  cancelled: { status: 'cancelled', 'cancellation.by': { $ne: 'restaurant' } },
-  rejected: { status: 'cancelled', 'cancellation.by': 'restaurant' },
+  cancelled: { status: 'cancelled', $and: [{ $nor: [RESTAURANT_FAULT_FILTER] }] },
+  rejected: { status: 'cancelled', $and: [RESTAURANT_FAULT_FILTER] },
 };
 
 const percentOf = (amount, rate) => Math.round((amount * rate) / 100);
@@ -56,10 +62,10 @@ const TOPPINGS_EXPR = {
   },
 };
 
-const tabOf = (status, cancelledBy) => {
+const tabOf = (status, cancellation) => {
   if (status === 'delivered') return 'delivered';
   if (status !== 'cancelled') return 'in_progress';
-  return cancelledBy === 'restaurant' ? 'rejected' : 'cancelled';
+  return isRestaurantFault(cancellation) ? 'rejected' : 'cancelled';
 };
 
 // Only the rules that can apply to this restaurant (its own + the default one)
@@ -107,7 +113,12 @@ const loadDailyStats = async (restaurantId, from, to, rules) => {
     { $match: { restaurant: restaurantId, createdAt: createdBetween(from, to), ...VISIBLE_TO_RESTAURANT_FILTER } },
     {
       $group: {
-        _id: { day: vietnamDay('$createdAt'), status: '$status', cancelledBy: '$cancellation.by' },
+        _id: {
+          day: vietnamDay('$createdAt'),
+          status: '$status',
+          cancelledBy: '$cancellation.by',
+          cancelReason: '$cancellation.reason',
+        },
         orders: { $sum: 1 },
         subtotal: { $sum: '$subtotal' },
         toppingRevenue: { $sum: TOPPINGS_EXPR },
@@ -118,10 +129,10 @@ const loadDailyStats = async (restaurantId, from, to, rules) => {
 
   const days = new Map();
   for (const group of groups) {
-    const { day, status, cancelledBy } = group._id;
+    const { day, status, cancelledBy, cancelReason } = group._id;
     const stats = days.get(day) || emptyDay(day);
     stats.totalOrders += group.orders;
-    stats[tabOf(status, cancelledBy)] += group.orders;
+    stats[tabOf(status, { by: cancelledBy, reason: cancelReason })] += group.orders;
     if (status === 'delivered') {
       stats.subtotal += group.subtotal;
       stats.toppingRevenue += group.toppingRevenue;
@@ -344,7 +355,7 @@ const deliveredAtOf = (order) =>
   [...(order.statusHistory || [])].reverse().find((entry) => entry.status === 'delivered')?.at || null;
 
 const toOrderRow = (order, rules, restaurantId) => {
-  const tab = tabOf(order.status, order.cancellation?.by);
+  const tab = tabOf(order.status, order.cancellation);
   const packagingFee = order.packagingFee || 0;
   const isDelivered = order.status === 'delivered';
   const day = vietnamDateString(order.createdAt);
@@ -389,7 +400,7 @@ const buildOrderFilter = (restaurantId, { from, to, status, keyword }) => {
       { 'deliveryAddress.recipientName': pattern },
     ];
   }
-  // TAB_FILTERS never use $or, so the keyword search above is kept
+  // TAB_FILTERS only add status / $and, so the keyword $or and the visibility $nor above are kept
   return { ...filter, ...TAB_FILTERS[status] };
 };
 
@@ -450,14 +461,19 @@ export const listOrders = async (restaurant, { from, to, status, keyword, page, 
     Order.countDocuments(filter),
     Order.aggregate([
       { $match: tabFilter },
-      { $group: { _id: { status: '$status', cancelledBy: '$cancellation.by' }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { status: '$status', cancelledBy: '$cancellation.by', cancelReason: '$cancellation.reason' },
+          count: { $sum: 1 },
+        },
+      },
     ]),
   ]);
 
   const counts = { all: 0, delivered: 0, in_progress: 0, cancelled: 0, rejected: 0 };
   for (const group of tabGroups) {
     counts.all += group.count;
-    counts[tabOf(group._id.status, group._id.cancelledBy)] += group.count;
+    counts[tabOf(group._id.status, { by: group._id.cancelledBy, reason: group._id.cancelReason })] += group.count;
   }
   return {
     ...toPage(orders.map((order) => toOrderRow(order, rules, restaurantId)), { page, limit }, totalItems),

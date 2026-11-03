@@ -1,8 +1,9 @@
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatClock } from '../../../utils/formatTime.js'
-import { CANCELLED_BY_LABELS, REJECT_REASONS } from '../constants.js'
+import { CANCELLED_BY_LABELS, REJECT_REASONS, SYSTEM_CANCEL_REASONS } from '../constants.js'
 
-const reasonLabel = (reason) => REJECT_REASONS.find((item) => item.value === reason)?.label
+const reasonLabel = (reason) =>
+  REJECT_REASONS.find((item) => item.value === reason)?.label || SYSTEM_CANCEL_REASONS[reason]
 
 // Who cancelled, why, and the refund (only for cancelled orders)
 export default function CancellationInfo({ order }) {
@@ -24,10 +25,16 @@ export default function CancellationInfo({ order }) {
           {cancellation.note}
         </p>
       )}
-      {payment.status === 'refunded' && (
+      {payment.status === 'refunded' ? (
         <p>
           Đã hoàn tiền: <strong>{formatCurrency(payment.refundAmount)}</strong>
         </p>
+      ) : (
+        ['pending', 'failed'].includes(order.refund?.status) && (
+          <p>
+            Chờ hoàn tiền cho khách: <strong>{formatCurrency(order.refund.amount)}</strong> (nền tảng xử lý)
+          </p>
+        )
       )}
     </section>
   )

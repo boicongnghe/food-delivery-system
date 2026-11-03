@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Receipt, RefreshCw } from 'lucide-react'
 import adminOrderApi from '../../api/adminOrderApi.js'
@@ -24,7 +25,10 @@ const EMPTY_LIST = {
 export default function AdminOrders() {
   const [data, setData] = useState(EMPTY_LIST)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: 'all', paymentMethod: 'all', from: '', to: '', page: 1 })
+  // ?status=attention (link of the timeout notifications) opens that tab directly
+  const [searchParams] = useSearchParams()
+  const linkedTab = ORDER_TABS.some((tab) => tab.value === searchParams.get('status')) ? searchParams.get('status') : 'all'
+  const [filters, setFilters] = useState({ status: linkedTab, paymentMethod: 'all', from: '', to: '', page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -161,7 +165,14 @@ export default function AdminOrders() {
         />
       </div>
 
-      {selectedId && <OrderDetailDrawer key={selectedId} orderId={selectedId} onClose={() => setSelectedId(null)} />}
+      {selectedId && (
+        <OrderDetailDrawer
+          key={selectedId}
+          orderId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onChanged={() => setRefreshKey((key) => key + 1)}
+        />
+      )}
     </div>
   )
 }

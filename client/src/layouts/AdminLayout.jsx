@@ -15,6 +15,7 @@ import {
   Siren,
   Sun,
   TicketPercent,
+  Timer,
   UtensilsCrossed,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
@@ -33,6 +34,7 @@ const NAV_LINKS = [
   { to: '/admin/delivery-issues', label: 'Sự cố giao hàng', icon: Siren },
   { to: '/admin/promotions', label: 'Mã khuyến mãi', icon: TicketPercent },
   { to: '/admin/commission-rules', label: 'Quy tắc hoa hồng', icon: Percent },
+  { to: '/admin/settings', label: 'Cấu hình vận hành', icon: Timer },
 ]
 
 export default function AdminLayout() {

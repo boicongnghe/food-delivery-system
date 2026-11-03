@@ -22,7 +22,7 @@ export const getMenuItem = asyncHandler(async (req, res) => {
 });
 
 export const createMenuItem = asyncHandler(async (req, res) => {
-  const item = await menuItemService.createMenuItem(req.restaurant._id, req.body);
+  const item = await menuItemService.createMenuItem(req.restaurant._id, req.body, req.user._id);
 
   res.status(201).json({
     success: true,
@@ -32,7 +32,7 @@ export const createMenuItem = asyncHandler(async (req, res) => {
 });
 
 export const updateMenuItem = asyncHandler(async (req, res) => {
-  const item = await menuItemService.updateMenuItem(req.restaurant._id, req.params.id, req.body);
+  const item = await menuItemService.updateMenuItem(req.restaurant._id, req.params.id, req.body, req.user._id);
 
   res.status(200).json({
     success: true,

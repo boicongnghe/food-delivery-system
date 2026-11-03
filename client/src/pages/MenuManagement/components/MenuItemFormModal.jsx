@@ -124,6 +124,8 @@ export default function MenuItemFormModal({ item, categories, defaultCategoryId,
     setErrors({})
     try {
       const payload = toPayload(form)
+      // Version the form was opened with: the server refuses to overwrite a dish changed meanwhile
+      if (isEdit) payload.expectedUpdatedAt = item.updatedAt
       if (pendingImage) {
         payload.image = (await uploadApi.uploadImage(pendingImage.file, 'menu-items')).data.url
         // A previous attempt uploaded another photo that was never saved -> remove it
@@ -151,6 +153,8 @@ export default function MenuItemFormModal({ item, categories, defaultCategoryId,
       }
     } catch (error) {
       const data = error.response?.data
+      // 409 without field errors: changed in another tab -> refresh the list so reopening shows the latest
+      if (error.response?.status === 409 && !data?.errors?.length) onSaved()
       setErrors(toFieldErrors(data?.errors))
       toast.error(data?.message || 'Không lưu được món ăn, vui lòng thử lại')
     } finally {

@@ -54,7 +54,10 @@ const restaurantSchema = new mongoose.Schema(
     logo: { type: String, default: '' },
     coverImage: { type: String, default: '' },
     image: { type: String, default: '' },
+    // No schedule = closed (TO-09). Shifts never cross midnight (decision D1, docs/order-timeouts.md)
     openingHours: { type: [openingHourSchema], default: [] },
+    // Average minutes the kitchen needs (TO-04): sets the shipper handover time of every accepted order
+    prepTime: { type: Number, min: 5, max: 120, default: 15 },
     ownerCitizenId: { type: String, default: '', trim: true },
     businessLicense: {
       fileName: { type: String, default: '' },

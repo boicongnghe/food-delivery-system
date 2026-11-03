@@ -43,13 +43,13 @@ export const acceptOrder = asyncHandler(async (req, res) => {
 
 export const rejectOrder = asyncHandler(async (req, res) => {
   const order = await restaurantOrderService.rejectOrder(req.restaurant._id, req.params.id, req.body);
-  const refunded = order.payment.status === 'refunded';
+  const refundRequested = order.refund.status === 'pending';
 
   res.status(200).json({
     success: true,
     data: order,
-    message: refunded
-      ? `Đã từ chối đơn ${order.orderCode} và hoàn tiền cho khách`
+    message: refundRequested
+      ? `Đã từ chối đơn ${order.orderCode}, đã tạo yêu cầu hoàn tiền cho khách`
       : `Đã từ chối đơn ${order.orderCode}`,
   });
 });

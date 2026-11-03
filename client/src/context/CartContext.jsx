@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { cartLineKey } from '../utils/cartLineKey.js'
 
 const CartContext = createContext(null)
 
@@ -60,9 +61,7 @@ export function CartProvider({ children }) {
       }
 
       // Cùng quán hoặc giỏ hàng đang trống
-      const existingIndex = prev.items.findIndex(
-        (item) => (item.food._id || item.food.id) === (food._id || food.id)
-      )
+      const existingIndex = prev.items.findIndex((item) => cartLineKey(item.food) === cartLineKey(food))
 
       let newItems = [...prev.items]
       if (existingIndex > -1) {
@@ -85,7 +84,7 @@ export function CartProvider({ children }) {
   const updateQuantity = (foodId, delta) => {
     setCart((prev) => {
       const targetIndex = prev.items.findIndex(
-        (item) => (item.food._id || item.food.id) === foodId
+        (item) => cartLineKey(item.food) === foodId
       )
       if (targetIndex === -1) return prev
 
@@ -94,7 +93,7 @@ export function CartProvider({ children }) {
 
       if (newQty <= 0) {
         newItems = prev.items.filter(
-          (item) => (item.food._id || item.food.id) !== foodId
+          (item) => cartLineKey(item.food) !== foodId
         )
       } else {
         newItems = [...prev.items]
@@ -114,7 +113,7 @@ export function CartProvider({ children }) {
   const removeFromCart = (foodId) => {
     setCart((prev) => {
       const newItems = prev.items.filter(
-        (item) => (item.food._id || item.food.id) !== foodId
+        (item) => cartLineKey(item.food) !== foodId
       )
       return {
         restaurant: newItems.length === 0 ? null : prev.restaurant,

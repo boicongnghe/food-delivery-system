@@ -41,3 +41,8 @@ export const BANK_OPTIONS = [
   'Sacombank',
   'TPBank',
 ]
+
+// TO-04 kitchen preparation time (minutes), same limits as the server
+export const PREP_TIME_MIN = 5
+export const PREP_TIME_MAX = 120
+export const DEFAULT_PREP_TIME = 15

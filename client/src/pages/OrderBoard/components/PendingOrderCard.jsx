@@ -1,6 +1,5 @@
 import { CircleCheck, X } from 'lucide-react'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
-import { LATE_AFTER_MS } from '../constants.js'
 import CustomerNote from './CustomerNote.jsx'
 import OrderCardHeader from './OrderCardHeader.jsx'
 import OrderItemList from './OrderItemList.jsx'
@@ -9,8 +8,10 @@ import RecipientLine from './RecipientLine.jsx'
 import WaitingBadge from './WaitingBadge.jsx'
 
 export default function PendingOrderCard({ order, now, busy, acceptBlockedReason, onAccept, onReject, onView }) {
-  const waitedMs = now - new Date(order.createdAt).getTime()
-  const isLate = waitedMs >= LATE_AFTER_MS
+  // Deadlines come from the server (admin settings): reminder (TO-02) and automatic cancel (TO-03)
+  const waitedMs = now - new Date(order.waitingSince || order.createdAt).getTime()
+  const isLate = now >= new Date(order.acceptRemindAt).getTime()
+  const cancelInMs = order.acceptDeadline ? new Date(order.acceptDeadline).getTime() - now : null
 
   return (
     <article
@@ -18,7 +19,7 @@ export default function PendingOrderCard({ order, now, busy, acceptBlockedReason
         isLate ? 'border-red-300 ring-1 ring-red-200' : 'border-brand-soft/70'
       }`}
     >
-      <OrderCardHeader orderCode={order.orderCode} badge={<WaitingBadge waitedMs={waitedMs} />} onView={onView} />
+      <OrderCardHeader orderCode={order.orderCode} badge={<WaitingBadge waitedMs={waitedMs} isLate={isLate} cancelInMs={cancelInMs} />} onView={onView} />
       <RecipientLine delivery={order.delivery} />
       <OrderItemList items={order.items} />
       <CustomerNote note={order.customerNote} />

@@ -1,14 +1,19 @@
+import mongoose from 'mongoose';
+import MenuItem from '../models/MenuItem.js';
 import Order from '../models/Order.js';
-import Food from '../models/Food.js';
 import Restaurant from '../models/Restaurant.js';
 import Address from '../models/Address.js';
 import PromotionRule from '../models/PromotionRule.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import ApiError from '../utils/ApiError.js';
+import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
+import { recordStatusChange } from './orderHistoryService.js';
+import { refundRequestFields } from './orderPolicy.js';
 import { validateAndApplyPromotion } from './promotionService.js';
 import { sendRealtimeNotification } from '../socket.js';
 import User from '../models/User.js';
-import { isRestaurantOpenNow } from '../utils/openingHours.js';
+import { getOrderAcceptance } from '../utils/openingHours.js';
+import { getOrderTimeouts } from './settingService.js';
 import {
   getRouteDistanceAndDuration,
   resolveLocationFromAddress,
@@ -18,6 +23,106 @@ import {
   BASE_SHIPPING_FEE,
   PER_KM_FEE,
 } from '../utils/distance.js';
+
+/**
+ * Can the restaurant take a new order right now? Approved, inside a shift (TO-09: no schedule = closed),
+ * and not within the last closingCutoff minutes of that shift (TO-10).
+ */
+const assertRestaurantTakingOrders = async (restaurant) => {
+  if (restaurant.status !== 'approved') {
+    throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
+  }
+  const { closingCutoff } = await getOrderTimeouts();
+  const acceptance = getOrderAcceptance(restaurant.openingHours, closingCutoff);
+  if (acceptance.reason === 'closed') {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" hiện đang đóng cửa (ngoài giờ phục vụ). Vui lòng đặt món trong khung giờ hoạt động của quán.`,
+    );
+  }
+  if (acceptance.reason === 'cutoff') {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" sắp đóng cửa nên đã ngừng nhận đơn mới (nhận đơn đến ${acceptance.lastOrderTime}).`,
+    );
+  }
+};
+
+const MAX_ITEM_QUANTITY = 99;
+const MAX_ITEM_NOTE_LENGTH = 200;
+
+const invalidItem = (message) => new ApiError(400, message);
+
+/**
+ * Options chosen by the customer -> the menu's own options with their current price.
+ * Required groups must be chosen, a group never exceeds maxSelect, unknown groups/options are rejected.
+ */
+const resolveItemOptions = (menuItem, selected = []) => {
+  if (!Array.isArray(selected)) throw invalidItem(`Lựa chọn của món "${menuItem.name}" không hợp lệ`);
+
+  const knownGroups = new Set(menuItem.optionGroups.map((group) => group.name));
+  const unknown = selected.find((choice) => !knownGroups.has(choice?.groupName));
+  if (unknown) {
+    throw invalidItem(`Lựa chọn "${unknown?.groupName || ''}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
+  }
+
+  const chosen = [];
+  for (const group of menuItem.optionGroups) {
+    const names = [...new Set(selected.filter((choice) => choice.groupName === group.name).map((choice) => choice.name))];
+    if (group.isRequired && names.length === 0) {
+      throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
+    }
+    if (names.length > group.maxSelect) {
+      throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
+    }
+    for (const name of names) {
+      const option = group.options.find((candidate) => candidate.name === name);
+      if (!option) {
+        throw invalidItem(`Lựa chọn "${name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
+      }
+      chosen.push({ groupName: group.name, name: option.name, price: option.price });
+    }
+  }
+  return chosen;
+};
+
+// One cart line -> order item snapshot (later menu changes never alter it)
+const buildOrderItem = async (restaurantId, item) => {
+  // menuItemId; foodId / food kept for carts saved before the menu became the only catalogue
+  const menuItemId = item.menuItemId || item.foodId || item.food;
+  if (!mongoose.isValidObjectId(menuItemId)) {
+    throw invalidItem('Món ăn trong giỏ không hợp lệ, vui lòng chọn lại');
+  }
+  const quantity = Number(item.quantity);
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) {
+    throw invalidItem(`Số lượng mỗi món phải là số nguyên từ 1 đến ${MAX_ITEM_QUANTITY}`);
+  }
+
+  const menuItem = await MenuItem.findOne({ _id: menuItemId, isDeleted: false }).lean();
+  if (!menuItem || !menuItem.isVisible) {
+    throw new ApiError(404, 'Món ăn không tồn tại hoặc đã ngừng phục vụ');
+  }
+  if (String(menuItem.restaurant) !== String(restaurantId)) {
+    throw invalidItem(`Món '${menuItem.name}' không thuộc nhà hàng đã chọn`);
+  }
+  if (!menuItem.isAvailable) {
+    throw invalidItem(`Món '${menuItem.name}' hiện tại đã hết hàng`);
+  }
+
+  const options = resolveItemOptions(menuItem, item.options);
+  const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price, 0);
+  return {
+    menuItem: menuItem._id,
+    name: menuItem.name,
+    image: menuItem.image || '',
+    price: unitPrice,
+    unitPrice,
+    quantity,
+    options,
+    note: String(item.note || '').trim().slice(0, MAX_ITEM_NOTE_LENGTH),
+    lineTotal: unitPrice * quantity,
+  };
+};
 
 const generateOrderNumber = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -45,46 +150,16 @@ export const createOrder = async (userId, data) => {
     throw new ApiError(404, 'Nhà hàng không tồn tại');
   }
 
-  if (restaurant.status !== 'approved') {
-    throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
-  }
+  await assertRestaurantTakingOrders(restaurant);
 
-  if (!isRestaurantOpenNow(restaurant.openingHours)) {
-    throw new ApiError(
-      400,
-      `Nhà hàng "${restaurant.name}" hiện đang đóng cửa (ngoài giờ phục vụ). Vui lòng đặt món trong khung giờ hoạt động của quán.`,
-    );
-  }
-
-  // Verify and fetch fresh food prices from database (never trust client prices)
+  // Prices, availability and options always come from the restaurant's menu (never trust the client)
   let subtotal = 0;
   const snapshotItems = [];
 
   for (const item of items) {
-    const food = await Food.findById(item.foodId || item.food);
-    if (!food) {
-      throw new ApiError(404, `Món ăn không tồn tại hoặc đã ngừng phục vụ`);
-    }
-
-    if (food.restaurant.toString() !== restaurantId.toString()) {
-      throw new ApiError(400, `Món '${food.name}' không thuộc nhà hàng đã chọn`);
-    }
-
-    if (!food.isAvailable) {
-      throw new ApiError(400, `Món '${food.name}' hiện tại đã hết hàng`);
-    }
-
-    const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
-    const itemTotal = food.price * quantity;
-    subtotal += itemTotal;
-
-    snapshotItems.push({
-      food: food._id,
-      name: food.name,
-      price: food.price,
-      quantity,
-      note: item.note || '',
-    });
+    const snapshot = await buildOrderItem(restaurantId, item);
+    subtotal += snapshot.lineTotal;
+    snapshotItems.push(snapshot);
   }
 
   // Shipping fee calculation based on GPS distance
@@ -174,6 +249,8 @@ export const createOrder = async (userId, data) => {
     distanceKm,
     subtotal,
     shippingFee,
+    // Same amount in both: the kitchen, reports and admin read "discount"
+    discount: discountAmount,
     promotion: {
       code: appliedPromoCode,
       discountAmount,
@@ -248,44 +325,64 @@ export const getCustomerOrders = async (userId, query = {}) => {
     .sort({ createdAt: -1 });
 };
 
+// Orders the customer may still cancel: the kitchen has not started cooking
+const CUSTOMER_CANCELLABLE_STATUSES = ['pending', 'confirmed'];
+
 export const cancelOrder = async (orderId, userId, reason) => {
-  const order = await Order.findOne({ _id: orderId, customer: userId });
+  const order = await Order.findOne({ _id: orderId, customer: userId })
+    .select('status payment total totalPrice')
+    .lean();
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
   }
-
-  // Can only cancel if order is in pending or confirmed
-  const cancellableStatuses = ['pending', 'confirmed'];
-  if (!cancellableStatuses.includes(order.status)) {
+  if (!CUSTOMER_CANCELLABLE_STATUSES.includes(order.status)) {
     throw new ApiError(400, `Không thể hủy đơn khi đang ở trạng thái '${order.status}'`);
   }
 
-  const previousStatus = order.status;
-  order.status = 'cancelled';
-  order.cancelReason = reason || 'Khách hàng yêu cầu hủy đơn';
-  order.cancelledBy = 'customer';
-  order.$locals.changedByRole = 'customer';
+  const now = new Date();
+  const amount = order.total || order.totalPrice || 0;
+  const isPaid = order.payment.status === 'paid';
+  const cancellation = {
+    by: 'customer',
+    reason: 'customer_request',
+    note: String(reason || 'Khách hàng yêu cầu hủy đơn').trim().slice(0, 300),
+    at: now,
+  };
+  // UC17: a paid order gets a refund request; the money is only "refunded" once an admin confirms the transfer
+  const paymentUpdate = isPaid ? refundRequestFields(amount, now) : { 'payment.status': 'cancelled' };
+  // findOneAndUpdate skips the model hook: write the legacy fields read by the customer screens too
+  const legacyUpdate = {
+    ...legacyPaymentFromCanonical(
+      { method: order.payment.method, status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
+      isPaid ? { status: 'pending', amount } : null,
+    ),
+    ...legacyCancellationFromCanonical(cancellation),
+  };
 
-  // Refund handling (UC17)
-  if (order.paymentStatus === 'paid') {
-    order.refundStatus = 'refunded';
-    order.refundAmount = order.totalPrice;
-  } else {
-    order.refundStatus = 'not_applicable';
+  // Conditional on the status and payment just read: if the kitchen accepts at the same moment,
+  // only one of the two requests wins (no cancelling an order that is already cooking)
+  const cancelled = await Order.findOneAndUpdate(
+    { _id: orderId, customer: userId, status: order.status, 'payment.status': order.payment.status },
+    {
+      $set: { status: 'cancelled', cancellation, ...paymentUpdate, ...legacyUpdate },
+      $push: { statusHistory: { status: 'cancelled', at: now, byRole: 'customer' } },
+    },
+    { returnDocument: 'after', runValidators: true },
+  );
+  if (!cancelled) {
+    throw new ApiError(409, 'Đơn hàng vừa thay đổi trạng thái (quán có thể đã nhận đơn). Vui lòng tải lại.');
   }
 
-  await order.save();
-
-  await OrderStatusHistory.create({
-    order: order._id,
-    fromStatus: previousStatus,
+  await recordStatusChange({
+    orderId: cancelled._id,
+    fromStatus: order.status,
     toStatus: 'cancelled',
-    action: order.refundStatus === 'refunded' ? 'Hủy đơn & Hoàn tiền' : 'Hủy đơn',
-    note: order.cancelReason + (order.refundStatus === 'refunded' ? ` (Đã hoàn lại ${order.totalPrice.toLocaleString('vi-VN')}đ)` : ''),
-    changedByRole: 'customer',
+    role: 'customer',
+    action: isPaid ? 'Hủy đơn - chờ hoàn tiền' : 'Hủy đơn',
+    note: cancellation.note + (isPaid ? ` (Sẽ hoàn ${amount.toLocaleString('vi-VN')}đ)` : ''),
   });
 
-  return order;
+  return cancelled;
 };
 
 export const receiveOrder = async (orderId, userId) => {
@@ -368,16 +465,7 @@ export const estimateShipping = async (userId, params) => {
     throw new ApiError(404, 'Nhà hàng không tồn tại');
   }
 
-  if (restaurant.status !== 'approved') {
-    throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
-  }
-
-  if (!isRestaurantOpenNow(restaurant.openingHours)) {
-    throw new ApiError(
-      400,
-      `Nhà hàng "${restaurant.name}" hiện đang đóng cửa (ngoài giờ phục vụ). Vui lòng đặt món trong khung giờ hoạt động của quán.`,
-    );
-  }
+  await assertRestaurantTakingOrders(restaurant);
 
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
