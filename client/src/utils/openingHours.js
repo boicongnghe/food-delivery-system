@@ -1,4 +1,14 @@
 const pad = (value) => String(value).padStart(2, '0')
+const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000 // UTC+7, no daylight saving
+
+// Day of week and "HH:mm" in Vietnam, whatever the timezone of the viewer's device (same rule as the server)
+const vietnamClock = (now) => {
+  const vietnamTime = new Date(now.getTime() + VIETNAM_OFFSET_MS)
+  return {
+    day: vietnamTime.getUTCDay(),
+    time: `${pad(vietnamTime.getUTCHours())}:${pad(vietnamTime.getUTCMinutes())}`,
+  }
+}
 
 /**
  * Kiểm tra xem quán ăn có đang mở cửa tại thời điểm hiện tại hay không.
@@ -7,28 +17,20 @@ const pad = (value) => String(value).padStart(2, '0')
  * @returns {boolean}
  */
 export function isOpenNow(openingHours = [], now = new Date()) {
-  if (!Array.isArray(openingHours) || openingHours.length === 0) {
-    // Mặc định mở nếu quán chưa thiết lập lịch
-    return true
-  }
+  // TO-09: no schedule (or broken data) = closed, same rule as the server
+  if (!Array.isArray(openingHours) || openingHours.length === 0) return false
 
-  const currentDay = now.getDay()
+  const { day: currentDay, time: currentTime } = vietnamClock(now)
   const today = openingHours.find((day) => day.dayOfWeek === currentDay)
 
   if (!today || today.isOpen === false || !Array.isArray(today.shifts) || today.shifts.length === 0) {
     return false
   }
 
-  const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`
-  return today.shifts.some((shift) => {
-    if (!shift.open || !shift.close) return false
-    if (shift.open <= shift.close) {
-      return currentTime >= shift.open && currentTime < shift.close
-    } else {
-      // Ca phục vụ qua đêm (ví dụ: 18:00 - 02:00)
-      return currentTime >= shift.open || currentTime < shift.close
-    }
-  })
+  // Decision D1: shifts never cross midnight (the profile form requires close > open)
+  return today.shifts.some(
+    (shift) => shift.open && shift.close && shift.open < shift.close && currentTime >= shift.open && currentTime < shift.close,
+  )
 }
 
 /**
@@ -39,10 +41,10 @@ export function isOpenNow(openingHours = [], now = new Date()) {
  */
 export function getOpeningHoursText(openingHours = [], now = new Date()) {
   if (!Array.isArray(openingHours) || openingHours.length === 0) {
-    return '06:00 - 23:00'
+    return 'Chưa có lịch mở cửa'
   }
 
-  const currentDay = now.getDay()
+  const currentDay = vietnamClock(now).day
   const today = openingHours.find((day) => day.dayOfWeek === currentDay)
 
   if (!today || today.isOpen === false || !Array.isArray(today.shifts) || today.shifts.length === 0) {

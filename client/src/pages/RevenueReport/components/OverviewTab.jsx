@@ -61,7 +61,7 @@ export default function OverviewTab({ report, onOpenTab }) {
           <CalendarClock className="h-4 w-4 text-brand" aria-hidden="true" />
           Chu kỳ tuần này ({formatDay(currentCycle.from)} – {formatDay(currentCycle.to)}):
           <b className="tabular-nums text-slate-900">{formatCurrency(currentCycle.netRevenue)}</b>
-          từ {currentCycle.deliveredOrders} đơn · chuyển khoản ngày {formatDay(currentCycle.payoutDate)}
+          từ {currentCycle.deliveredOrders} đơn · dự kiến chuyển khoản ngày {formatDay(currentCycle.payoutDate)}
         </p>
         <PayoutAccountInfo account={report.payoutAccount} />
       </div>
