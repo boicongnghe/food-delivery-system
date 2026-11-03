@@ -19,6 +19,9 @@ export const ORDER_TABS = [
   { value: 'delivering', label: 'Đang giao' },
   { value: 'delivered', label: 'Đã giao' },
   { value: 'cancelled', label: 'Đã hủy' },
+  { value: 'refund_pending', label: 'Chờ hoàn tiền' },
+  // Handed to the admin by a timeout rule: kitchen far past its prep time (TO-05), no shipper (TO-06)
+  { value: 'attention', label: 'Cần xử lý' },
 ]
 
 export const PAYMENT_METHOD_LABELS = {
@@ -38,3 +41,10 @@ export const PAYMENT_STATUS_LABELS = {
 }
 
 export const ACTOR_LABELS = { customer: 'Khách hàng', restaurant: 'Nhà hàng', shipper: 'Shipper', system: 'Hệ thống' }
+
+// Refund owed after a paid order was cancelled (server: Order.refund.status)
+export const REFUND_STATUSES = {
+  pending: { label: 'Chờ hoàn tiền', tone: 'amber' },
+  failed: { label: 'Hoàn tiền thất bại', tone: 'red' },
+  succeeded: { label: 'Đã hoàn tiền', tone: 'emerald' },
+}

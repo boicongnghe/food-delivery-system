@@ -4,6 +4,7 @@ import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+import { hasOpeningSchedule } from '../utils/openingHours.js';
 import { toPage } from '../utils/pagination.js';
 import { summarizeOrders } from './adminUserService.js';
 import { countByStatus } from './feedbackPolicy.js';
@@ -48,6 +49,8 @@ const restaurantChecks = (restaurant, owner) => [
     required: true,
   },
   { key: 'businessItems', label: 'Món ăn / Mặt hàng quán muốn kinh doanh', ok: isFilled(restaurant.description), required: true },
+  // TO-09: no schedule = closed, so the restaurant is never shown or approved without one
+  { key: 'openingHours', label: 'Lịch mở cửa (ít nhất 1 ca trong tuần)', ok: hasOpeningSchedule(restaurant.openingHours), required: true },
   {
     key: 'ownerCitizenId',
     label: 'Số CCCD của chủ quán (9-12 chữ số)',
@@ -94,6 +97,8 @@ const PARTNERS = {
     searchFields: ['name', 'address', 'phone'],
     getChecks: restaurantChecks,
     getOrderMatch: (restaurant) => ({ restaurant: restaurant._id }),
+    // The "Đã xác thực" badge of the restaurant follows the admin decision
+    statusExtras: (status) => ({ isVerified: status === 'approved' }),
   },
   shipper: {
     Model: Shipper,
@@ -177,7 +182,7 @@ const changePartnerStatus = async (config, adminId, id, { status, note }) => {
   // Conditional on the status just checked: two admins deciding at once cannot both win
   const updated = await config.Model.findOneAndUpdate(
     { _id: id, status: partner.status },
-    { $set: { status, statusChange: { note, by: adminId, at: new Date() } } },
+    { $set: { status, statusChange: { note, by: adminId, at: new Date() }, ...config.statusExtras?.(status) } },
   );
   if (!updated) {
     throw new ApiError(409, 'Hồ sơ vừa được người khác cập nhật, vui lòng tải lại');

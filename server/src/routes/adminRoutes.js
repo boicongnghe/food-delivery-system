@@ -9,14 +9,16 @@ import * as complaintController from '../controllers/complaintController.js';
 import * as deliveryIssueController from '../controllers/deliveryIssueController.js';
 import * as promotionRuleController from '../controllers/promotionRuleController.js';
 import * as reviewController from '../controllers/reviewController.js';
+import * as settingController from '../controllers/settingController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import validate from '../middlewares/validate.js';
-import { adminOrderQuerySchema } from '../validations/adminOrderValidation.js';
+import { adminCancelOrderSchema, adminOrderQuerySchema, refundResolutionSchema } from '../validations/adminOrderValidation.js';
 import { adminUserQuerySchema, updateUserRoleSchema, updateUserStatusSchema } from '../validations/adminUserValidation.js';
 import { partnerQuerySchema, partnerStatusSchema } from '../validations/adminValidation.js';
 import { analyticsQuerySchema } from '../validations/analyticsValidation.js';
 import { commissionRuleSchema } from '../validations/commissionRuleValidation.js';
 import { idParamSchema } from '../validations/commonValidation.js';
+import { orderTimeoutSettingsSchema } from '../validations/settingValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
 import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
@@ -41,9 +43,15 @@ router.get('/shippers', validate(partnerQuerySchema, 'query'), adminPartnerContr
 router.get('/shippers/:id', validateId, adminPartnerController.getShipperDetail);
 router.patch('/shippers/:id/status', validateId, validate(partnerStatusSchema), adminPartnerController.changeShipperStatus);
 
-// Platform orders - read only
+// Platform orders - read, and record the result of a refund transfer (R06)
 router.get('/orders', validate(adminOrderQuerySchema, 'query'), adminOrderController.listOrders);
 router.get('/orders/:id', validateId, adminOrderController.getOrderDetail);
+router.patch('/orders/:id/refund', validateId, validate(refundResolutionSchema), adminOrderController.resolveRefund);
+router.patch('/orders/:id/cancel', validateId, validate(adminCancelOrderSchema), adminOrderController.cancelOrder);
+
+// Order timeout rules (docs/order-timeouts.md)
+router.get('/settings/order-timeouts', settingController.getOrderTimeouts);
+router.put('/settings/order-timeouts', validate(orderTimeoutSettingsSchema), settingController.updateOrderTimeouts);
 
 // UC37 - Accounts of every role (lock / unlock, modify role)
 router.get('/users', validate(adminUserQuerySchema, 'query'), adminUserController.listUsers);
