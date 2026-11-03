@@ -36,13 +36,19 @@ export const canonicalPaymentFromLegacy = (order) => {
   };
 };
 
-/** payment.* -> legacy fields */
-export const legacyPaymentFromCanonical = (payment) => ({
-  paymentMethod: payment.method,
-  paymentStatus: toLegacyPaymentStatus(payment),
-  refundStatus: payment.status === 'refunded' ? 'refunded' : 'not_applicable',
-  refundAmount: payment.refundAmount || 0,
-});
+// Refund still owed to the customer (requested, or a transfer that failed and must be retried)
+const OWED_REFUND_STATUSES = ['pending', 'failed'];
+
+/** payment.* (+ refund.*) -> legacy fields. An owed refund shows as refundStatus "pending" with its amount. */
+export const legacyPaymentFromCanonical = (payment, refund = null) => {
+  const isOwed = payment.status !== 'refunded' && OWED_REFUND_STATUSES.includes(refund?.status);
+  return {
+    paymentMethod: payment.method,
+    paymentStatus: toLegacyPaymentStatus(payment),
+    refundStatus: payment.status === 'refunded' ? 'refunded' : isOwed ? 'pending' : 'not_applicable',
+    refundAmount: isOwed ? refund.amount || 0 : payment.refundAmount || 0,
+  };
+};
 
 /** cancellation.* -> legacy fields */
 export const legacyCancellationFromCanonical = (cancellation) => ({

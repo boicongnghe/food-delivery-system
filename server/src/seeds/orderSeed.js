@@ -12,6 +12,9 @@ import Order from '../models/Order.js';
 import Counter from '../models/Counter.js';
 import { generateOrderCode, getNextKitchenTicketNo, kitchenTicketCounterKey } from '../services/counterService.js';
 import { calculateKitchenDueAt } from '../services/orderTiming.js';
+
+// Demo kitchen times by delivery type, so the "late express order" scenario stays late
+const SEED_PREP_MINUTES = { express: 10, standard: 20 };
 import { startOfTodayInVietnam } from '../utils/date.js';
 
 const ownerEmail = process.env.OWNER_EMAIL || 'chuquan@fooddelivery.vn';
@@ -133,7 +136,7 @@ const buildOrder = async (scenario, { restaurant, customers, shipper, menuItems 
 
   if (scenario.acceptedMin) {
     order.acceptedAt = minutesAgo(scenario.acceptedMin);
-    order.kitchenDueAt = calculateKitchenDueAt(order.acceptedAt, scenario.type);
+    order.kitchenDueAt = calculateKitchenDueAt(order.acceptedAt, SEED_PREP_MINUTES[scenario.type]);
     history.push({ status: 'preparing', at: order.acceptedAt, byRole: 'restaurant' });
   }
   if (scenario.readyMin) {
