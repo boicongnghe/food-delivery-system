@@ -36,7 +36,6 @@ const enrichUserData = async (user) => {
         businessLicense: restaurant.businessLicense,
         rating: restaurant.rating,
         status: restaurant.status,
-        image: restaurant.image,
       };
     }
   } else if (user.role === 'shipper') {
@@ -49,7 +48,6 @@ const enrichUserData = async (user) => {
         vehicleInfo: shipper.vehicleInfo,
         vehicleRegistration: shipper.vehicleRegistration,
         vehicleInsurance: shipper.vehicleInsurance,
-        isOnline: shipper.isOnline,
         status: shipper.status,
       };
     }
@@ -120,7 +118,6 @@ export const registerUser = async ({
       vehicleInfo: shipperDetails.vehicleInfo || '',
       vehicleRegistration: shipperDetails.vehicleRegistration || null,
       vehicleInsurance: shipperDetails.vehicleInsurance || null,
-      isOnline: true,
       status: 'pending',
     });
   }
@@ -328,30 +325,12 @@ export const updateUserProfile = async (userId, updateData) => {
   // Cập nhật ảnh đại diện: cho phép đối với tất cả vai trò (khách hàng, nhà hàng, tài xế)
   if (updateData.avatar !== undefined && updateData.avatar.trim()) {
     user.avatar = updateData.avatar.trim();
-
-    // Nếu là nhà hàng, đồng bộ ảnh đại diện sang trường image của collection 'restaurants'
-    if (user.role === 'restaurant_owner') {
-      await Restaurant.updateOne(
-        { $or: [{ owner: user._id }, { user: user._id }] },
-        { $set: { image: updateData.avatar.trim() } }
-      );
-    }
   }
 
-  // Riêng vai trò Khách hàng (customer): cho phép đổi thêm số điện thoại & địa chỉ nhận hàng
+  // Customers may also change their name and phone (addresses live in the address book)
   if (user.role === 'customer') {
     if (updateData.phone !== undefined) {
       user.phone = updateData.phone.trim();
-    }
-
-    if (updateData.deliveryAddress !== undefined) {
-      user.deliveryAddress = updateData.deliveryAddress.trim();
-
-      if (!user.addresses || user.addresses.length === 0) {
-        user.addresses = [{ street: updateData.deliveryAddress.trim(), isDefault: true }];
-      } else {
-        user.addresses[0].street = updateData.deliveryAddress.trim();
-      }
     }
 
     if (updateData.fullName !== undefined && updateData.fullName.trim()) {
@@ -413,10 +392,6 @@ export const addUserAddress = async (userId, addressData) => {
 
   user.addresses.push(newAddress);
 
-  if (shouldBeDefault) {
-    user.deliveryAddress = newAddress.street;
-  }
-
   await user.save();
   return user.addresses;
 };
@@ -433,7 +408,6 @@ export const updateUserAddress = async (userId, addressId, addressData) => {
       addr.isDefault = false;
     });
     address.isDefault = true;
-    user.deliveryAddress = addressData.street || address.street;
   }
 
   if (addressData.title !== undefined) address.title = addressData.title.trim();
@@ -460,9 +434,6 @@ export const deleteUserAddress = async (userId, addressId) => {
 
   if (wasDefault && user.addresses.length > 0) {
     user.addresses[0].isDefault = true;
-    user.deliveryAddress = user.addresses[0].street;
-  } else if (user.addresses.length === 0) {
-    user.deliveryAddress = '';
   }
 
   await user.save();
@@ -479,8 +450,6 @@ export const setDefaultUserAddress = async (userId, addressId) => {
   user.addresses.forEach((addr) => {
     addr.isDefault = addr._id.toString() === addressId.toString();
   });
-
-  user.deliveryAddress = targetAddr.street;
 
   await user.save();
   return user.addresses;

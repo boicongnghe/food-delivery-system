@@ -136,7 +136,6 @@ const orderSchema = new mongoose.Schema(
       address: { type: String, default: '' },
       type: { type: String, enum: DELIVERY_TYPES, default: 'standard' },
       expectedAt: { type: Date, default: null },
-      distanceKm: { type: Number, min: 0, default: 0 },
       location: {
         lat: { type: Number, default: null },
         lng: { type: Number, default: null },
@@ -249,7 +248,6 @@ orderSchema.pre('validate', function () {
       address: this.deliveryAddress.addressLine || '',
       type: 'standard',
       expectedAt: null,
-      distanceKm: this.distanceKm || 0,
       location: this.deliveryAddress.location || null,
     };
   }

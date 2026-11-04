@@ -45,7 +45,7 @@ TODO: nhóm chốt thiết kế – thông tin riêng của shipper (biển số
 | `description` | String | |
 | `address` | String | |
 | `phone` | String | |
-| `image` | String | URL ảnh |
+| `logo`, `coverImage` | String | URL ảnh Cloudinary do chủ quán tải lên. Trang chủ dùng `coverImage`, thiếu thì dùng `logo` |
 | `openingHours` | Object | ví dụ `{ open: "08:00", close: "22:00" }` |
 | `rating` | Number | điểm trung bình, cập nhật khi có review |
 | `status` | String | enum gợi ý: `pending`, `approved`, `rejected`, `suspended` (admin duyệt) |
@@ -201,6 +201,28 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper` hoặc `admin_cancel`.
 
 Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn, admin không duyệt được. Không có ca qua đêm.
+
+## 8. Trường đã bỏ (refactor/db-cleanup)
+
+Các trường dưới đây đã bị xóa khỏi model vì không còn code nào đọc. **Không dùng lại**; nếu cần thông tin tương ứng, dùng cột "Thay bằng".
+
+| Trường đã bỏ | Lý do | Thay bằng |
+| --- | --- | --- |
+| `notifications.sender` | Không chỗ nào ghi, luôn `null` | (không cần) |
+| `restaurants.image` | Chỉ là bản sao avatar chủ quán, chủ quán không sửa được | `coverImage` / `logo` |
+| `restaurants.isVerified` | Ghi theo trạng thái duyệt, không ai đọc | `status === 'approved'` |
+| `shippers.isOnline` | Đặt `true` lúc đăng ký và không bao giờ đổi | `driverdashboards.isOnline` (nút bật/tắt nhận đơn) |
+| `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | `users.addresses[]` (`isDefault`) |
+| `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
+
+Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):
+
+```bash
+cd server && npm run migrate:drop-unused-fields            # chỉ đếm, không ghi
+cd server && npm run migrate:drop-unused-fields -- --apply # $unset các trường
+```
+
+Chưa xóa trong đợt này (còn đang được dùng hoặc cần cả nhóm thống nhất): collection `foods` (đợi chạy `migrate:foods-to-menu` trên Atlas), bộ trường cũ của `orders` (checkout và màn khách còn đọc), hai sổ địa chỉ (`users.addresses[]` và collection `addresses`), trạng thái đơn `confirmed`.
 
 ## Collection có thể cần thêm
 
