@@ -51,10 +51,6 @@ const shipperSchema = new mongoose.Schema(
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
       at: { type: Date, default: null },
     },
-    isOnline: {
-      type: Boolean,
-      default: true,
-    },
     rating: {
       type: Number,
       default: 5.0,

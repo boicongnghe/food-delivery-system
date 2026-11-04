@@ -257,9 +257,7 @@ const run = async () => {
       rating: resData.rating,
       ratingCount: resData.ratingCount,
       location: resData.location,
-      image: resData.image,
       coverImage: resData.image,
-      isVerified: true,
       status: 'approved',
       openingHours: resData.openingHours || [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
         dayOfWeek,
