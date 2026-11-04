@@ -15,7 +15,8 @@
     "seed:orders": "node src/seeds/orderSeed.js",
     "seed:feedback": "node src/seeds/feedbackSeed.js",
     "migrate:order-fields": "node src/scripts/syncOrderFields.js",
-    "migrate:foods-to-menu": "node src/scripts/migrateFoodsToMenuItems.js"
+    "migrate:foods-to-menu": "node src/scripts/migrateFoodsToMenuItems.js",
+    "migrate:drop-unused-fields": "node src/scripts/dropUnusedFields.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

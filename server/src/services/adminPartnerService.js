@@ -97,14 +97,12 @@ const PARTNERS = {
     searchFields: ['name', 'address', 'phone'],
     getChecks: restaurantChecks,
     getOrderMatch: (restaurant) => ({ restaurant: restaurant._id }),
-    // The "Đã xác thực" badge of the restaurant follows the admin decision
-    statusExtras: (status) => ({ isVerified: status === 'approved' }),
   },
   shipper: {
     Model: Shipper,
     accountField: 'user',
     notFound: 'Không tìm thấy tài xế',
-    listFields: 'user fullName phone citizenId vehicleInfo status rating isOnline statusChange createdAt',
+    listFields: 'user fullName phone citizenId vehicleInfo status rating statusChange createdAt',
     searchFields: ['fullName', 'phone', 'citizenId', 'vehicleInfo'],
     getChecks: shipperChecks,
     getOrderMatch: (shipper) => ({ shipper: shipper.user?._id }),
@@ -182,7 +180,7 @@ const changePartnerStatus = async (config, adminId, id, { status, note }) => {
   // Conditional on the status just checked: two admins deciding at once cannot both win
   const updated = await config.Model.findOneAndUpdate(
     { _id: id, status: partner.status },
-    { $set: { status, statusChange: { note, by: adminId, at: new Date() }, ...config.statusExtras?.(status) } },
+    { $set: { status, statusChange: { note, by: adminId, at: new Date() } } },
   );
   if (!updated) {
     throw new ApiError(409, 'Hồ sơ vừa được người khác cập nhật, vui lòng tải lại');

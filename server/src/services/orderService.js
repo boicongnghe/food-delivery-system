@@ -301,7 +301,7 @@ export const getOrderById = async (orderId, user) => {
   const filter = user.role === 'admin' ? { _id: orderId } : { _id: orderId, customer: user._id };
   const order = await Order.findOne(filter)
     .populate('customer', 'fullName email phone')
-    .populate('restaurant', 'name address phone image');
+    .populate('restaurant', 'name address phone logo');
 
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
@@ -321,7 +321,7 @@ export const getCustomerOrders = async (userId, query = {}) => {
     filter.status = query.status;
   }
   return Order.find(filter)
-    .populate('restaurant', 'name address phone image')
+    .populate('restaurant', 'name address phone logo')
     .sort({ createdAt: -1 });
 };
 

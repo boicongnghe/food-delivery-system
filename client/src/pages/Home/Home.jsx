@@ -225,7 +225,8 @@ export default function Home() {
             badge: idx % 2 === 0 ? 'Chuẩn 5 Sao' : 'Freeship',
             badgeColor: idx % 2 === 0 ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white',
             image:
-              r.image ||
+              r.coverImage ||
+              r.logo ||
               DEFAULT_PARTNERS[idx % DEFAULT_PARTNERS.length]?.image ||
               'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
             openingHours: r.openingHours || [],

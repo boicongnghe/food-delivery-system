@@ -52,7 +52,6 @@ const seedDriverDemoAccount = async () => {
       citizenId: '079200008899',
       vehicleInfo: 'Honda Wave Alpha · DEMO',
       status: 'approved',
-      isOnline: true,
     });
     console.log('Created approved demo driver profile.');
   }
