@@ -31,6 +31,7 @@ import AdminShippers from '../pages/AdminShippers/AdminShippers.jsx'
 import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
+import DebugShipperFlow from '../pages/DriverDashboard/DebugShipperFlow.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
 
@@ -56,7 +57,8 @@ function AppRouter() {
           {/* Shipper dashboard stays outside the storefront layout. */}
           <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
             <Route path="/shipper" element={<DriverDashboard />} />
-            <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
+<Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
+            <Route path="/shipper/debug" element={<DebugShipperFlow />} />
           </Route>
 
           <Route element={<MainLayout />}>
