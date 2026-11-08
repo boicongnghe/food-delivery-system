@@ -21,6 +21,7 @@ import {
 import { cancelOrderBySystem } from './orderCancelService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PLACED_ORDER_FILTER } from './orderPolicy.js';
+import { creditWalletRefund } from './walletService.js';
 
 // Platform order list for the admin. Abandoned online checkouts are not orders.
 // The only change an admin makes here is recording the result of a refund transfer.
@@ -160,10 +161,10 @@ export const cancelOrderAsAdmin = async (orderId, { note }) => {
   const restaurant = await Restaurant.findById(order.restaurant).select('owner').lean();
   await sendRealtimeNotification(order.customer, {
     title: 'Đơn hàng đã được hủy',
-    message: `Quản trị viên đã hủy đơn #${code}: ${note}.${result.isPaid ? ' Yêu cầu hoàn tiền đã được tạo.' : ''}`,
+    message: `Quản trị viên đã hủy đơn #${code}: ${note}.${result.isPaid ? ' Tiền hoàn đã được cộng vào ví ảo của bạn.' : ''}`,
     type: 'order',
     orderId,
-    link: `/orders/${orderId}`,
+    link: result.isPaid ? '/wallet' : `/orders/${orderId}`,
   });
   if (restaurant?.owner) {
     await sendRealtimeNotification(restaurant.owner, {
@@ -235,6 +236,14 @@ export const resolveRefund = async (adminId, orderId, { result, reference, note 
   }
 
   if (succeeded) {
+    if (order.customer) {
+      await creditWalletRefund({
+        userId: order.customer,
+        orderId,
+        orderCode: order.orderCode || order.orderNumber,
+        amount,
+      });
+    }
     await Payment.updateMany({ order: orderId, status: 'success' }, { $set: { status: 'refunded' } });
   }
   await recordStatusChange({

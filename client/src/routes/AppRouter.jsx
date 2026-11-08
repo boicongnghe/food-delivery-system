@@ -12,6 +12,7 @@ import RevenueReport from '../pages/RevenueReport/RevenueReport.jsx'
 import RestaurantVouchers from '../pages/RestaurantVouchers/RestaurantVouchers.jsx'
 import Home from '../pages/Home/Home.jsx'
 import CartPage from '../pages/Cart/CartPage.jsx'
+import WalletPage from '../pages/Wallet/WalletPage.jsx'
 import Checkout from '../pages/Checkout/Checkout.jsx'
 import PaymentResult from '../pages/Payment/PaymentResult.jsx'
 import OrderTracking from '../pages/OrderTracking/OrderTracking.jsx'
@@ -26,6 +27,7 @@ import AdminCommissionRules from '../pages/AdminCommissionRules/AdminCommissionR
 import AdminComplaints from '../pages/AdminComplaints/AdminComplaints.jsx'
 import AdminDeliveryIssues from '../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'
 import AdminOrders from '../pages/AdminOrders/AdminOrders.jsx'
+import AdminWithdrawals from '../pages/AdminWithdrawals/AdminWithdrawals.jsx'
 import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
 import AdminRestaurants from '../pages/AdminRestaurants/AdminRestaurants.jsx'
 import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
@@ -73,9 +75,10 @@ function AppRouter() {
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
 
-            {/* Cart — customer only */}
+            {/* Cart & Wallet — customer only */}
             <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/wallet" element={<WalletPage />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
@@ -123,6 +126,7 @@ function AppRouter() {
               <Route path="restaurants" element={<AdminRestaurants />} />
               <Route path="shippers" element={<AdminShippers />} />
               <Route path="orders" element={<AdminOrders />} />
+              <Route path="withdrawals" element={<AdminWithdrawals />} />
               <Route path="complaints" element={<AdminComplaints />} />
               <Route path="reviews" element={<AdminReviews />} />
               <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
