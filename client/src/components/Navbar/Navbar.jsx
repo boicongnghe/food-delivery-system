@@ -16,11 +16,11 @@ import {
   Flame,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import ProfileModal from '../ProfileModal/ProfileModal.jsx'
 import NotificationBell from '../NotificationBell/NotificationBell.jsx'
 
-export default function Navbar({ onOpenCart }) {
+export default function Navbar() {
   const cartContext = useCart()
   const itemCount = cartContext?.itemCount || 0
   const { user, isAuthenticated, logout } = useAuth()
@@ -193,24 +193,26 @@ export default function Navbar({ onOpenCart }) {
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
-          {/* Cart Button with Cart Bounce Animation */}
-          <button
-            type="button"
-            id="navbar-cart-btn"
-            onClick={onOpenCart}
-            className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:from-[#e03e20] hover:to-[#e03358] text-white text-xs sm:text-sm font-bold shadow-md shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ${
-              cartAnimate ? 'animate-cart-bounce' : ''
-            }`}
-            title="Mở giỏ hàng"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span className="hidden sm:inline">Giỏ hàng</span>
-            {itemCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-white text-primary text-xs font-black shadow-xs">
-                {itemCount}
-              </span>
-            )}
-          </button>
+          {/* Cart Button — only for authenticated customers */}
+          {isAuthenticated && user?.role === 'customer' && (
+            <button
+              type="button"
+              id="navbar-cart-btn"
+              onClick={() => navigate('/cart')}
+              className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:from-[#e03e20] hover:to-[#e03358] text-white text-xs sm:text-sm font-bold shadow-md shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ${
+                cartAnimate ? 'animate-cart-bounce' : ''
+              }`}
+              title="Giỏ hàng"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span className="hidden sm:inline">Giỏ hàng</span>
+              {itemCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-white text-primary text-xs font-black shadow-xs">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Chuông thông báo (đối với role restaurant_owner được hiển thị bên trong layout của họ) */}
           {isAuthenticated && user && user.role !== 'restaurant_owner' && (

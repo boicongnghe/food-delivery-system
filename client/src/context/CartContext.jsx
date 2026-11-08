@@ -1,45 +1,109 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { cartLineKey } from '../utils/cartLineKey.js'
 
-const CartContext = createContext(null)
+export const CartContext = createContext(null)
 
-const CART_STORAGE_KEY = 'food_delivery_cart'
+const GUEST_CART_KEY = 'food_delivery_cart_guest'
+const EMPTY_CART = { restaurant: null, items: [] }
 
-export function CartProvider({ children }) {
-  const [cart, setCart] = useState(() => {
-    try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : { restaurant: null, items: [] }
-    } catch {
-      return { restaurant: null, items: [] }
+const KNOWN_RESTAURANTS = {
+  'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+  'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+  'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+  'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+  'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+  'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+}
+
+const resolveKnownRestaurantId = (name, fallbackId) => {
+  if (!name) return fallbackId
+  const key = String(name).trim().toLowerCase()
+  return KNOWN_RESTAURANTS[key] || fallbackId
+}
+
+const healCartRestaurant = (cartData) => {
+  if (!cartData?.restaurant) return cartData || EMPTY_CART
+  const curId = String(cartData.restaurant.id || '')
+  if (curId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(curId)) {
+    const healed = resolveKnownRestaurantId(cartData.restaurant.name, curId)
+    if (healed && healed !== curId) {
+      return {
+        ...cartData,
+        restaurant: {
+          ...cartData.restaurant,
+          id: healed,
+        },
+      }
     }
-  })
+  }
+  return cartData
+}
 
+const getCartKey = (userId) =>
+  userId ? `food_delivery_cart_${userId}` : GUEST_CART_KEY
+
+const loadCart = (userId) => {
+  try {
+    const raw = localStorage.getItem(getCartKey(userId))
+    return raw ? healCartRestaurant(JSON.parse(raw)) : EMPTY_CART
+  } catch {
+    return EMPTY_CART
+  }
+}
+
+const saveCart = (cart, userId) => {
+  try {
+    localStorage.setItem(getCartKey(userId), JSON.stringify(cart))
+  } catch (err) {
+    console.error('Failed to save cart to localStorage', err)
+  }
+}
+
+export function CartProvider({ children, userId }) {
+  const userIdRef = useRef(userId)
+  const [cart, setCart] = useState(() => loadCart(userId))
+
+  // ── Switch cart when user logs in / out ──────────────────────────────────
   useEffect(() => {
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
-    } catch (err) {
-      console.error('Failed to save cart to localStorage', err)
-    }
-  }, [cart])
+    const prevId = userIdRef.current
+    userIdRef.current = userId
 
+    if (prevId !== userId) {
+      // Save previous cart state before switching
+      saveCart(cart, prevId)
+      // Load the new user's cart (or empty guest cart)
+      setCart(loadCart(userId))
+    }
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Persist to localStorage whenever cart changes ────────────────────────
+  useEffect(() => {
+    saveCart(cart, userId)
+  }, [cart, userId])
+
+  // ── addToCart ────────────────────────────────────────────────────────────
   const addToCart = (food, quantity = 1, note = '') => {
-    // 1. Xác định tên quán ăn
     const restaurantName =
       food.restaurantName ||
       (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
       'Quán Ăn'
 
-    // 2. Xác định ID quán ăn chính xác (tuyệt đối không dùng chung ID mặc định)
-    const restaurantId =
+    const rawRestId =
       food.restaurantId ||
       food.restaurant?._id ||
       (typeof food.restaurant === 'string' && food.restaurant.length === 24
         ? food.restaurant
-        : `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`)
+        : null)
+
+    const restaurantId =
+      rawRestId && /^[0-9a-fA-F]{24}$/.test(rawRestId)
+        ? rawRestId
+        : resolveKnownRestaurantId(
+            restaurantName,
+            `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
+          )
 
     setCart((prev) => {
-      // Kiểm tra xem món mới có thuộc quán khác với quán hiện tại trong giỏ không
       const isDifferentRestaurant =
         prev.restaurant &&
         prev.items.length > 0 &&
@@ -53,7 +117,6 @@ export function CartProvider({ children }) {
         )
         if (!confirmChange) return prev
 
-        // Xóa giỏ hàng cũ và thêm món mới của quán mới
         return {
           restaurant: { id: restaurantId, name: restaurantName },
           items: [{ food, quantity, note }],
@@ -61,7 +124,9 @@ export function CartProvider({ children }) {
       }
 
       // Cùng quán hoặc giỏ hàng đang trống
-      const existingIndex = prev.items.findIndex((item) => cartLineKey(item.food) === cartLineKey(food))
+      const existingIndex = prev.items.findIndex(
+        (item) => cartLineKey(item.food) === cartLineKey(food)
+      )
 
       let newItems = [...prev.items]
       if (existingIndex > -1) {
@@ -81,6 +146,7 @@ export function CartProvider({ children }) {
     })
   }
 
+  // ── updateQuantity ───────────────────────────────────────────────────────
   const updateQuantity = (foodId, delta) => {
     setCart((prev) => {
       const targetIndex = prev.items.findIndex(
@@ -110,6 +176,7 @@ export function CartProvider({ children }) {
     })
   }
 
+  // ── removeFromCart ───────────────────────────────────────────────────────
   const removeFromCart = (foodId) => {
     setCart((prev) => {
       const newItems = prev.items.filter(
@@ -122,8 +189,23 @@ export function CartProvider({ children }) {
     })
   }
 
+  // ── clearCart — gọi sau khi đặt hàng thành công ──────────────────────────
   const clearCart = () => {
-    setCart({ restaurant: null, items: [] })
+    setCart(EMPTY_CART)
+  }
+
+  // ── removeUnavailableItems — gọi khi nhà hàng đóng / hết món ────────────
+  // Truyền vào mảng foodId còn available từ server
+  const removeUnavailableItems = (availableFoodIds) => {
+    setCart((prev) => {
+      const newItems = prev.items.filter((item) =>
+        availableFoodIds.includes(item.food._id || item.food.id)
+      )
+      return {
+        restaurant: newItems.length === 0 ? null : prev.restaurant,
+        items: newItems,
+      }
+    })
   }
 
   const itemCount = cart.items.reduce((total, item) => total + item.quantity, 0)
@@ -140,6 +222,7 @@ export function CartProvider({ children }) {
         updateQuantity,
         removeFromCart,
         clearCart,
+        removeUnavailableItems,
         itemCount,
         subtotal,
       }}
@@ -149,10 +232,4 @@ export function CartProvider({ children }) {
   )
 }
 
-export function useCart() {
-  const context = useContext(CartContext)
-  if (!context) {
-    throw new Error('useCart must be used within a CartProvider')
-  }
-  return context
-}
+export { useCart } from './useCart.js'

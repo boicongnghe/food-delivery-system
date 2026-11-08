@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   User,
@@ -29,7 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import authApi from '../../api/authApi.js'
 import { addressApi } from '../../api/addressApi.js'
 import uploadApi from '../../api/uploadApi.js'
