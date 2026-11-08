@@ -242,6 +242,7 @@ export default function RestaurantProfile() {
           <ImageSection
             coverUrl={coverUrl}
             logoUrl={logoUrl}
+            errors={errors}
             onCoverChange={(file) => selectImage(file, setPendingCover)}
             onLogoChange={(file) => selectImage(file, setPendingLogo)}
           />
