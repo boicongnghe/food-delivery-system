@@ -1,4 +1,5 @@
 import Order from '../models/Order.js';
+import Payment from '../models/Payment.js';
 import Restaurant from '../models/Restaurant.js';
 import ApiError from '../utils/ApiError.js';
 import { startOfTodayInVietnam } from '../utils/date.js';
@@ -12,6 +13,7 @@ import {
   refundRequestFields,
   waitingSince,
 } from './orderPolicy.js';
+import { creditWalletRefund } from './walletService.js';
 import { getOrderTimeouts } from './settingService.js';
 import {
   REGULAR_CUSTOMER_MIN_ORDERS,
@@ -248,22 +250,22 @@ export const acceptOrder = async (restaurantId, orderId) => {
 // No: cancel. A customer who already paid online gets a refund request (completed by an admin)
 export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   const order = await Order.findOne({ _id: orderId, restaurant: restaurantId, ...VISIBLE_TO_RESTAURANT_FILTER })
-    .select('status payment total customer')
+    .select('status payment total totalPrice customer')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
   }
 
   const now = new Date();
-  const isPaid = order.payment.status === 'paid';
-  // Paid: payment stays "paid" and a refund is owed. Unpaid: nothing to give back.
-  const paymentUpdate = isPaid ? refundRequestFields(order.total, now) : { 'payment.status': 'cancelled' };
+  const amount = order.total || order.totalPrice || 0;
+  const isPaid = order.payment?.status === 'paid' || order.paymentStatus === 'paid';
+  const paymentUpdate = isPaid ? refundRequestFields(amount, now) : { 'payment.status': 'cancelled' };
   const cancellation = { by: 'restaurant', reason, note, at: now };
   // findOneAndUpdate skips the model hook: also update the legacy fields read by the customer screens
   const legacyUpdate = {
     ...legacyPaymentFromCanonical(
-      { method: order.payment.method, status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
-      isPaid ? { status: 'pending', amount: order.total } : null,
+      { method: order.payment?.method || order.paymentMethod || 'cod', status: isPaid ? 'refunded' : 'cancelled', refundAmount: isPaid ? amount : 0 },
+      isPaid ? { status: 'succeeded', amount } : null,
     ),
     ...legacyCancellationFromCanonical(cancellation),
   };
@@ -273,7 +275,7 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
     orderId,
     fromStatus: 'pending',
     // The refund is decided from the payment state we just read: it must not change in between
-    conditions: { 'payment.status': order.payment.status },
+    conditions: { 'payment.status': order.payment?.status },
     conditionError: 'Trạng thái thanh toán vừa thay đổi, vui lòng thử lại',
     update: {
       $set: {
@@ -286,23 +288,38 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
     },
   });
 
+  const customerId = order.customer || rejected?.customer;
+  if (isPaid && customerId) {
+    try {
+      await creditWalletRefund({
+        userId: customerId,
+        orderId: rejected._id,
+        orderCode: rejected.orderCode || rejected.orderNumber,
+        amount,
+      });
+      await Payment.updateMany({ order: rejected._id, status: 'success' }, { $set: { status: 'refunded' } });
+    } catch (err) {
+      console.error('[rejectOrder] creditWalletRefund failed:', err);
+    }
+  }
+
   const reasonLabel = REJECT_REASON_LABELS[reason] || 'Quán quá tải';
   await recordStatusChange({
     orderId: rejected._id,
     fromStatus: 'pending',
     toStatus: 'cancelled',
     role: 'restaurant',
-    action: isPaid ? 'Quán từ chối đơn - chờ hoàn tiền' : 'Quán từ chối đơn',
-    note: [reasonLabel, note, isPaid && `Sẽ hoàn ${order.total.toLocaleString('vi-VN')}đ`].filter(Boolean).join(' · '),
+    action: isPaid ? 'Quán từ chối đơn - đã hoàn vào ví ảo' : 'Quán từ chối đơn',
+    note: [reasonLabel, note, isPaid && `Đã hoàn ${amount.toLocaleString('vi-VN')}đ vào ví ảo`].filter(Boolean).join(' · '),
   });
 
-  if (order.customer) {
-    sendRealtimeNotification(order.customer, {
+  if (customerId) {
+    sendRealtimeNotification(customerId, {
       title: 'Quán ăn đã từ chối đơn hàng ❌',
-      message: `Đơn hàng của bạn không thể thực hiện (${reasonLabel}).${isPaid ? ' Yêu cầu hoàn tiền đã được tạo, bạn sẽ nhận thông báo khi tiền được chuyển trả.' : ''}`,
+      message: `Đơn hàng của bạn không thể thực hiện (${reasonLabel}).${isPaid ? ' Tiền đã được tự động hoàn vào ví ảo của bạn.' : ''}`,
       type: 'order',
       orderId,
-      link: `/orders/${orderId}`,
+      link: isPaid ? '/wallet' : `/orders/${orderId}`,
     });
   }
 

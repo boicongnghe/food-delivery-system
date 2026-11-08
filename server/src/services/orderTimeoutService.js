@@ -88,10 +88,10 @@ const cancelUnacceptedOrders = async (settings, now) => {
     const { owner } = await ownerOf(order.restaurant);
     await sendRealtimeNotification(order.customer, {
       title: 'Đơn hàng đã tự hủy ❌',
-      message: `Quán chưa xác nhận đơn #${codeOf(order)} kịp thời nên đơn đã được hủy.${result.isPaid ? ' Yêu cầu hoàn tiền đã được tạo.' : ''}`,
+      message: `Quán chưa xác nhận đơn #${codeOf(order)} kịp thời nên đơn đã được hủy.${result.isPaid ? ' Tiền đã được tự động hoàn vào ví ảo của bạn.' : ''}`,
       type: 'order',
       orderId: order._id,
-      link: `/orders/${order._id}`,
+      link: result.isPaid ? '/wallet' : `/orders/${order._id}`,
     });
     if (owner) {
       await sendRealtimeNotification(owner, {
@@ -200,10 +200,10 @@ const cancelOrdersWithoutShipper = async (settings, now) => {
     const { owner } = await ownerOf(order.restaurant);
     await sendRealtimeNotification(order.customer, {
       title: 'Đơn hàng đã tự hủy ❌',
-      message: `Chưa tìm được shipper cho đơn #${codeOf(order)} nên đơn đã được hủy.${result.isPaid ? ' Yêu cầu hoàn tiền đã được tạo.' : ''}`,
+      message: `Chưa tìm được shipper cho đơn #${codeOf(order)} nên đơn đã được hủy.${result.isPaid ? ' Tiền đã được tự động hoàn vào ví ảo của bạn.' : ''}`,
       type: 'order',
       orderId: order._id,
-      link: `/orders/${order._id}`,
+      link: result.isPaid ? '/wallet' : `/orders/${order._id}`,
     });
     if (owner) {
       await sendRealtimeNotification(owner, {

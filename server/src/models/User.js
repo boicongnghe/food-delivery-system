@@ -80,6 +80,11 @@ const userSchema = new mongoose.Schema(
       type: [addressSchema],
       default: [],
     },
+    walletBalance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Số dư ví không thể âm'],
+    },
     isActive: {
       type: Boolean,
       default: true,

@@ -14,6 +14,7 @@ import {
   Moon,
   Sun,
   Flame,
+  Wallet,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/useCart.js'
@@ -193,6 +194,20 @@ export default function Navbar() {
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
+          {/* Ví ảo Customer */}
+          {isAuthenticated && user?.role === 'customer' && (
+            <Link
+              to="/wallet"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-bold transition-all shadow-xs"
+              title="Ví ảo FoodDelivery"
+            >
+              <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate max-w-[90px] sm:max-w-none">
+                {(user.walletBalance || 0).toLocaleString('vi-VN')}đ
+              </span>
+            </Link>
+          )}
+
           {/* Cart Button — only for authenticated customers */}
           {isAuthenticated && user?.role === 'customer' && (
             <button
@@ -290,6 +305,20 @@ export default function Navbar() {
                       >
                         <HomeIcon className="w-4 h-4 text-slate-400" />
                         <span>Trang chủ món ngon</span>
+                      </Link>
+
+                      <Link
+                        to="/wallet"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary rounded-xl transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Wallet className="w-4 h-4 text-emerald-500" />
+                          <span>Ví ảo & Rút tiền</span>
+                        </div>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {(user.walletBalance || 0).toLocaleString('vi-VN')}đ
+                        </span>
                       </Link>
 
                       <Link

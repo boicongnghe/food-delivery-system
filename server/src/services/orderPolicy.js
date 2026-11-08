@@ -34,12 +34,18 @@ export const PAYMENT_ALLOWS_FULFILLMENT_FILTER = {
   ],
 };
 
-// A paid order that gets cancelled owes the customer a refund. Cancelling only requests it:
-// payment.status stays "paid" until an admin confirms the transfer (adminOrderService.resolveRefund).
+// A paid order that gets cancelled owes the customer a refund.
+// With Virtual Wallet enabled, refunds are credited directly to the customer's wallet.
 export const refundRequestFields = (amount, at) => ({
-  'refund.status': 'pending',
+  'refund.status': 'succeeded',
   'refund.amount': amount,
   'refund.requestedAt': at,
+  'refund.completedAt': at,
+  'refund.reference': 'WALLET_REFUND',
+  'refund.note': 'Đã hoàn tiền tự động vào ví ảo của khách hàng',
+  'payment.status': 'refunded',
+  'payment.refundedAt': at,
+  'payment.refundAmount': amount,
 });
 
 // Moment the restaurant could first see a pending order: an online order only once it is paid

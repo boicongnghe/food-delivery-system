@@ -389,15 +389,18 @@ function Checkout() {
       const payload = {
         restaurantId: orderRestaurantId,
         items: cart.items.map((item) => ({
-          menuItemId: item.food._id || item.food.id,
+          menuItemId: item.food?._id || item.food?.id,
+          name: item.food?.name || item.name,
+          price: item.food?.price || item.price,
+          image: item.food?.image || item.image || '',
           quantity: item.quantity,
           note: item.note || '',
           // Chosen size / toppings by group: the server prices them from the menu
           options: [
-            ...(item.food.selectedSize?.groupName
+            ...(item.food?.selectedSize?.groupName
               ? [{ groupName: item.food.selectedSize.groupName, name: item.food.selectedSize.name }]
               : []),
-            ...(item.food.selectedToppings || [])
+            ...(item.food?.selectedToppings || [])
               .filter((topping) => topping.groupName)
               .map((topping) => ({ groupName: topping.groupName, name: topping.name })),
           ],
