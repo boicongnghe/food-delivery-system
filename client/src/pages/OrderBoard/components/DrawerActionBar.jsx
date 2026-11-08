@@ -1,4 +1,4 @@
-import { Bike, CircleCheck, Info, Receipt, SquareCheck, X } from 'lucide-react'
+import { Bike, CircleCheck, Hourglass, Info, Receipt, SquareCheck, X } from 'lucide-react'
 
 const spinner = <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
 
@@ -18,7 +18,7 @@ export default function DrawerActionBar({ order, busy, acceptBlockedReason, onAc
           className="flex w-full items-center justify-center gap-3 rounded-md bg-brand px-4 py-4 font-serif text-lg font-bold uppercase text-white shadow hover:bg-brand-hover disabled:opacity-60"
         >
           {busy ? spinner : <CircleCheck className="h-6 w-6" />}
-          Nhận đơn bếp (Ctrl+Enter)
+          Nhận đơn (Ctrl+Enter)
         </button>
         {acceptBlockedReason && <p className="text-center text-xs text-amber-800">{acceptBlockedReason}</p>}
         <button type="button" onClick={onReject} disabled={busy} className={`${secondaryClass} w-full text-brand`}>
@@ -26,6 +26,15 @@ export default function DrawerActionBar({ order, busy, acceptBlockedReason, onAc
           Từ chối đơn
         </button>
       </div>
+    )
+  }
+
+  if (order.status === 'confirmed') {
+    return (
+      <p className="flex items-center gap-2 rounded-md bg-sky-50 px-3 py-2.5 text-sm font-semibold text-sky-900">
+        <Hourglass className="h-4 w-4 shrink-0" />
+        Đã nhận đơn – đang tìm shipper. Chưa cần nấu: bếp được báo ngay khi có shipper nhận đơn.
+      </p>
     )
   }
 
@@ -39,7 +48,7 @@ export default function DrawerActionBar({ order, busy, acceptBlockedReason, onAc
           className="flex w-full items-center justify-center gap-3 rounded-md bg-brand px-4 py-4 font-serif text-lg font-bold uppercase text-white shadow hover:bg-brand-hover disabled:opacity-60"
         >
           {busy ? spinner : <SquareCheck className="h-6 w-6" />}
-          Xác nhận xong bếp – gọi tài xế (Ctrl+Enter)
+          Xác nhận xong bếp – báo shipper (Ctrl+Enter)
         </button>
         <button type="button" onClick={onPrintSlip} className={`${secondaryClass} w-full`}>
           <Receipt className="h-4 w-4" />

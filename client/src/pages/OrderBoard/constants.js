@@ -38,6 +38,7 @@ export const DELIVERY_TYPE_LABELS = { express: 'Giao nhanh 15p', standard: 'Tiê
 
 export const ORDER_STATUS_LABELS = {
   pending: 'Chờ nhận',
+  confirmed: 'Đang tìm shipper',
   preparing: 'Bếp đang nấu',
   ready_for_pickup: 'Sẵn sàng lấy hàng',
   delivering: 'Đang giao',
@@ -48,7 +49,8 @@ export const ORDER_STATUS_LABELS = {
 // Timeline text for each status change
 export const HISTORY_LABELS = {
   pending: 'Đặt đơn thành công',
-  preparing: 'Quán đã nhận đơn – bếp bắt đầu nấu',
+  confirmed: 'Quán đã nhận đơn – đang tìm shipper',
+  preparing: 'Shipper đã nhận đơn – bếp bắt đầu nấu',
   ready_for_pickup: 'Bếp hoàn tất – sẵn sàng lấy hàng',
   delivering: 'Shipper đã lấy hàng',
   delivered: 'Giao hàng thành công',

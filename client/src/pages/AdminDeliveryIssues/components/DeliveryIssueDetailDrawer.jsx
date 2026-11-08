@@ -19,7 +19,7 @@ import ResolveIssueForm from './ResolveIssueForm.jsx'
 
 const FORM_ID = 'resolve-issue-form'
 const EMPTY_FORM = { decision: 'resolved', hasPenalty: false, target: '', action: '', fineAmount: '', note: '', orderAction: 'none' }
-const SHIPPER_ACTIVE_STATUSES = ['ready_for_pickup', 'delivering']
+const SHIPPER_ACTIVE_STATUSES = ['preparing', 'ready_for_pickup', 'delivering']
 
 // Same rule as the server: the order can be cancelled / released only while the reporting shipper still holds it
 const getHeldOrderStatus = (issue) => {

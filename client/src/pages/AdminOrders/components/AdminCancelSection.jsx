@@ -42,7 +42,8 @@ export default function AdminCancelSection({ order, onCancelled }) {
 
   const { prepEscalatedAt, shipperAlertedAt, pickupAlertedAt } = order.timeouts || {}
   const canCancel = CANCELLABLE_STATUSES.includes(order.status)
-  const canRelease = order.status === 'ready_for_pickup' && Boolean(order.shipper)
+  // Held by a shipper who has not picked the food up yet (kitchen cooking or food ready)
+  const canRelease = ['preparing', 'ready_for_pickup'].includes(order.status) && Boolean(order.shipper)
   if (!canCancel && !prepEscalatedAt && !shipperAlertedAt && !pickupAlertedAt) return null
 
   const run = async (type) => {
@@ -71,9 +72,9 @@ export default function AdminCancelSection({ order, onCancelled }) {
           thay khách. Quán không được bù.
         </Warning>
       )}
-      {shipperAlertedAt && order.status === 'ready_for_pickup' && !order.shipper && (
+      {shipperAlertedAt && ['confirmed', 'preparing', 'ready_for_pickup'].includes(order.status) && !order.shipper && (
         <Warning>
-          Món đã sẵn sàng nhưng chưa có shipper nhận (báo lúc {formatDateTime(shipperAlertedAt)}). Hãy điều phối shipper; đơn sẽ tự hủy
+          Đơn đang chờ shipper nhưng chưa có ai nhận (báo lúc {formatDateTime(shipperAlertedAt)}). Hãy điều phối shipper; đơn sẽ tự hủy
           khi hết thời hạn.
         </Warning>
       )}

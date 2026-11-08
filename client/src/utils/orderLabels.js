@@ -2,8 +2,8 @@
 
 export const ORDER_STATUSES = {
   pending: { label: 'Chờ quán nhận', tone: 'amber' },
-  confirmed: { label: 'Đã xác nhận', tone: 'sky' }, // legacy status, shown with "preparing"
-  preparing: { label: 'Đang chuẩn bị', tone: 'sky' },
+  confirmed: { label: 'Chờ shipper nhận', tone: 'amber' }, // restaurant accepted, the kitchen waits for a shipper
+  preparing: { label: 'Bếp đang nấu', tone: 'sky' },
   ready_for_pickup: { label: 'Chờ shipper lấy', tone: 'sky' },
   delivering: { label: 'Đang giao', tone: 'brand' },
   delivered: { label: 'Đã giao', tone: 'emerald' },
@@ -14,7 +14,8 @@ export const ORDER_STATUSES = {
 export const ORDER_TABS = [
   { value: 'all', label: 'Tất cả' },
   { value: 'pending', label: 'Chờ quán nhận' },
-  { value: 'preparing', label: 'Đang chuẩn bị' },
+  { value: 'confirmed', label: 'Chờ shipper nhận' },
+  { value: 'preparing', label: 'Bếp đang nấu' },
   { value: 'ready_for_pickup', label: 'Chờ shipper lấy' },
   { value: 'delivering', label: 'Đang giao' },
   { value: 'delivered', label: 'Đã giao' },

@@ -125,9 +125,9 @@ async function fallbackDatabaseEngine({ message, user, availableItems }) {
 
     const statusMap = {
       pending: 'Đang chờ quán xác nhận ⏳',
-      confirmed: 'Quán đã nhận đơn và chuẩn bị 🍳',
+      confirmed: 'Quán đã nhận đơn, đang tìm shipper 🔎',
       preparing: 'Đang nấu nướng nóng hổi 🍲',
-      ready_for_pickup: 'Đã sẵn sàng, chờ shipper lấy hàng 🛵',
+      ready_for_pickup: 'Món đã sẵn sàng, shipper đang tới lấy hàng 🛵',
       delivering: 'Shipper đang trên đường giao đến bạn 🚀',
       completed: 'Đã giao thành công 🎉',
       cancelled: 'Đã hủy ❌',

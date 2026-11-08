@@ -53,7 +53,7 @@ export default function PendingOrderCard({ order, now, busy, acceptBlockedReason
           ) : (
             <CircleCheck className="h-4 w-4" />
           )}
-          Nhận đơn bếp
+          Nhận đơn
         </button>
       </div>
     </article>

@@ -121,15 +121,20 @@ authenticated shipper does not yet have a dashboard snapshot, the first
 dashboard or settings request creates an empty snapshot. Values remain zero or
 empty until operational data is added.
 
-The shipper order tab refreshes available and active orders every five minutes.
+The shipper order tab refreshes available and active orders every five minutes,
+and every 15 seconds while the shipper's order is still being cooked.
 Available orders are not filtered by location. The application does not request
 or store GPS coordinates, calculate route distance, or enforce distance-based
 pickup/delivery confirmation. Estimated shipper payout uses the order shipping
 fee because the project has no separate surge, tip, or commission ledger.
 
-An accepted order remains in `ready_for_pickup` until the shipper confirms
-pickup, then transitions to `delivering` and `delivered`. Acceptance can be
-returned to the open pool within three minutes before pickup. A shipper may only
+The kitchen cooks only after a shipper accepts (docs/order-flow.md). The open
+pool lists `confirmed` orders (accepted by the restaurant, not cooked yet) and
+orders returned to the pool. Accepting a `confirmed` order moves it to
+`preparing` and starts the kitchen; pickup can be confirmed once the restaurant
+marks it `ready_for_pickup`, then it transitions to `delivering` and
+`delivered`. Acceptance can be returned to the open pool within three minutes
+before pickup; the kitchen keeps its status. A shipper may only
 have one active order. Delivery confirmation credits the shipping fee to the
 shipper's pending dashboard balance in a MongoDB transaction, marks a COD order
 as paid, and frees the shipper for a new order. When the customer confirms

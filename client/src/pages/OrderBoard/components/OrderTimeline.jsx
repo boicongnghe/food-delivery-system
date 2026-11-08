@@ -3,7 +3,8 @@ import { HISTORY_LABELS } from '../constants.js'
 
 // Next steps shown greyed out after the latest status
 const NEXT_STEPS = {
-  pending: ['Quán nhận đơn', 'Bếp hoàn tất – sẵn sàng'],
+  pending: ['Quán nhận đơn', 'Shipper nhận đơn – bếp nấu', 'Bếp hoàn tất – sẵn sàng'],
+  confirmed: ['Shipper nhận đơn – bếp nấu', 'Bếp hoàn tất – sẵn sàng'],
   preparing: ['Bếp hoàn tất – sẵn sàng', 'Chờ shipper lấy hàng'],
   ready_for_pickup: ['Chờ shipper lấy hàng'],
   delivering: ['Giao hàng thành công'],
