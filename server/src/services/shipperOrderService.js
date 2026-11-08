@@ -256,13 +256,33 @@ export const recordUnansweredCall = async (shipperId, orderId) => {
   return { unansweredCalls: order.unansweredCallsAt.length };
 };
 
-export const confirmDelivered = async (shipperId, orderId) => {
-  const order = await Order.findOne({ _id: orderId, shipper: shipperId, status: 'delivering' })
-    .populate('restaurant', 'name address')
-    .lean();
+const DELIVERED_BY = {
+  shipper: { action: 'Giao hàng thành công', note: 'Shipper đã giao món tới khách hàng' },
+  customer: { action: 'Đã nhận hàng', note: 'Khách hàng xác nhận đã nhận được món ăn' },
+};
+
+// COD is paid when the food is handed over. findOneAndUpdate skips the model hook that does this on save(),
+// so both field sets are written here (complaint refunds and the customer screens read them).
+const codPaidFields = (order, at) =>
+  order.payment?.method === 'cod' && order.payment.status === 'unpaid'
+    ? { 'payment.status': 'paid', 'payment.paidAt': at, paymentStatus: 'paid' }
+    : {};
+
+/**
+ * Finish a delivery: order -> delivered, COD -> paid, shipping fee credited to the shipper, slot freed.
+ * One transaction, conditional on the order still being delivered by this shipper and not credited yet,
+ * so the shipper's "delivered" and the customer's "received" can never both credit the same order.
+ * @param {{ orderId, shipperId, byRole: 'shipper' | 'customer', customerId? }} params
+ */
+export const completeDelivery = async ({ orderId, shipperId, byRole, customerId = null }) => {
+  const ownerFilter = { _id: orderId, shipper: shipperId, status: 'delivering', ...(customerId && { customer: customerId }) };
+  const order = await Order.findOne(ownerFilter).populate('restaurant', 'name address').lean();
   if (!order) {
     throw new ApiError(409, 'Đơn hàng không ở trạng thái đang giao');
   }
+  // The wallet snapshot is created on the first dashboard request; make sure the payout has somewhere to go
+  await driverDashboardService.getDashboard(shipperId, 'today');
+
   const payout = Math.max(0, order.shippingFee || 0);
   const deliveredAt = new Date();
   const session = await mongoose.startSession();
@@ -270,15 +290,10 @@ export const confirmDelivered = async (shipperId, orderId) => {
     let deliveredOrder;
     await session.withTransaction(async () => {
       deliveredOrder = await Order.findOneAndUpdate(
+        { ...ownerFilter, 'payment.status': order.payment.status, payoutCreditedAt: null },
         {
-          _id: orderId,
-          shipper: shipperId,
-          status: 'delivering',
-          payoutCreditedAt: null,
-        },
-        {
-          $set: { status: 'delivered', payoutCreditedAt: deliveredAt },
-          $push: { statusHistory: { status: 'delivered', at: deliveredAt, byRole: 'shipper' } },
+          $set: { status: 'delivered', payoutCreditedAt: deliveredAt, ...codPaidFields(order, deliveredAt) },
+          $push: { statusHistory: { status: 'delivered', at: deliveredAt, byRole } },
         },
         { new: true, runValidators: true, session },
       );
@@ -286,10 +301,14 @@ export const confirmDelivered = async (shipperId, orderId) => {
         throw new ApiError(409, 'Đơn hàng vừa được hoàn tất hoặc trạng thái đã thay đổi');
       }
 
-      const dashboardUpdate = await DriverDashboard.updateOne(
+      await DriverDashboard.updateOne(
         { userId: shipperId, activeOrderId: orderId },
+        { $set: { activeOrderId: null } },
+        { session },
+      );
+      const dashboardUpdate = await DriverDashboard.updateOne(
+        { userId: shipperId },
         {
-          $set: { activeOrderId: null },
           $inc: {
             'periods.today.pendingBalance': payout,
             'periods.today.totalEarnings': payout,
@@ -340,12 +359,14 @@ export const confirmDelivered = async (shipperId, orderId) => {
       orderId: deliveredOrder._id,
       fromStatus: 'delivering',
       toStatus: 'delivered',
-      role: 'shipper',
-      action: 'Giao hàng thành công',
-      note: 'Shipper đã giao món tới khách hàng',
+      role: byRole,
+      ...DELIVERED_BY[byRole],
     });
     return { order: deliveredOrder, payout };
   } finally {
     await session.endSession();
   }
 };
+
+export const confirmDelivered = (shipperId, orderId) =>
+  completeDelivery({ orderId, shipperId, byRole: 'shipper' });

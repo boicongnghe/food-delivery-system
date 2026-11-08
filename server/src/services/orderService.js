@@ -10,6 +10,7 @@ import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../
 import { recordStatusChange } from './orderHistoryService.js';
 import { refundRequestFields } from './orderPolicy.js';
 import { validateAndApplyPromotion } from './promotionService.js';
+import { completeDelivery } from './shipperOrderService.js';
 import { sendRealtimeNotification } from '../socket.js';
 import User from '../models/User.js';
 import { getOrderAcceptance } from '../utils/openingHours.js';
@@ -399,6 +400,19 @@ export const receiveOrder = async (orderId, userId) => {
     throw new ApiError(400, 'Chỉ xác nhận đã nhận hàng khi đơn đang được giao');
   }
 
+  // A shipper is delivering it: finish the delivery the same way as the shipper's "delivered"
+  // (shipping fee credited, shipper free for a new order, COD paid), whoever confirms first
+  if (order.shipper) {
+    const { order: delivered } = await completeDelivery({
+      orderId: order._id,
+      shipperId: order.shipper,
+      customerId: userId,
+      byRole: 'customer',
+    });
+    return delivered;
+  }
+
+  // No shipper on the order (demo progress tool): only the order itself changes
   const previousStatus = order.status;
   order.status = 'delivered';
   order.$locals.changedByRole = 'customer';

@@ -1,50 +1,62 @@
-// shipperFlowTest.js – Node script to verify shipper API flow
-// Run with: node src/utils/shipperFlowTest.js
-// Prompts for shipper email & password, obtains JWT, then calls key shipper endpoints.
+// Node CLI (not bundled in the app): checks the shipper API flow against a running server.
+// Usage (from the repo root, Node 20+):
+//   API_URL=http://localhost:5000/api node client/src/utils/shipperFlowTest.js
+// Asks for a shipper's email and password, then: log in -> go online -> accept the oldest order of the
+// pickup pool -> pick up -> deliver. It changes real data of the database the server is connected to.
+import { createInterface } from 'node:readline/promises'
+import { stdin, stdout } from 'node:process'
 
-const readline = require('readline');
-const axios = require('axios');
+const API_URL = process.env.API_URL
 
-const BASE_URL = 'http://localhost:5000'; // backend base URL
-
-function askQuestion(query) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise(resolve => rl.question(query, ans => { rl.close(); resolve(ans); }));
+const request = async (method, path, token, body) => {
+  const response = await fetch(`${API_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(`${method} ${path} -> ${response.status} ${json.message || ''}`)
+  return json.data
 }
 
-async function main() {
-  try {
-    const email = await askQuestion('Shipper email: ');
-    const password = await askQuestion('Shipper password: ');
-    // login
-    const loginRes = await axios.post(`${BASE_URL}/auth/login`, { email, password });
-    const token = loginRes.data.token || loginRes.data.accessToken;
-    if (!token) throw new Error('No token returned from login');
-    console.log('✅ Logged in, token received');
-    const authHeader = { Authorization: `Bearer ${token}` };
+const main = async () => {
+  if (!API_URL) throw new Error('Set API_URL, e.g. API_URL=http://localhost:5000/api')
 
-    // 1. Get active orders
-    const activeRes = await axios.get(`${BASE_URL}/orders/shipper/active`, { headers: authHeader });
-    console.log(`✅ Active orders: ${activeRes.data.length} order(s)`);
-    if (activeRes.data.length === 0) {
-      console.log('⚠️ No active orders to continue the flow.');
-      return;
-    }
-    const orderId = activeRes.data[0]._id;
-    // 2. Accept order
-    await axios.patch(`${BASE_URL}/orders/${orderId}/shipper/accept`, {}, { headers: authHeader });
-    console.log('✅ Order accepted');
-    // 3. Picked up
-    await axios.patch(`${BASE_URL}/orders/${orderId}/shipper/picked-up`, {}, { headers: authHeader });
-    console.log('✅ Order picked up');
-    // 4. Delivered
-    await axios.patch(`${BASE_URL}/orders/${orderId}/shipper/delivered`, {}, { headers: authHeader });
-    console.log('✅ Order delivered');
-    console.log('🚀 All shipper flow endpoints succeeded');
-  } catch (err) {
-    console.error('❌ Error during shipper flow verification:', err.response ? err.response.data : err.message);
-    process.exit(1);
+  // Read line by line so it works when typed and when piped (rl.question drops lines that arrive early)
+  const rl = createInterface({ input: stdin })
+  const lines = rl[Symbol.asyncIterator]()
+  const ask = async (question) => {
+    stdout.write(question)
+    const { value } = await lines.next()
+    return (value || '').trim()
   }
+  const email = await ask('Shipper email: ')
+  const password = await ask('Shipper password: ')
+  rl.close()
+
+  const { token } = await request('POST', '/auth/login', null, { email, password })
+  stdout.write('OK  logged in\n')
+  await request('PATCH', '/drivers/me/status', token, { isOnline: true })
+  stdout.write('OK  online\n')
+
+  const active = await request('GET', '/orders/shipper/active', token)
+  if (active.length > 0) throw new Error(`Finish the order you hold first: ${active[0].orderCode}`)
+
+  const { items } = await request('GET', '/orders/available-for-pickup?page=1&limit=1', token)
+  if (items.length === 0) {
+    stdout.write('--  no order waiting for a shipper (run "npm run seed:shipper-orders" in server/)\n')
+    return
+  }
+  const order = items[0]
+  await request('PATCH', `/orders/${order._id}/shipper/accept`, token)
+  stdout.write(`OK  accepted ${order.orderCode}\n`)
+  await request('PATCH', `/orders/${order._id}/shipper/picked-up`, token)
+  stdout.write('OK  picked up\n')
+  const { payout } = await request('PATCH', `/orders/${order._id}/shipper/delivered`, token)
+  stdout.write(`OK  delivered, ${payout} VND credited\n`)
 }
 
-main();
+main().catch((error) => {
+  process.stderr.write(`FAIL ${error.message}\n`)
+  process.exitCode = 1
+})

@@ -167,7 +167,7 @@ Model `Order` đang có **hai bộ trường cho cùng một thông tin**:
 
 - `GET /api/orders/:id`: khách chỉ xem được đơn của mình; admin xem được mọi đơn.
 - `PATCH /api/orders/:id/progress` là **công cụ demo**: chỉ chủ đơn, chỉ sang `confirmed`/`preparing`/`delivering`, bị chặn khi `NODE_ENV=production`.
-- `PATCH /api/orders/:id/receive`: chỉ khi đơn đang `delivering`; đơn COD tự chuyển `payment.status = paid`.
+- `PATCH /api/orders/:id/receive`: chỉ khi đơn đang `delivering`; đơn COD tự chuyển `payment.status = paid`. Nếu đơn có shipper, việc hoàn tất đi qua cùng hàm với nút "Đã giao" của shipper (`completeDelivery` trong `shipperOrderService.js`): cộng phí giao vào ví shipper và giải phóng shipper để nhận đơn mới. Bên nào xác nhận trước thắng, không cộng tiền hai lần.
 
 ## 5. `reviews`
 

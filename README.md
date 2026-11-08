@@ -102,38 +102,16 @@ npm run dev        # http://localhost:5173
 | [docs/coding-convention.md](docs/coding-convention.md)| Quy ước đặt tên và viết code                      |
 | [docs/database.md](docs/database.md)                  | Thiết kế CSDL (khung)                             |
 | [docs/task-breakdown.md](docs/task-breakdown.md)      | Chia module và task cho nhóm                      |
-
-## Shipper Flow Verification
-
-**Prerequisites**
-
-- Backend server running (`npm run dev` in `server` folder) at `http://localhost:5000`.
-- Node.js installed.
-
-**Node script**
-
-Run the verification script:
-
-```bash
-node client/src/utils/shipperFlowTest.js
-```
-
-You will be prompted for shipper email and password. The script will:
-1. Log in and obtain a JWT.
-2. Fetch active orders.
-3. Accept the first active order.
-4. Mark it as picked‑up.
-5. Mark it as delivered.
-
-Success messages will be printed for each step.
-
-**UI Debug Page**
-
-Open the application in a browser, log in as a shipper, and navigate to:
-
-```
-http://localhost:5173/shipper/debug
-```
-
-The **Debug Shipper Flow** page will run the same sequence and display results.
 | [CONTRIBUTING.md](CONTRIBUTING.md)                    | Quy trình đóng góp                                |
+
+## Kiểm tra nhanh luồng shipper (môi trường dev)
+
+Cả hai cách đều dùng tài khoản shipper đã được duyệt, nhận đơn cũ nhất trong danh sách chờ rồi lấy hàng và giao. Thao tác **ghi dữ liệu thật** vào database server đang kết nối; tạo đơn mẫu bằng `npm run seed:shipper-orders` (trong `server/`).
+
+- Script Node (chạy từ thư mục gốc, server đang chạy):
+
+  ```bash
+  API_URL=http://localhost:5000/api node client/src/utils/shipperFlowTest.js
+  ```
+
+- Trang `/shipper/debug` (chỉ có khi chạy `npm run dev` ở client): đăng nhập bằng tài khoản shipper, mở trang và bấm **Chạy luồng giao hàng**.

@@ -131,7 +131,11 @@ An accepted order remains in `ready_for_pickup` until the shipper confirms
 pickup, then transitions to `delivering` and `delivered`. Acceptance can be
 returned to the open pool within three minutes before pickup. A shipper may only
 have one active order. Delivery confirmation credits the shipping fee to the
-shipper's pending dashboard balance in a MongoDB transaction.
+shipper's pending dashboard balance in a MongoDB transaction, marks a COD order
+as paid, and frees the shipper for a new order. When the customer confirms
+receipt first (`PATCH /api/orders/:id/receive`), the same transaction runs, so
+the shipper is still credited and freed; the later shipper confirmation then
+returns `409`.
 
 Issue reports are accepted only for active assigned orders and appear in the
 existing open Admin delivery-issue queue. For `customer_unreachable` and
