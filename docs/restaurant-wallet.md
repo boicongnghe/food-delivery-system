@@ -4,7 +4,7 @@ Tài liệu nghiệp vụ cho nhóm. Màn hình: **Thống kê → Ví & rút ti
 
 ## 1. Tiền vào ví
 
-- **Thực nhận** của mỗi đơn hoàn thành = tiền món + phí đóng gói − phí nền tảng (tỉ lệ hoa hồng admin cấu hình, theo ngày đặt đơn). Voucher hiện do nền tảng tài trợ nên không trừ vào quán. Phí giao hàng thuộc shipper.
+- **Thực nhận** của mỗi đơn hoàn thành = tiền món + phí đóng gói − voucher quán − phí nền tảng. Phí nền tảng = (tiền món − voucher quán) × tỉ lệ hoa hồng admin cấu hình, theo ngày đặt đơn ([restaurant-voucher.md](restaurant-voucher.md)). Mã của nền tảng do nền tảng chịu. Phí giao hàng thuộc shipper.
 - Tiền vào ví sau **đối soát cuối ngày (T+1)**: thực nhận của các ngày trước hôm nay là **"Đã vào ví"**, đơn của hôm nay là **"Chờ đối soát"** và vào ví sau 0h.
 - Số dư không lưu sẵn mà tính lại từ đơn bằng cùng công thức và cùng cách làm tròn theo ngày với tab **Chi tiết hoa hồng**, nên ví và sao kê luôn khớp nhau.
 

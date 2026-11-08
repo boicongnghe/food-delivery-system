@@ -15,6 +15,7 @@ import complaintRoutes from './complaintRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import chatRoutes from './chatRoutes.js';
 import webhookRoutes from './webhookRoutes.js';
+import voucherRoutes from './voucherRoutes.js';
 
 const router = Router();
 
@@ -43,5 +44,6 @@ router.use('/complaints', complaintRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/chat', chatRoutes);
 router.use('/webhooks', webhookRoutes);
+router.use('/restaurant-vouchers', voucherRoutes);
 
 export default router;

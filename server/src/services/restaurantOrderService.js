@@ -50,6 +50,8 @@ const toRestaurantView = (order) => ({
   packagingFee: order.packagingFee,
   shippingFee: order.shippingFee,
   discount: order.discount,
+  // The restaurant's own voucher (it pays it); the rest of "discount" is the platform's
+  restaurantVoucher: { code: order.restaurantVoucher?.code || null, discountAmount: order.restaurantVoucher?.discountAmount || 0 },
   total: order.total,
   customerNote: order.customerNote,
   delivery: {
