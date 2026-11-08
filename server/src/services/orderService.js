@@ -74,6 +74,12 @@ const assertRestaurantTakingOrders = async (restaurant) => {
   if (restaurant.status !== 'approved') {
     throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
   }
+  if (restaurant.isAcceptingOrders === false) {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" đang tạm ngưng nhận đơn. Vui lòng quay lại sau hoặc chọn quán khác.`,
+    );
+  }
   const { closingCutoff } = await getOrderTimeouts();
   const acceptance = getOrderAcceptance(restaurant.openingHours, closingCutoff);
   if (acceptance.reason === 'closed') {

@@ -28,6 +28,15 @@ import { foodApi } from '../../api/foodApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
 import { isOpenNow, getOpeningHoursText } from '../../utils/openingHours.js'
 
+// Open for ordering: inside opening hours AND not paused by the owner. Demo partners (static data) have no
+// schedule: they keep their own flag.
+const getPartnerStatus = (partner) => {
+  if (partner.isAcceptingOrders === false) return { isOpen: false, hoursText: 'Tạm ngưng nhận đơn' }
+  const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
+  const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
+  return { isOpen, hoursText }
+}
+
 // Partner Restaurants Data Fallback
 const DEFAULT_PARTNERS = [
   {
@@ -230,7 +239,8 @@ export default function Home() {
               DEFAULT_PARTNERS[idx % DEFAULT_PARTNERS.length]?.image ||
               'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
             openingHours: r.openingHours || [],
-            isKitchenActive: isOpenNow(r.openingHours),
+            isAcceptingOrders: r.isAcceptingOrders !== false,
+            isKitchenActive: isOpenNow(r.openingHours) && r.isAcceptingOrders !== false,
             promo: 'Freeship đơn từ 99k',
             signatureDishes: ['Món đặc sắc quán', 'Combo tiết kiệm'],
           }))
@@ -359,9 +369,7 @@ export default function Home() {
             (typeof dish.restaurant === 'string' ? dish.restaurant.trim().toLowerCase() : dish.restaurant?.name?.trim().toLowerCase()))
     )
     if (!partner) return { isOpen: true, hoursText: '' }
-    // Demo partners (static data) have no schedule: keep their own flag
-    const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
-    const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
+    const { isOpen, hoursText } = getPartnerStatus(partner)
     return { isOpen, hoursText, partner }
   }
 
@@ -758,8 +766,7 @@ export default function Home() {
         {/* 4-Column Grid: Partner Restaurants */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {filteredPartners.map((partner) => {
-            const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
-            const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
+            const { isOpen, hoursText } = getPartnerStatus(partner)
             return (
               <div
                 key={partner.id}
