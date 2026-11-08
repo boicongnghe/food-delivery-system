@@ -7,6 +7,7 @@
 // Which side is the truth for each order:
 // - created by checkout (orderNumber "ORD-...")  -> legacy fields (paymentStatus, cancelledBy...)
 // - created by kitchen/seed data (orderCode "GN-...") -> nested fields (payment.*, cancellation.*)
+// In both cases a delivered COD order still marked unpaid becomes paid (cash collected on handover).
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
@@ -45,16 +46,28 @@ const rebuildTimeline = async (order) => {
   return timeline.length > 0 ? timeline : [{ status: 'pending', at: order.createdAt, byRole: 'customer' }];
 };
 
+// Delivered COD orders were paid on handover. Shipper deliveries saved before that rule was applied
+// (findOneAndUpdate skipped the model hook) still say "unpaid", which blocks complaint refunds.
+const deliveredAt = (order) =>
+  [...(order.statusHistory || [])].reverse().find((entry) => entry.status === 'delivered')?.at || order.updatedAt;
+const isUnpaidDeliveredCod = (order, payment) =>
+  order.status === 'delivered' && payment.method === 'cod' && payment.status === 'unpaid';
+
 const changesFromLegacy = async (order) => {
   const payment = canonicalPaymentFromLegacy(order);
   if (order.status === 'cancelled' && payment.status === 'unpaid') payment.status = 'cancelled';
+  const codPaidOnDelivery = isUnpaidDeliveredCod(order, payment);
+  if (codPaidOnDelivery) payment.status = 'paid';
 
   const changes = {
     'payment.method': payment.method,
     'payment.status': payment.status,
     'payment.refundAmount': payment.refundAmount,
   };
-  if (payment.status === 'paid' && !order.payment?.paidAt) changes['payment.paidAt'] = order.updatedAt;
+  if (payment.status === 'paid' && !order.payment?.paidAt) {
+    changes['payment.paidAt'] = codPaidOnDelivery ? deliveredAt(order) : order.updatedAt;
+  }
+  if (codPaidOnDelivery) changes.paymentStatus = 'paid';
   if (payment.status === 'refunded' && !order.payment?.refundedAt) changes['payment.refundedAt'] = order.updatedAt;
   if (order.cancelledBy && !order.cancellation?.by) {
     changes.cancellation = canonicalCancellationFromLegacy(order, order.updatedAt);
@@ -63,10 +76,23 @@ const changesFromLegacy = async (order) => {
   return changes;
 };
 
-const changesFromCanonical = (order) => ({
-  ...legacyPaymentFromCanonical(order.payment),
-  ...legacyCancellationFromCanonical(order.cancellation),
-});
+const changesFromCanonical = (order) => {
+  // The refund owed (R06) drives the legacy refundStatus / refundAmount: without it an owed refund would be
+  // written back as "not_applicable"
+  if (!isUnpaidDeliveredCod(order, order.payment || {})) {
+    return {
+      ...legacyPaymentFromCanonical(order.payment, order.refund),
+      ...legacyCancellationFromCanonical(order.cancellation),
+    };
+  }
+  const payment = { ...order.payment, status: 'paid', paidAt: order.payment.paidAt || deliveredAt(order) };
+  return {
+    'payment.status': payment.status,
+    'payment.paidAt': payment.paidAt,
+    ...legacyPaymentFromCanonical(payment, order.refund),
+    ...legacyCancellationFromCanonical(order.cancellation),
+  };
+};
 
 const run = async () => {
   await mongoose.connect(process.env.MONGO_URI);
