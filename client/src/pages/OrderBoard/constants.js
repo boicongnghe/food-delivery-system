@@ -1,5 +1,4 @@
 export const POLL_INTERVAL_MS = 15 * 1000 // reload the board every 15s
-export const LATE_AFTER_MS = 5 * 60 * 1000 // pending longer than 5 minutes -> red warning
 export const NEW_ORDER_MS = 60 * 1000 // "Mới tinh" badge during the first minute
 export const SOUND_STORAGE_KEY = 'orderBoard.soundEnabled'
 
@@ -8,6 +7,13 @@ export const ACCEPT_BLOCKED_MESSAGES = {
   pending: 'Quán đang chờ admin duyệt – chưa thể nhận đơn mới',
   rejected: 'Quán không được duyệt hoạt động – không thể nhận đơn mới',
   suspended: 'Quán đang bị tạm ngưng hoạt động – không thể nhận đơn mới',
+}
+
+// Reasons of cancellations made by the platform (timeout rules, admin): docs/order-timeouts.md
+export const SYSTEM_CANCEL_REASONS = {
+  accept_timeout: 'Quán không xác nhận đơn kịp thời (tự hủy)',
+  no_shipper: 'Không tìm được shipper (tự hủy)',
+  admin_cancel: 'Quản trị viên hủy thay khách',
 }
 
 // Same values as REJECT_REASONS on the server

@@ -4,6 +4,7 @@ import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+import { hasOpeningSchedule } from '../utils/openingHours.js';
 import { toPage } from '../utils/pagination.js';
 import { summarizeOrders } from './adminUserService.js';
 import { countByStatus } from './feedbackPolicy.js';
@@ -48,6 +49,8 @@ const restaurantChecks = (restaurant, owner) => [
     required: true,
   },
   { key: 'businessItems', label: 'Món ăn / Mặt hàng quán muốn kinh doanh', ok: isFilled(restaurant.description), required: true },
+  // TO-09: no schedule = closed, so the restaurant is never shown or approved without one
+  { key: 'openingHours', label: 'Lịch mở cửa (ít nhất 1 ca trong tuần)', ok: hasOpeningSchedule(restaurant.openingHours), required: true },
   {
     key: 'ownerCitizenId',
     label: 'Số CCCD của chủ quán (9-12 chữ số)',
@@ -99,7 +102,7 @@ const PARTNERS = {
     Model: Shipper,
     accountField: 'user',
     notFound: 'Không tìm thấy tài xế',
-    listFields: 'user fullName phone citizenId vehicleInfo status rating isOnline statusChange createdAt',
+    listFields: 'user fullName phone citizenId vehicleInfo status rating statusChange createdAt',
     searchFields: ['fullName', 'phone', 'citizenId', 'vehicleInfo'],
     getChecks: shipperChecks,
     getOrderMatch: (shipper) => ({ shipper: shipper.user?._id }),

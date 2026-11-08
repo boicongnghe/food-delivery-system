@@ -21,6 +21,8 @@ cd server && npm run seed:menu [email]   # thực đơn mẫu cho chủ quán (m
 cd server && npm run seed:orders         # đơn mẫu cho bảng bếp (cần seed:menu trước), GHI ĐÈ đơn của quán
 cd server && npm run seed:orders -- --new   # thêm 1 đơn mới để test tự cập nhật + chuông
 cd server && npm run migrate:order-fields   # sửa đơn cũ lệch trường thanh toán (chỉ in; thêm -- --apply để ghi)
+cd server && npm run migrate:foods-to-menu  # chuyển món trong collection foods cũ sang thực đơn menuitems (chỉ in; thêm -- --apply để ghi)
+cd server && npm run migrate:drop-unused-fields  # xóa các trường đã bỏ khỏi model, xem docs/database.md mục 8 (chỉ in; thêm -- --apply để ghi)
 cd server && npm run seed:feedback       # đánh giá, khiếu nại, sự cố, hoa hồng, khuyến mãi + đơn 45 ngày cho thống kê (cần seed:orders trước)
 ```
 

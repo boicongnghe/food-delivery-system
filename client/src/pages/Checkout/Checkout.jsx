@@ -7,6 +7,7 @@ import { promotionApi } from '../../api/promotionApi.js'
 import { orderApi } from '../../api/orderApi.js'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
+import { cartLineKey } from '../../utils/cartLineKey.js'
 
 function Checkout() {
   const { user } = useAuth()
@@ -355,9 +356,18 @@ function Checkout() {
       const payload = {
         restaurantId: cart.restaurant.id,
         items: cart.items.map((item) => ({
-          foodId: item.food._id || item.food.id,
+          menuItemId: item.food._id || item.food.id,
           quantity: item.quantity,
           note: item.note || '',
+          // Chosen size / toppings by group: the server prices them from the menu
+          options: [
+            ...(item.food.selectedSize?.groupName
+              ? [{ groupName: item.food.selectedSize.groupName, name: item.food.selectedSize.name }]
+              : []),
+            ...(item.food.selectedToppings || [])
+              .filter((topping) => topping.groupName)
+              .map((topping) => ({ groupName: topping.groupName, name: topping.name })),
+          ],
         })),
         deliveryAddress,
         paymentMethod,
@@ -669,7 +679,7 @@ function Checkout() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
               {cart.items.map((item) => (
                 <div
-                  key={item.food._id || item.food.id}
+                  key={cartLineKey(item.food)}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
                   <div>

@@ -1,6 +1,12 @@
-// Quote a cell when it contains a comma, a quote or a line break
+// Text that Excel / LibreOffice would run as a formula (=, +, -, @, tab, carriage return at the start)
+const FORMULA_START = /^[=+\-@\t\r]/
+
+// Quote a cell when it contains a comma, a quote or a line break. Text typed by users (customer names,
+// notes...) that starts like a formula gets a leading apostrophe so it stays plain text.
+// Numbers are written as they are: a negative amount stays a number.
 const toCell = (value) => {
-  const text = String(value ?? '')
+  let text = String(value ?? '')
+  if (typeof value === 'string' && FORMULA_START.test(text)) text = `'${text}`
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 

@@ -1,17 +1,21 @@
 import { TriangleAlert, Zap } from 'lucide-react'
 import { formatDuration } from '../../../utils/formatTime.js'
-import { LATE_AFTER_MS, NEW_ORDER_MS } from '../constants.js'
+import { NEW_ORDER_MS } from '../constants.js'
 
-// How long a new order has been waiting: "MỚI TINH" -> "x phút trước" -> red "QUÁ 5 PHÚT"
-export default function WaitingBadge({ waitedMs }) {
-  if (waitedMs >= LATE_AFTER_MS) {
+/**
+ * How long a new order has been waiting: "MỚI TINH" -> "x phút trước" -> red countdown once the
+ * reminder time passed (TO-02), until the order cancels itself (TO-03).
+ * @param {number|null} cancelInMs - time left before the automatic cancel (null = unknown)
+ */
+export default function WaitingBadge({ waitedMs, isLate, cancelInMs }) {
+  if (isLate) {
     return (
       <>
         <span className="inline-flex items-center gap-1 rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
           <TriangleAlert className="h-3 w-3" />
-          QUÁ 5 PHÚT: {formatDuration(waitedMs)}
+          {cancelInMs > 0 ? `TỰ HỦY SAU ${formatDuration(cancelInMs)}` : 'ĐANG TỰ HỦY'}
         </span>
-        <p className="mt-0.5 text-[10px] font-bold text-red-600">CẦN NHẬN NGAY!</p>
+        <p className="mt-0.5 text-[10px] font-bold text-red-600">CẦN NHẬN NGAY! Đã chờ {formatDuration(waitedMs)}</p>
       </>
     )
   }

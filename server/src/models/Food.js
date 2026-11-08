@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+// LEGACY catalogue: the storefront and checkout now read the restaurants' menus (MenuItem).
+// Kept for old orders (items[].food) and `npm run migrate:foods-to-menu`; do not use for new features.
 const foodSchema = new mongoose.Schema(
   {
     restaurant: {

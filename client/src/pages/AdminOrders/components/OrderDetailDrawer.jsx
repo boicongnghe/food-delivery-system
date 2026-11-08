@@ -13,13 +13,16 @@ import { COMPLAINT_CATEGORY_LABELS, COMPLAINT_STATUS_LABELS } from '../../../uti
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { ACTOR_LABELS, ORDER_STATUSES } from '../../../utils/orderLabels.js'
+import AdminCancelSection from './AdminCancelSection.jsx'
+import RefundSection from './RefundSection.jsx'
 
 const COMPLAINT_TONES = { open: 'amber', resolved: 'emerald', rejected: 'slate' }
 
 /**
- * Read-only detail of one platform order. Mount with key={orderId}.
+ * Detail of one platform order; the admin can record the result of an owed refund. Mount with key={orderId}.
+ * onChanged: the order changed (refund resolved), the list should reload.
  */
-export default function OrderDetailDrawer({ orderId, onClose }) {
+export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
   const [order, setOrder] = useState(null)
   const [error, setError] = useState('')
 
@@ -75,6 +78,24 @@ export default function OrderDetailDrawer({ orderId, onClose }) {
           <AdminSection title="Đơn hàng">
             <AdminOrderSnapshot order={order} />
           </AdminSection>
+
+          <AdminCancelSection
+            order={order}
+            onCancelled={(updated) => {
+              setOrder(updated)
+              onChanged?.()
+            }}
+          />
+
+          {order.refund && order.refund.status !== 'none' && (
+            <RefundSection
+              order={order}
+              onResolved={(updated) => {
+                setOrder(updated)
+                onChanged?.()
+              }}
+            />
+          )}
 
           <AdminSection title="Khách hàng & giao hàng">
             <AdminInfoRow label="Tài khoản">

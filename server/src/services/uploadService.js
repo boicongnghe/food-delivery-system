@@ -2,6 +2,7 @@ import cloudinary, { isCloudinaryConfigured } from '../config/cloudinary.js';
 import Complaint from '../models/Complaint.js';
 import DeliveryIssue from '../models/DeliveryIssue.js';
 import MenuItem from '../models/MenuItem.js';
+import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
@@ -68,6 +69,19 @@ export const uploadImage = async (buffer, folder, userId) => {
   return { url: result.secure_url, publicId: result.public_id };
 };
 
+/**
+ * R09 - an image can only be attached by the user who uploaded it, from a folder allowed for that use.
+ * Uploads live in food-delivery/<folder>/<userId>/..., so another user's avatar or dish photo is refused.
+ */
+export const assertOwnUpload = (url, userId, folders, field) => {
+  const [root, folder, owner] = getPublicIdFromUrl(url)?.split('/') || [];
+  if (root !== ROOT_FOLDER || !folders.includes(folder) || owner !== String(userId)) {
+    throw new ApiError(400, 'Dữ liệu không hợp lệ', [{ field, message: 'Ảnh phải do chính bạn tải lên' }]);
+  }
+};
+
+// Every place that can still show an image: menus, restaurant profiles, avatars, feedback evidence
+// and the item snapshots of orders (old orders must keep their photos)
 const isImageInUse = async (url, publicId) => {
   const urlRegex = new RegExp(escapeRegex(publicId));
   const usages = await Promise.all([
@@ -76,8 +90,19 @@ const isImageInUse = async (url, publicId) => {
     User.exists({ avatar: url }),
     Complaint.exists({ images: url }),
     DeliveryIssue.exists({ images: url }),
+    Order.exists({ 'items.image': url }),
   ]);
   return usages.some(Boolean);
+};
+
+/**
+ * Remove a replaced image from Cloudinary unless something still shows it. Call after the new value is saved.
+ * A save racing with this check can still reference the image a moment later; acceptable for replaced images.
+ */
+export const deleteImageIfUnused = async (url) => {
+  const publicId = getPublicIdFromUrl(url);
+  if (!publicId || (await isImageInUse(url, publicId))) return;
+  await deleteImageQuietly(publicId);
 };
 
 /**

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { useState } from 'react'
 import { MessageSquareText } from 'lucide-react'
 import reportApi from '../../../api/reportApi.js'
 import Pagination from '../../../components/Pagination/Pagination.jsx'
 import StarRating from '../../../components/StarRating/StarRating.jsx'
+import { useKeyedRequest } from '../../../hooks/useKeyedRequest.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { REVIEW_PAGE_SIZE } from '../constants.js'
 import RatingSummary from './RatingSummary.jsx'
+import ReportLoadError from './ReportLoadError.jsx'
 
 const RATING_FILTERS = [null, 5, 4, 3, 2, 1]
 
@@ -14,27 +15,16 @@ const RATING_FILTERS = [null, 5, 4, 3, 2, 1]
 export default function ReviewsTab({ range }) {
   const [rating, setRating] = useState(null)
   const [page, setPage] = useState(1)
-  const requestKey = `${range.from}_${range.to}_${rating}_${page}`
-  const [loaded, setLoaded] = useState({ key: null, data: null })
-  const result = loaded.data
-  const loading = loaded.key !== requestKey
-
-  useEffect(() => {
-    let ignore = false
-    reportApi
-      .getReviews({ ...range, rating: rating || undefined, page, limit: REVIEW_PAGE_SIZE })
-      .then((response) => {
-        if (!ignore) setLoaded({ key: requestKey, data: response.data })
-      })
-      .catch((error) => {
-        if (ignore) return
-        toast.error(error.response?.data?.message || 'Không tải được đánh giá')
-        setLoaded((prev) => ({ ...prev, key: requestKey }))
-      })
-    return () => {
-      ignore = true
-    }
-  }, [range, rating, page, requestKey])
+  const request = useKeyedRequest(
+    `${range.from}_${range.to}_${rating}_${page}`,
+    () =>
+      reportApi
+        .getReviews({ ...range, rating: rating || undefined, page, limit: REVIEW_PAGE_SIZE })
+        .then((response) => response.data),
+    'Không tải được đánh giá',
+  )
+  const result = request.data
+  const loading = !request.isCurrent
 
   const changeRating = (value) => {
     setRating(value)
@@ -42,11 +32,20 @@ export default function ReviewsTab({ range }) {
   }
 
   if (!result) {
-    return <p className="py-16 text-center text-sm text-slate-500">Đang tải…</p>
+    return request.error ? (
+      <ReportLoadError message={request.error} onRetry={request.retry} />
+    ) : (
+      <p className="py-16 text-center text-sm text-slate-500">Đang tải…</p>
+    )
   }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {request.error && (
+        <div className="lg:col-span-3">
+          <ReportLoadError message={request.error} stale onRetry={request.retry} />
+        </div>
+      )}
       <RatingSummary reviews={result.summary} />
 
       <section className="rounded-xl border border-brand-soft/70 bg-white shadow-sm lg:col-span-2">

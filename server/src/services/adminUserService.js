@@ -63,7 +63,7 @@ export const getUserDetail = async (userId) => {
   const violationFilter = { 'resolution.penalty.targetUser': user._id };
   const [restaurant, shipperProfile, violationTotal, violations] = await Promise.all([
     Restaurant.findOne({ owner: user._id }).select('name status rating ratingCount address phone createdAt').lean(),
-    Shipper.findOne({ user: user._id }).select('status vehicleInfo rating isOnline createdAt').lean(),
+    Shipper.findOne({ user: user._id }).select('status vehicleInfo rating createdAt').lean(),
     DeliveryIssue.countDocuments(violationFilter),
     DeliveryIssue.find(violationFilter)
       .select('code orderCode type resolution.penalty resolution.note resolution.at')

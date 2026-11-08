@@ -40,6 +40,8 @@ const openingHourSchema = Joi.object({
 });
 
 export const updateRestaurantProfileSchema = Joi.object({
+  // updatedAt of the profile the form was loaded with (omitted when creating the profile)
+  expectedUpdatedAt: Joi.date().iso(),
   name: Joi.string().trim().min(2).max(60).required().messages({
     'string.empty': 'Tên quán không được để trống',
     'string.min': 'Tên quán phải có ít nhất 2 ký tự',
@@ -69,6 +71,13 @@ export const updateRestaurantProfileSchema = Joi.object({
   // Image URLs returned by POST /api/uploads/images (our Cloudinary account only)
   logo: cloudinaryImageUrl('Logo').allow('').default(''),
   coverImage: cloudinaryImageUrl('Ảnh bìa').allow('').default(''),
+  // TO-04: average minutes the kitchen needs; optional so an older client never resets it
+  prepTime: Joi.number().integer().min(5).max(120).messages({
+    'number.base': 'Thời gian chuẩn bị phải là số phút',
+    'number.integer': 'Thời gian chuẩn bị phải là số phút',
+    'number.min': 'Thời gian chuẩn bị tối thiểu 5 phút',
+    'number.max': 'Thời gian chuẩn bị tối đa 120 phút',
+  }),
   openingHours: Joi.array().items(openingHourSchema).length(7).unique('dayOfWeek').required().messages({
     'array.length': 'Giờ mở cửa phải đủ 7 ngày trong tuần',
     'array.unique': 'Mỗi ngày chỉ được khai báo một lần',

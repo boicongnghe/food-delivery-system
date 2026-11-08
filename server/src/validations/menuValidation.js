@@ -44,6 +44,8 @@ const optionGroupSchema = Joi.object({
 });
 
 export const menuItemSchema = Joi.object({
+  // Edit form only: updatedAt of the item when the form was opened (concurrent edit -> 409)
+  expectedUpdatedAt: Joi.date().iso(),
   name: Joi.string().trim().min(2).max(80).required().messages({
     'string.empty': 'Tên món không được để trống',
     'string.min': 'Tên món phải có ít nhất 2 ký tự',

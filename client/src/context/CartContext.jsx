@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { cartLineKey } from '../utils/cartLineKey.js'
 
 export const CartContext = createContext(null)
 
@@ -81,8 +82,9 @@ export function CartProvider({ children, userId }) {
         }
       }
 
+      // Cùng quán hoặc giỏ hàng đang trống
       const existingIndex = prev.items.findIndex(
-        (item) => (item.food._id || item.food.id) === (food._id || food.id)
+        (item) => cartLineKey(item.food) === cartLineKey(food)
       )
 
       let newItems = [...prev.items]
@@ -107,7 +109,7 @@ export function CartProvider({ children, userId }) {
   const updateQuantity = (foodId, delta) => {
     setCart((prev) => {
       const targetIndex = prev.items.findIndex(
-        (item) => (item.food._id || item.food.id) === foodId
+        (item) => cartLineKey(item.food) === foodId
       )
       if (targetIndex === -1) return prev
 
@@ -116,7 +118,7 @@ export function CartProvider({ children, userId }) {
 
       if (newQty <= 0) {
         newItems = prev.items.filter(
-          (item) => (item.food._id || item.food.id) !== foodId
+          (item) => cartLineKey(item.food) !== foodId
         )
       } else {
         newItems = [...prev.items]
@@ -137,7 +139,7 @@ export function CartProvider({ children, userId }) {
   const removeFromCart = (foodId) => {
     setCart((prev) => {
       const newItems = prev.items.filter(
-        (item) => (item.food._id || item.food.id) !== foodId
+        (item) => cartLineKey(item.food) !== foodId
       )
       return {
         restaurant: newItems.length === 0 ? null : prev.restaurant,
@@ -189,4 +191,4 @@ export function CartProvider({ children, userId }) {
   )
 }
 
-// useCart hook is in ./useCart.js (required for Vite HMR Fast Refresh)
+export { useCart } from './useCart.js'

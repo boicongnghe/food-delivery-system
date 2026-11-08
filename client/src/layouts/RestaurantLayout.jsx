@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { RefreshCw, WifiOff } from 'lucide-react'
 import Header from '../components/Header/Header.jsx'
 import Footer from '../components/Footer/Footer.jsx'
 import restaurantApi from '../api/restaurantApi.js'
@@ -17,6 +17,9 @@ const RESTAURANT_NAV_ITEMS = [
 export default function RestaurantLayout() {
   const [restaurant, setRestaurant] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Network / server error: must not look like "no profile yet" (that is only a 404)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let isMounted = true
@@ -28,8 +31,8 @@ export default function RestaurantLayout() {
       })
       .catch((error) => {
         // 404 = owner has not created a profile yet, not an error
-        if (error.response?.status !== 404) {
-          toast.error(error.response?.data?.message || 'Không tải được thông tin nhà hàng')
+        if (isMounted && error.response?.status !== 404) {
+          setLoadError(error.response?.data?.message || 'Không tải được thông tin nhà hàng. Kiểm tra kết nối mạng.')
         }
       })
       .finally(() => {
@@ -39,7 +42,13 @@ export default function RestaurantLayout() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [reloadKey])
+
+  const retry = () => {
+    setLoadError('')
+    setLoading(true)
+    setReloadKey((key) => key + 1)
+  }
 
   const status = restaurant
     ? isOpenNow(restaurant.openingHours)
@@ -64,7 +73,9 @@ export default function RestaurantLayout() {
         <div className="bg-red-600 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-xs text-center animate-in fade-in">
           <span>❌</span>
           <span>
-            Hồ sơ quán ăn của bạn <strong>ĐÃ BỊ TỪ CHỐI DUYỆT</strong>. Vui lòng cập nhật lại thông tin hoặc liên hệ ban quản trị.
+            Hồ sơ quán ăn của bạn <strong>ĐÃ BỊ TỪ CHỐI DUYỆT</strong>
+            {restaurant.statusChange?.note ? ` (lý do: ${restaurant.statusChange.note})` : ''}. Hãy sửa hồ sơ và bấm Lưu thay
+            đổi để gửi duyệt lại, hoặc liên hệ ban quản trị.
           </span>
         </div>
       )}
@@ -73,6 +84,20 @@ export default function RestaurantLayout() {
         {loading ? (
           <div className="py-32 flex justify-center">
             <div className="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : loadError ? (
+          <div className="max-w-md mx-auto px-4 py-24 text-center" role="alert">
+            <WifiOff className="mx-auto h-10 w-10 text-slate-400" />
+            <p className="mt-4 font-semibold text-slate-900">Chưa tải được thông tin quán</p>
+            <p className="mt-1 text-sm text-slate-600">{loadError}</p>
+            <button
+              type="button"
+              onClick={retry}
+              className="mt-5 inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Thử lại
+            </button>
           </div>
         ) : (
           <Outlet context={{ restaurant, setRestaurant }} />

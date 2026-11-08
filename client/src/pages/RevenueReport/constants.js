@@ -30,7 +30,7 @@ export const ORDER_TABS = [
   { value: 'delivered', label: 'Hoàn thành' },
   { value: 'in_progress', label: 'Đang xử lý' },
   { value: 'cancelled', label: 'Khách / hệ thống hủy' },
-  { value: 'rejected', label: 'Quán từ chối' },
+  { value: 'rejected', label: 'Quán từ chối / không nhận' },
 ]
 
 export const ORDER_STATUS_LABELS = {
@@ -58,11 +58,19 @@ export const CANCELLED_BY_LABELS = {
   system: 'Hệ thống hủy',
 }
 
+// Cancellations by the platform (docs/order-timeouts.md); accept_timeout counts as a restaurant rejection
+export const CANCEL_REASON_LABELS = {
+  accept_timeout: 'Quán không nhận kịp',
+  no_shipper: 'Không có shipper',
+  admin_cancel: 'Admin hủy',
+}
+
 export const PAYMENT_METHOD_LABELS = { cod: 'Tiền mặt', momo: 'MoMo', vnpay: 'VNPay', banking: 'Chuyển khoản' }
 
 export const SETTLEMENT_STATUS = {
-  settled: { label: 'Đã quyết toán', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  pending: { label: 'Chờ chuyển khoản', className: 'bg-amber-50 text-amber-800 border-amber-200' },
+  // From the payout calendar only: there is no real payout transaction yet (see docs/restaurant-report.md)
+  settled: { label: 'Đến hạn chuyển khoản', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  pending: { label: 'Chưa đến kỳ', className: 'bg-amber-50 text-amber-800 border-amber-200' },
 }
 
 export const REVIEW_PAGE_SIZE = 10

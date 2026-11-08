@@ -4,14 +4,23 @@ import toast from 'react-hot-toast'
 import reportApi from '../../api/reportApi.js'
 import NoRestaurantNotice from '../../components/NoRestaurantNotice/NoRestaurantNotice.jsx'
 import PrintPortal from '../../components/PrintPortal/PrintPortal.jsx'
+import { useKeyedRequest } from '../../hooks/useKeyedRequest.js'
 import { downloadCsv } from '../../utils/downloadCsv.js'
 import { formatDateTime, formatDay, todayInVietnam } from '../../utils/formatDate.js'
 import { formatPeriodLong, getPresetRange } from '../AdminAnalytics/chartUtils.js'
-import { CANCELLED_BY_LABELS, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, REPORT_TABS, SETTLEMENT_STATUS } from './constants.js'
+import {
+  CANCEL_REASON_LABELS,
+  CANCELLED_BY_LABELS,
+  ORDER_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  REPORT_TABS,
+  SETTLEMENT_STATUS,
+} from './constants.js'
 import CommissionTab from './components/CommissionTab.jsx'
 import OrderHistoryTab from './components/OrderHistoryTab.jsx'
 import OverviewTab from './components/OverviewTab.jsx'
 import PrintableSettlement from './components/PrintableSettlement.jsx'
+import ReportLoadError from './components/ReportLoadError.jsx'
 import ReportFilterBar from './components/ReportFilterBar.jsx'
 import ReviewsTab from './components/ReviewsTab.jsx'
 
@@ -28,8 +37,6 @@ export default function RevenueReport() {
   const [preset, setPreset] = useState(DEFAULT_PRESET)
   const [range, setRange] = useState(() => getPresetRange(DEFAULT_PRESET, todayInVietnam()))
   const [customRange, setCustomRange] = useState(range)
-  const [overview, setOverview] = useState(null)
-  const [overviewLoading, setOverviewLoading] = useState(true)
   const [orderFilters, setOrderFilters] = useState({ status: 'all', keyword: '' })
   const [exporting, setExporting] = useState(false)
   const [printJob, setPrintJob] = useState(null) // { settlement, at }
@@ -40,26 +47,14 @@ export default function RevenueReport() {
   const activeTab = TAB_VALUES.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'overview'
   const openTab = (tab) => setSearchParams(tab === 'overview' ? {} : { tab })
 
-  useEffect(() => {
-    if (!restaurant || activeTab !== 'overview') return undefined
-    let ignore = false
-
-    reportApi
-      .getOverview(range)
-      .then((response) => {
-        if (!ignore) setOverview(response.data)
-      })
-      .catch((error) => {
-        if (!ignore) toast.error(getErrorMessage(error, 'Không tải được báo cáo doanh thu'))
-      })
-      .finally(() => {
-        if (!ignore) setOverviewLoading(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [restaurant, activeTab, range])
+  // The figures on screen may belong to the previous range while the new one loads or fails:
+  // overviewRequest.isCurrent says if they are the chosen range (only then export is allowed)
+  const overviewRequest = useKeyedRequest(
+    restaurant && activeTab === 'overview' ? `${range.from}_${range.to}` : null,
+    () => reportApi.getOverview(range).then((response) => response.data),
+    'Không tải được báo cáo doanh thu',
+  )
+  const overview = overviewRequest.data
 
   // Print after the statement is rendered in the portal
   useEffect(() => {
@@ -79,10 +74,7 @@ export default function RevenueReport() {
     return <NoRestaurantNotice message="Hãy tạo hồ sơ nhà hàng trước để xem báo cáo doanh thu." />
   }
 
-  const applyRange = (nextRange) => {
-    setOverviewLoading(true)
-    setRange(nextRange)
-  }
+  const applyRange = (nextRange) => setRange(nextRange)
 
   const changePreset = (value) => {
     setPreset(value)
@@ -127,7 +119,9 @@ export default function RevenueReport() {
         order.customerName,
         order.items.map((item) => `${item.quantity}x ${item.name}`).join('; '),
         PAYMENT_METHOD_LABELS[order.payment.method] || '',
-        order.status === 'cancelled' ? CANCELLED_BY_LABELS[order.cancellation?.by] || 'Đã hủy' : ORDER_STATUS_LABELS[order.status],
+        order.status === 'cancelled'
+          ? CANCEL_REASON_LABELS[order.cancellation?.reason] || CANCELLED_BY_LABELS[order.cancellation?.by] || 'Đã hủy'
+          : ORDER_STATUS_LABELS[order.status],
         order.grossRevenue,
         order.commissionRate,
         order.platformFee,
@@ -139,7 +133,7 @@ export default function RevenueReport() {
   const exportSettlements = async () => {
     const { data } = await reportApi.getSettlements(range)
     downloadCsv(`hoa-hong-${fileSuffix}.csv`, [
-      ['Ngày', 'Số đơn', 'Doanh thu gộp (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Voucher quán (đ)', 'Thực nhận (đ)', 'Ngày chuyển khoản', 'Trạng thái'],
+      ['Ngày', 'Số đơn', 'Doanh thu gộp (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Voucher quán (đ)', 'Thực nhận (đ)', 'Ngày chuyển khoản dự kiến', 'Trạng thái'],
       ...data.days.map((day) => [
         formatDay(day.day),
         day.deliveredOrders,
@@ -155,7 +149,7 @@ export default function RevenueReport() {
   }
 
   const exporters = { overview: exportOverview, orders: exportOrders, commission: exportSettlements }
-  const canExport = activeTab in exporters && (activeTab !== 'overview' || (overview && !overviewLoading))
+  const canExport = activeTab in exporters && (activeTab !== 'overview' || overviewRequest.isCurrent)
 
   const runExport = async () => {
     setExporting(true)
@@ -221,16 +215,24 @@ export default function RevenueReport() {
         printing={printing}
       />
 
+      {activeTab === 'overview' && overviewRequest.error && (
+        <ReportLoadError message={overviewRequest.error} stale={Boolean(overview)} onRetry={overviewRequest.retry} />
+      )}
       {activeTab === 'overview' &&
         (overview ? (
-          // Refetch keeps the previous report on screen, dimmed, instead of flashing a loader
-          <div className={`transition-opacity ${overviewLoading ? 'opacity-60' : ''}`} aria-busy={overviewLoading}>
+          // Previous report stays on screen, dimmed, until the chosen range is loaded
+          <div
+            className={`transition-opacity ${overviewRequest.isCurrent ? '' : 'opacity-60'}`}
+            aria-busy={overviewRequest.loading}
+          >
             <OverviewTab report={overview} onOpenTab={openTab} />
           </div>
         ) : (
-          <div className="flex justify-center py-24">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
-          </div>
+          !overviewRequest.error && (
+            <div className="flex justify-center py-24">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+            </div>
+          )
         ))}
       {activeTab === 'orders' && <OrderHistoryTab range={range} filters={orderFilters} onFiltersChange={changeOrderFilters} />}
       {activeTab === 'reviews' && <ReviewsTab range={range} />}

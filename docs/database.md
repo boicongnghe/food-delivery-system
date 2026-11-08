@@ -45,7 +45,7 @@ TODO: nhóm chốt thiết kế – thông tin riêng của shipper (biển số
 | `description` | String | |
 | `address` | String | |
 | `phone` | String | |
-| `image` | String | URL ảnh |
+| `logo`, `coverImage` | String | URL ảnh Cloudinary do chủ quán tải lên. Trang chủ dùng `coverImage`, thiếu thì dùng `logo` |
 | `openingHours` | Object | ví dụ `{ open: "08:00", close: "22:00" }` |
 | `rating` | Number | điểm trung bình, cập nhật khi có review |
 | `status` | String | enum gợi ý: `pending`, `approved`, `rejected`, `suspended` (admin duyệt) |
@@ -74,6 +74,14 @@ TODO: nhóm chốt thiết kế.
 - Khi tạo đơn: kiểm tra lại các điều kiện trên ở server và **lưu snapshot** tên, giá, tùy chọn đã chọn, ảnh vào đơn – không tham chiếu giá hiện tại của món.
 - Không xóa cứng món: dùng xóa mềm (`isDeleted`) để đơn cũ vẫn hiển thị được.
 
+**Nguồn món duy nhất (R02):** trang chủ (`GET /api/foods`, `/api/foods/:id`), trợ lý AI và checkout đều đọc `menuitems` – đúng thực đơn chủ quán quản lý. Chỉ lấy món của quán `approved`, `isVisible: true`, `isDeleted: false`.
+
+- Collection `foods` (model `Food.js`) là **dữ liệu cũ**: chỉ còn cho đơn cũ (`items[].food`) và script chuyển dữ liệu. Không dùng cho tính năng mới.
+- Dữ liệu có sẵn trong `foods`: chạy `npm run migrate:foods-to-menu` (chỉ in), kiểm tra rồi chạy `npm run migrate:foods-to-menu -- --apply`. Món giữ nguyên `_id` nên giỏ hàng cũ vẫn đặt được; `foods.category` thành danh mục của quán; quán đã có món cùng tên thì giữ món của quán. Chạy lại nhiều lần vẫn an toàn.
+- Checkout gửi `items: [{ menuItemId, quantity, note, options: [{ groupName, name }] }]`. Server kiểm tra số lượng (số nguyên 1–99), nhóm bắt buộc, `maxSelect`, lựa chọn còn tồn tại, rồi tự tính giá từ thực đơn. Giảm giá ghi vào cả `discount` (bếp, báo cáo đọc) và `promotion.discountAmount`.
+- Ảnh món / logo / ảnh bìa (R09): chỉ nhận ảnh do chính chủ quán tải lên (`food-delivery/<menu-items|restaurants>/<userId>/...`). Ảnh cũ bị thay chỉ xóa khỏi Cloudinary khi không còn nơi nào dùng, kể cả snapshot `items[].image` của đơn cũ.
+- Sửa món và hồ sơ quán (R16): client gửi `expectedUpdatedAt` (giá trị `updatedAt` lúc mở form). Dữ liệu đã bị sửa ở nơi khác thì trả **409** và yêu cầu tải lại, không ghi đè. Bật/tắt "còn món" cũng tăng `updatedAt`.
+
 ## 4. `orders`
 
 **Đã triển khai** (luồng xử lý đơn phía bếp): model thực tế xem `server/src/models/Order.js`. Module Cart & Order **dùng lại model này**, không tạo model đơn hàng khác.
@@ -91,8 +99,10 @@ TODO: nhóm chốt thiết kế.
 | `statusHistory` | Array | `[{ status, at, byRole }]` – dòng thời gian của đơn |
 | `acceptedAt`, `readyAt` | Date | quán nhận đơn / bếp làm xong |
 | `kitchenTicketNo` | Number | Số phiếu bếp trong ngày (`#04`), cấp khi quán nhận đơn, đếm lại từ 1 mỗi ngày theo từng quán (bộ đếm `kitchen:<restaurantId>:<yyyymmdd>` trong `counters`) |
-| `kitchenDueAt` | Date | Hạn bàn giao shipper = giờ nhận + thời gian chuẩn bị (Giao nhanh 10 phút / Tiêu chuẩn 20 phút, xem `services/orderTiming.js`) |
+| `kitchenDueAt` | Date | Hạn bàn giao shipper = giờ nhận + `prepTime` của quán (mặc định 15 phút, TO-04, xem [order-timeouts.md](order-timeouts.md)) |
+| `timeouts` | Object | `{ acceptRemindedAt, prepWarnedAt, prepEscalatedAt, shipperAlertedAt }`: các bước thời hạn đã chạy cho đơn (mỗi bước chạy một lần) |
 | `cancellation` | Object | `{ by: 'customer' \| 'restaurant' \| 'shipper' \| 'system', reason, note, at }` |
+| `refund` | Object | `{ status: 'none' \| 'pending' \| 'succeeded' \| 'failed', amount, requestedAt, completedAt, reference, note, by }` – khoản hoàn tiền khi đơn đã trả online bị hủy (R06) |
 
 ### Trạng thái đơn hàng
 
@@ -113,10 +123,14 @@ stateDiagram-v2
 **Quy tắc bắt buộc khi đổi trạng thái** (module Cart & Order và Shipper cũng phải theo):
 
 - Luôn cập nhật **có điều kiện trạng thái cũ**, ví dụ `findOneAndUpdate({ _id, status: 'pending' }, ...)`, để 2 thao tác cùng lúc không đè nhau; không cập nhật được thì trả **409**.
-- Mỗi lần đổi trạng thái phải `$push` một dòng vào `statusHistory`.
-- Hủy đơn đã trả online → `payment.status = refunded` + `refundedAt` + `refundAmount` (hiện là **mô phỏng**, chưa nối cổng thanh toán). Đơn COD chưa thu → `payment.status = cancelled`.
-- Khách chỉ được hủy khi đơn còn `pending`. Bảng bếp hiển thị đơn khách vừa hủy trong 10 phút.
-- Chủ quán chỉ thấy số điện thoại khách đã che (`090***456`).
+- Mỗi lần đổi trạng thái phải `$push` một dòng vào `statusHistory` **và** gọi `recordStatusChange` (`services/orderHistoryService.js`) để timeline của khách (`order_status_history`) có đủ các bước của khách, bếp, shipper và admin (R13).
+- **Hoàn tiền (R06):** hủy đơn đã trả online **không** chuyển ngay sang `refunded`. Đơn ghi `refund.status = pending` với số tiền cần hoàn, còn `payment.status` vẫn là `paid` (bên cũ: `refundStatus = pending`). Admin chuyển trả tiền rồi ghi kết quả qua `PATCH /api/admin/orders/:id/refund`:
+  - `{ result: 'succeeded', reference }`: bắt buộc có mã giao dịch. Khi đó `payment.status = refunded` (kèm `refundedAt`, `refundAmount`) và các bản ghi `payments` thành công chuyển sang `refunded`.
+  - `{ result: 'failed', note }`: khoản hoàn vẫn còn nợ và có thể xác nhận lại sau.
+  - Lệnh cập nhật có điều kiện theo `refund.status`, nên bấm hai lần không hoàn hai lần. Danh sách đơn của admin có tab "Chờ hoàn tiền".
+  - Đơn COD chưa thu tiền mà bị hủy → `payment.status = cancelled`.
+- Khách hủy được khi đơn còn `pending`/`confirmed`. Lệnh hủy có điều kiện theo trạng thái và thanh toán vừa đọc (R03): nếu quán vừa nhận đơn cùng lúc thì khách nhận **409**, không thể hủy đơn đang nấu. Bảng bếp hiển thị đơn khách vừa hủy trong 10 phút.
+- Chủ quán chỉ thấy số điện thoại khách đã che (`090***456`). API bếp trả đơn theo **danh sách trường cho phép** (`toRestaurantView`): không có `customer`, không có bản sao cũ `deliveryAddress` (R05).
 - **Điều kiện thanh toán** (bộ lọc dùng chung trong `server/src/services/orderPolicy.js`):
   - Đơn online (MoMo/VNPay/chuyển khoản) **chưa từng thanh toán** (`unpaid`, hoặc `cancelled` khi khách hủy ở trang thanh toán) không phải đơn thật: quán **không thấy**, không thao tác được, báo cáo không tính và khách không khiếu nại được (`PLACED_ORDER_FILTER`).
   - Nhận đơn và chuyển "sẵn sàng" chỉ khi: COD đang `unpaid` (shipper thu tiền) **hoặc** online đã `paid`. Điều kiện này nằm ngay trong câu lệnh cập nhật atomic.
@@ -128,7 +142,7 @@ stateDiagram-v2
 - **Chi tiết đơn / phiếu bếp (UC23):**
   - `GET /api/restaurants/me/orders/:id` trả thêm `customerInsight: { completedOrders, isRegular }`. **Khách quen** = ≥ 3 đơn giao thành công tại quán trong 90 ngày; không trả thêm thông tin nào khác của khách.
   - `GET /api/restaurants/me/orders/lookup?code=GN-0042` tra cứu đơn của quán mình theo mã (mọi trạng thái).
-  - Số phiếu bếp được cấp **sau khi** nhận đơn thành công, nên request thua khi 2 người bấm cùng lúc không làm nhảy số.
+  - Số phiếu bếp được ghi **trong cùng lệnh cập nhật** chuyển sang `preparing` (R14), nên đơn đã nhận luôn có số phiếu. Khi 2 người bấm nhận cùng lúc, request thua bỏ phí một số, nên dãy số phiếu có thể bị nhảy (chấp nhận được).
 - Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `ready_for_pickup`, `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn: gán `shipper` (trạng thái vẫn `ready_for_pickup`); khi lấy hàng: chuyển `delivering`.
 
 - **Module sau giao hàng (đánh giá, khiếu nại, sự cố) dựa vào `statusHistory`:** thời điểm giao/hủy lấy từ dòng `delivered`/`cancelled` cuối cùng. Module Shipper khi chuyển đơn sang `delivered` **bắt buộc** `$push` dòng này, nếu không thì khách sẽ không đánh giá hoặc khiếu nại được.
@@ -181,6 +195,34 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm |
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
+
+## 7. `platform_settings`
+
+Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper` hoặc `admin_cancel`.
+
+Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn, admin không duyệt được. Không có ca qua đêm.
+
+## 8. Trường đã bỏ (refactor/db-cleanup)
+
+Các trường dưới đây đã bị xóa khỏi model vì không còn code nào đọc. **Không dùng lại**; nếu cần thông tin tương ứng, dùng cột "Thay bằng".
+
+| Trường đã bỏ | Lý do | Thay bằng |
+| --- | --- | --- |
+| `notifications.sender` | Không chỗ nào ghi, luôn `null` | (không cần) |
+| `restaurants.image` | Chỉ là bản sao avatar chủ quán, chủ quán không sửa được | `coverImage` / `logo` |
+| `restaurants.isVerified` | Ghi theo trạng thái duyệt, không ai đọc | `status === 'approved'` |
+| `shippers.isOnline` | Đặt `true` lúc đăng ký và không bao giờ đổi | `driverdashboards.isOnline` (nút bật/tắt nhận đơn) |
+| `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | `users.addresses[]` (`isDefault`) |
+| `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
+
+Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):
+
+```bash
+cd server && npm run migrate:drop-unused-fields            # chỉ đếm, không ghi
+cd server && npm run migrate:drop-unused-fields -- --apply # $unset các trường
+```
+
+Chưa xóa trong đợt này (còn đang được dùng hoặc cần cả nhóm thống nhất): collection `foods` (đợi chạy `migrate:foods-to-menu` trên Atlas), bộ trường cũ của `orders` (checkout và màn khách còn đọc), hai sổ địa chỉ (`users.addresses[]` và collection `addresses`), trạng thái đơn `confirmed`.
 
 ## Collection có thể cần thêm
 

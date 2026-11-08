@@ -92,6 +92,22 @@ const DEFAULT_PARTNERS = [
   },
 ]
 
+// Menu option groups -> the size / topping pickers of DishDetailModal. The first required single-choice group
+// is the size picker, every other option a topping. Each choice keeps its group name: checkout sends it and
+// the server prices it from the menu.
+const toModalOptions = (optionGroups = []) => {
+  if (optionGroups.length === 0) return undefined
+  const sizeGroup = optionGroups.find((group) => group.isRequired && group.maxSelect === 1)
+  return {
+    sizes: sizeGroup
+      ? sizeGroup.options.map((option) => ({ name: option.name, extra: option.price, groupName: sizeGroup.name }))
+      : [],
+    toppings: optionGroups
+      .filter((group) => group !== sizeGroup)
+      .flatMap((group) => group.options.map((option) => ({ name: option.name, price: option.price, groupName: group.name }))),
+  }
+}
+
 export default function Home() {
   const { user, isAuthenticated } = useAuth()
   const { addToCart, itemCount = 0, subtotal = 0 } = useCart() || {}
@@ -183,6 +199,8 @@ export default function Home() {
             distance: f.distance || '1.5 km',
             tag: idx === 0 ? 'Bán chạy' : (f.tag || undefined),
             description: f.description || 'Món ngon chuẩn vị với nguyên liệu tươi sạch.',
+            options: toModalOptions(f.optionGroups),
+            hasRequiredOptions: (f.optionGroups || []).some((group) => group.isRequired),
           }))
           setApiDishes(mapped)
         }
@@ -207,7 +225,8 @@ export default function Home() {
             badge: idx % 2 === 0 ? 'Chuẩn 5 Sao' : 'Freeship',
             badgeColor: idx % 2 === 0 ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white',
             image:
-              r.image ||
+              r.coverImage ||
+              r.logo ||
               DEFAULT_PARTNERS[idx % DEFAULT_PARTNERS.length]?.image ||
               'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
             openingHours: r.openingHours || [],
@@ -340,8 +359,9 @@ export default function Home() {
             (typeof dish.restaurant === 'string' ? dish.restaurant.trim().toLowerCase() : dish.restaurant?.name?.trim().toLowerCase()))
     )
     if (!partner) return { isOpen: true, hoursText: '' }
-    const isOpen = isOpenNow(partner.openingHours)
-    const hoursText = getOpeningHoursText(partner.openingHours)
+    // Demo partners (static data) have no schedule: keep their own flag
+    const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
+    const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
     return { isOpen, hoursText, partner }
   }
 
@@ -375,6 +395,12 @@ export default function Home() {
         `Quán "${dish.restaurant}" hiện đang đóng cửa (${hoursText || 'chưa đến giờ phục vụ'})! Quý khách vui lòng chọn món từ quán đang hoạt động.`,
         { icon: '🛑', duration: 3500 }
       )
+      return
+    }
+
+    // A required choice (size, noodle type...) cannot be guessed: let the customer pick it first
+    if (dish.hasRequiredOptions) {
+      setActiveDish(dish)
       return
     }
 
@@ -732,8 +758,8 @@ export default function Home() {
         {/* 4-Column Grid: Partner Restaurants */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {filteredPartners.map((partner) => {
-            const isOpen = isOpenNow(partner.openingHours)
-            const hoursText = getOpeningHoursText(partner.openingHours)
+            const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
+            const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
             return (
               <div
                 key={partner.id}
