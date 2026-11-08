@@ -362,7 +362,7 @@ export default function ProfileModal({ isOpen, onClose }) {
                 Quản lý tài khoản cá nhân
               </h3>
               <p className="text-xs text-slate-500">
-                {user.fullName} ({user.email})
+                {user.fullName} {user.email && !user.email.startsWith('fb_') ? `(${user.email})` : ''}
               </p>
             </div>
           </div>
@@ -436,6 +436,11 @@ export default function ProfileModal({ isOpen, onClose }) {
                     <img
                       src={avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
                       alt="Ảnh đại diện"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                      }}
                       className="w-20 h-20 rounded-2xl object-cover ring-4 ring-primary/20 shadow-md group-hover:opacity-90 transition-opacity"
                     />
                     <button
@@ -965,9 +970,11 @@ export default function ProfileModal({ isOpen, onClose }) {
                 <p className="text-slate-700">
                   • Họ và tên: <strong>{user.fullName}</strong>
                 </p>
-                <p className="text-slate-700">
-                  • Email: <strong>{user.email}</strong>
-                </p>
+                {user.email && !user.email.startsWith('fb_') && (
+                  <p className="text-slate-700">
+                    • Email: <strong>{user.email}</strong>
+                  </p>
+                )}
                 <p className="text-slate-600 text-[11px] pt-1">
                   Toàn bộ thông tin cá nhân và sổ địa chỉ sẽ bị xóa sạch khỏi hệ thống. Nếu có đơn hàng đang giao, hệ thống sẽ từ chối để bảo vệ quyền lợi đơn hàng.
                 </p>

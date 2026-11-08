@@ -235,6 +235,11 @@ export default function Navbar({ onOpenCart }) {
                       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
                     }
                     alt={user.fullName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                    }}
                     className="w-9 h-9 rounded-xl object-cover ring-2 ring-primary/30 shadow-xs"
                   />
                   <div className="hidden md:block text-left">
@@ -257,13 +262,20 @@ export default function Navbar({ onOpenCart }) {
                           'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
                         }
                         alt={user.fullName}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                        }}
                         className="w-10 h-10 rounded-2xl object-cover ring-2 ring-primary/30 shrink-0"
                       />
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                           {user.fullName}
                         </p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        {user.email && !user.email.startsWith('fb_') && (
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        )}
                       </div>
                     </div>
 
@@ -348,6 +360,11 @@ export default function Navbar({ onOpenCart }) {
                         'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
                       }
                       alt={user.fullName}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
+                      }}
                       className="w-8 h-8 rounded-2xl object-cover ring-2 ring-primary/40"
                     />
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -395,6 +412,11 @@ export default function Navbar({ onOpenCart }) {
                   <img
                     src={user.avatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'}
                     alt={user.fullName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'
+                    }}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                   <span>Tài xế</span>

@@ -100,6 +100,11 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
                 <img
                   src={user.avatar}
                   alt={user.fullName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                  }}
                   className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/30"
                 />
               ) : (
@@ -127,7 +132,9 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
                       </div>
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 truncate">{user.fullName}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        {user.email && !user.email.startsWith('fb_') && (
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        )}
                       </div>
                     </div>
                   )}
