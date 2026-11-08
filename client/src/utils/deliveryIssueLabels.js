@@ -18,6 +18,13 @@ export const DELIVERY_ISSUE_STATUSES = {
 
 export const PENALTY_TARGET_LABELS = { shipper: 'Shipper', restaurant: 'Nhà hàng', customer: 'Khách hàng' }
 
+// What the admin does with the order the shipper could not finish (server: ISSUE_ORDER_ACTIONS)
+export const ISSUE_ORDER_ACTION_LABELS = {
+  none: 'Giữ nguyên đơn hàng',
+  release: 'Trả đơn về hàng chờ (đổi shipper)',
+  cancel: 'Hủy đơn & hoàn tiền',
+}
+
 export const PENALTY_ACTION_LABELS = {
   warning: 'Cảnh cáo',
   fine: 'Phạt tiền',

@@ -100,7 +100,7 @@ TODO: nhóm chốt thiết kế.
 | `acceptedAt`, `readyAt` | Date | quán nhận đơn / bếp làm xong |
 | `kitchenTicketNo` | Number | Số phiếu bếp trong ngày (`#04`), cấp khi quán nhận đơn, đếm lại từ 1 mỗi ngày theo từng quán (bộ đếm `kitchen:<restaurantId>:<yyyymmdd>` trong `counters`) |
 | `kitchenDueAt` | Date | Hạn bàn giao shipper = giờ nhận + `prepTime` của quán (mặc định 15 phút, TO-04, xem [order-timeouts.md](order-timeouts.md)) |
-| `timeouts` | Object | `{ acceptRemindedAt, prepWarnedAt, prepEscalatedAt, shipperAlertedAt }`: các bước thời hạn đã chạy cho đơn (mỗi bước chạy một lần) |
+| `timeouts` | Object | `{ acceptRemindedAt, prepWarnedAt, prepEscalatedAt, shipperAlertedAt, pickupAlertedAt }`: các bước thời hạn đã chạy cho đơn (mỗi bước chạy một lần). `releasedAt`: lúc admin trả đơn về hàng chờ (đổi shipper) |
 | `cancellation` | Object | `{ by: 'customer' \| 'restaurant' \| 'shipper' \| 'system', reason, note, at }` |
 | `refund` | Object | `{ status: 'none' \| 'pending' \| 'succeeded' \| 'failed', amount, requestedAt, completedAt, reference, note, by }` – khoản hoàn tiền khi đơn đã trả online bị hủy (R06) |
 
@@ -192,13 +192,13 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | Collection | Model | Ghi chú |
 | --- | --- | --- |
 | `complaints` | `Complaint.js` | Khiếu nại của khách (UC18, UC42). `code` dạng `KN-0001`, unique theo `order`. `open → resolved \| rejected`, `resolution: { note, refundAmount, by, at }` |
-| `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm |
+| `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm. `resolution.orderAction`: `none` \| `release` \| `cancel` (admin xử lý đơn shipper không giao tiếp được) |
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
 
 ## 7. `platform_settings`
 
-Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper` hoặc `admin_cancel`.
+Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper`, `admin_cancel` hoặc `delivery_issue` (admin hủy khi xử lý sự cố giao hàng).
 
 Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn, admin không duyệt được. Không có ca qua đêm.
 

@@ -12,6 +12,7 @@ import { getOrderTimeouts } from './settingService.js';
  *   TO-02 remind the restaurant      TO-03 auto-cancel an order nobody accepted
  *   TO-04 warn: past declared prep   TO-05 hand an overdue kitchen to the admin
  *   TO-06 tell the admin: no shipper TO-07 auto-cancel when still no shipper
+ *   pickup: tell the admin a shipper accepted but has not picked up after pickupWait
  * Every write is conditional on the state just read, so a run that overlaps another one (or a second
  * server instance) never acts twice. Each step stamps order.timeouts.* so it runs once per order.
  */
@@ -160,8 +161,15 @@ const escalateOverdueKitchens = async (settings, now) => {
   return count;
 };
 
+// Waiting since the food was ready, or since an admin gave the order back to the pool
 const findWithoutShipper = (readyBefore, extraFilter = {}) =>
-  Order.find({ status: 'ready_for_pickup', shipper: null, readyAt: { $ne: null, $lte: readyBefore }, ...extraFilter })
+  Order.find({
+    status: 'ready_for_pickup',
+    shipper: null,
+    readyAt: { $ne: null, $lte: readyBefore },
+    $or: [{ 'timeouts.releasedAt': null }, { 'timeouts.releasedAt': { $lte: readyBefore } }],
+    ...extraFilter,
+  })
     .select('orderCode orderNumber status restaurant customer readyAt payment total totalPrice')
     .limit(BATCH_LIMIT)
     .lean();
@@ -219,6 +227,34 @@ const cancelOrdersWithoutShipper = async (settings, now) => {
   return count;
 };
 
+// A shipper accepted the order but has not picked it up after pickupWait: never automatic (the shipper may be
+// on the way), the admin gives it to another shipper or cancels it (adminOrderService)
+const alertStalledPickups = async (settings, now) => {
+  const orders = await Order.find({
+    status: 'ready_for_pickup',
+    shipper: { $ne: null },
+    shipperAcceptedAt: { $ne: null, $lte: minutesBefore(now, settings.pickupWait) },
+    'timeouts.pickupAlertedAt': null,
+  })
+    .select('orderCode orderNumber shipper restaurant')
+    .limit(BATCH_LIMIT)
+    .lean();
+  let count = 0;
+  for (const order of orders) {
+    if (!(await stamp(order._id, 'ready_for_pickup', 'pickupAlertedAt', now, { shipper: order.shipper }))) continue;
+    const { name } = await ownerOf(order.restaurant);
+    await notifyAdmins({
+      title: `Đơn #${codeOf(order)}: shipper chưa lấy hàng`,
+      message: `Shipper đã nhận đơn của ${name || 'nhà hàng'} hơn ${settings.pickupWait} phút nhưng chưa lấy hàng. Liên hệ shipper, đổi shipper hoặc hủy đơn.`,
+      type: 'delivery',
+      orderId: order._id,
+      link: '/admin/orders?status=attention',
+    });
+    count += 1;
+  }
+  return count;
+};
+
 // Reminders before the automatic actions they announce
 const STEPS = {
   remindRestaurants,
@@ -227,6 +263,7 @@ const STEPS = {
   escalateOverdueKitchens,
   alertMissingShippers,
   cancelOrdersWithoutShipper,
+  alertStalledPickups,
 };
 
 /** One pass of every step. A failing step is logged and never stops the others. */

@@ -12,6 +12,7 @@ import { toPage } from '../utils/pagination.js';
 import { legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { sendRealtimeNotification } from '../socket.js';
 import { countByStatus } from './feedbackPolicy.js';
+import { cancelAssignedOrder, releaseOrderToPool } from './orderAssignmentService.js';
 import { cancelOrderBySystem } from './orderCancelService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PLACED_ORDER_FILTER } from './orderPolicy.js';
@@ -72,6 +73,7 @@ const ATTENTION_FILTER = {
       $or: [
         { status: 'preparing', 'timeouts.prepEscalatedAt': { $ne: null } },
         { status: 'ready_for_pickup', shipper: null, 'timeouts.shipperAlertedAt': { $ne: null } },
+        { status: 'ready_for_pickup', shipper: { $ne: null }, 'timeouts.pickupAlertedAt': { $ne: null } },
       ],
     },
   ],
@@ -111,34 +113,39 @@ export const listOrders = async ({ page, limit, status, ...filters }) => {
   return { ...toPage(items, { page, limit }, totalItems), counts };
 };
 
-// Orders the admin may cancel: the food is not on its way yet. Once a shipper took the order, the
-// delivery issue flow (UC34 / UC45) handles it instead.
+// Orders the admin may cancel: the food is not on its way yet. A shipper may have accepted the order but not
+// picked it up; once picked up (delivering), the delivery issue flow (UC34 / UC45) handles it instead.
 const ADMIN_CANCELLABLE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup'];
+const ACTION_ORDER_FIELDS = 'orderCode orderNumber status shipper restaurant customer payment total totalPrice';
 
-/**
- * TO-05 (decision D3) - the admin cancels for the customer, e.g. a kitchen far past its preparation time.
- * Same cancellation as the timeout rules: by "system", refund request when paid, restaurant not compensated.
- */
-export const cancelOrderAsAdmin = async (orderId, { note }) => {
-  const order = await Order.findOne({ _id: orderId, ...PLACED_ORDER_FILTER })
-    .select('orderCode orderNumber status shipper restaurant customer payment total totalPrice')
-    .lean();
+const findPlacedOrder = async (orderId) => {
+  const order = await Order.findOne({ _id: orderId, ...PLACED_ORDER_FILTER }).select(ACTION_ORDER_FIELDS).lean();
   if (!order) {
     throw new ApiError(404, 'Không tìm thấy đơn hàng');
   }
+  return order;
+};
+
+/**
+ * TO-05 (decision D3) - the admin cancels for the customer, e.g. a kitchen far past its preparation time,
+ * or a shipper who accepted the order and never came. Same cancellation as the timeout rules: by "system",
+ * refund request when paid, restaurant not compensated. The shipper (if any) is freed for a new order.
+ */
+export const cancelOrderAsAdmin = async (orderId, { note }) => {
+  const order = await findPlacedOrder(orderId);
   if (!ADMIN_CANCELLABLE_STATUSES.includes(order.status)) {
-    throw new ApiError(409, 'Chỉ hủy được đơn chưa giao cho shipper');
-  }
-  if (order.shipper) {
-    throw new ApiError(409, 'Shipper đã nhận đơn này. Hãy xử lý qua sự cố giao hàng.');
+    throw new ApiError(409, 'Shipper đã lấy hàng. Hãy xử lý đơn này qua báo cáo sự cố giao hàng.');
   }
 
-  const result = await cancelOrderBySystem(order, {
-    reason: 'admin_cancel',
-    note: `Quản trị viên hủy thay khách: ${note}`,
-    action: 'Quản trị viên hủy đơn',
-    extraFilter: { shipper: null },
-  });
+  const cancelNote = `Quản trị viên hủy thay khách: ${note}`;
+  const result = order.shipper
+    ? await cancelAssignedOrder(order, { reason: 'admin_cancel', note: cancelNote, action: 'Quản trị viên hủy đơn' })
+    : await cancelOrderBySystem(order, {
+        reason: 'admin_cancel',
+        note: cancelNote,
+        action: 'Quản trị viên hủy đơn',
+        extraFilter: { shipper: null },
+      });
   if (!result) {
     throw new ApiError(409, 'Đơn hàng vừa thay đổi trạng thái, vui lòng tải lại');
   }
@@ -160,6 +167,22 @@ export const cancelOrderAsAdmin = async (orderId, { note }) => {
       orderId,
       link: `/restaurant/orders?order=${orderId}`,
     });
+  }
+  return getOrderDetail(orderId);
+};
+
+/**
+ * The shipper accepted the order but does not pick it up: give it back to the pool for another shipper.
+ * Only before pickup; the food is still at the restaurant.
+ */
+export const releaseShipperAsAdmin = async (orderId, { note }) => {
+  const order = await findPlacedOrder(orderId);
+  if (order.status !== 'ready_for_pickup' || !order.shipper) {
+    throw new ApiError(409, 'Chỉ đổi shipper được khi shipper đã nhận đơn nhưng chưa lấy hàng');
+  }
+  const released = await releaseOrderToPool(order, { note: `Quản trị viên chuyển đơn cho shipper khác: ${note}` });
+  if (!released) {
+    throw new ApiError(409, 'Đơn hàng vừa thay đổi trạng thái, vui lòng tải lại');
   }
   return getOrderDetail(orderId);
 };

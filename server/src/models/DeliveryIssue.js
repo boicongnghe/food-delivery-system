@@ -14,6 +14,8 @@ export const DELIVERY_ISSUE_STATUSES = ['open', 'resolved', 'dismissed'];
 export const PENALTY_TARGETS = ['shipper', 'restaurant', 'customer'];
 // warning, fine: recorded only (fine is simulated) | suspend: restaurant -> "suspended", shipper/customer -> account locked
 export const PENALTY_ACTIONS = ['warning', 'fine', 'suspend'];
+// none: the shipper keeps the order; release: back to the pool (not picked up yet); cancel: cancel + refund
+export const ISSUE_ORDER_ACTIONS = ['none', 'release', 'cancel'];
 
 const penaltySchema = new mongoose.Schema(
   {
@@ -45,6 +47,8 @@ const deliveryIssueSchema = new mongoose.Schema(
     resolution: {
       note: { type: String, default: '' },
       penalty: { type: penaltySchema, default: null },
+      // What the admin did with the order the shipper could not finish
+      orderAction: { type: String, enum: ISSUE_ORDER_ACTIONS, default: 'none' },
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
       at: { type: Date, default: null },
     },

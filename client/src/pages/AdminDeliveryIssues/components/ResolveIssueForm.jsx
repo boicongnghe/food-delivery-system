@@ -1,7 +1,11 @@
 import { TriangleAlert } from 'lucide-react'
 import AdminFieldError from '../../../components/AdminFieldError/AdminFieldError.jsx'
 import { ADMIN_INPUT, ADMIN_LABEL } from '../../../utils/adminClassNames.js'
-import { PENALTY_ACTION_LABELS, PENALTY_TARGET_LABELS } from '../../../utils/deliveryIssueLabels.js'
+import {
+  ISSUE_ORDER_ACTION_LABELS,
+  PENALTY_ACTION_LABELS,
+  PENALTY_TARGET_LABELS,
+} from '../../../utils/deliveryIssueLabels.js'
 import { formatNumber, parseNumberInput } from '../../../utils/formatCurrency.js'
 
 const DECISIONS = [
@@ -11,7 +15,7 @@ const DECISIONS = [
 
 const SUSPEND_EFFECTS = {
   restaurant: 'Nhà hàng chuyển sang "Đình chỉ": không nhận được đơn mới, vẫn hoàn tất / hoàn tiền được các đơn đang có.',
-  shipper: 'Tài khoản shipper bị khóa, mở lại trong mục Quản lý tài khoản.',
+  shipper: 'Tài khoản shipper bị khóa, mở lại trong mục Quản lý tài khoản. Nếu shipper còn giữ đơn, hãy hủy hoặc trả đơn về hàng chờ.',
   customer: 'Tài khoản khách hàng bị khóa, mở lại trong mục Quản lý tài khoản.',
 }
 
@@ -20,12 +24,24 @@ const choiceClass = (checked, activeClass) =>
     checked ? activeClass : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-primary/60'
   }`
 
+const ORDER_ACTION_HINTS = {
+  none: 'Shipper tiếp tục giữ và hoàn tất đơn.',
+  release: 'Shipper không còn giữ đơn; đơn quay lại danh sách chờ để shipper khác nhận.',
+  cancel: 'Đơn bị hủy, không tính lỗi cho quán; khách đã thanh toán sẽ có yêu cầu hoàn tiền (tab "Chờ hoàn tiền").',
+}
+
 /**
  * UC45 - handle a delivery issue report, optionally penalizing one party. The parent owns the state.
- * @param {{ decision, hasPenalty, target, action, fineAmount, note }} form
+ * @param {{ decision, hasPenalty, target, action, fineAmount, note, orderAction }} form
  * @param {{ shipper: number, restaurant: number, customer: number }} violationCounts - earlier penalties
+ * @param {'ready_for_pickup' | 'delivering' | null} heldOrderStatus - order status while the reporting shipper
+ *   still holds it (null: the order moved on, nothing to do with it here)
  */
-export default function ResolveIssueForm({ formId, form, errors, violationCounts, disabled, onChange, onSubmit }) {
+export default function ResolveIssueForm({ formId, form, errors, violationCounts, heldOrderStatus, disabled, onChange, onSubmit }) {
+  // After pickup the food is with the shipper: it can no longer go back to the pool
+  const orderActions = Object.keys(ISSUE_ORDER_ACTION_LABELS).filter(
+    (value) => value !== 'release' || heldOrderStatus === 'ready_for_pickup',
+  )
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
       <fieldset disabled={disabled} className="space-y-4">
@@ -123,6 +139,38 @@ export default function ResolveIssueForm({ formId, form, errors, violationCounts
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {heldOrderStatus && (
+          <div>
+            <p className={ADMIN_LABEL}>
+              Xử lý đơn hàng ({heldOrderStatus === 'delivering' ? 'shipper đã lấy hàng' : 'shipper chưa lấy hàng'}) *
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {orderActions.map((value) => (
+                <label
+                  key={value}
+                  className={choiceClass(
+                    form.orderAction === value,
+                    value === 'cancel'
+                      ? 'border-red-500 bg-red-500/10 text-red-700 dark:text-red-200'
+                      : 'border-primary bg-primary/10 text-primary',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="orderAction"
+                    checked={form.orderAction === value}
+                    onChange={() => onChange({ orderAction: value })}
+                    className="accent-primary"
+                  />
+                  {ISSUE_ORDER_ACTION_LABELS[value]}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">{ORDER_ACTION_HINTS[form.orderAction]}</p>
+            <AdminFieldError message={errors.orderAction} />
           </div>
         )}
 

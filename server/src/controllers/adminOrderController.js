@@ -42,3 +42,13 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     message: 'Đã hủy đơn thay khách hàng',
   });
 });
+
+export const releaseShipper = asyncHandler(async (req, res) => {
+  const order = await adminOrderService.releaseShipperAsAdmin(req.params.id, req.body);
+
+  res.status(200).json({
+    success: true,
+    data: order,
+    message: 'Đã trả đơn về hàng chờ để shipper khác nhận',
+  });
+});

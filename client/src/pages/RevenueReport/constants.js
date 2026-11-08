@@ -63,6 +63,7 @@ export const CANCEL_REASON_LABELS = {
   accept_timeout: 'Quán không nhận kịp',
   no_shipper: 'Không có shipper',
   admin_cancel: 'Admin hủy',
+  delivery_issue: 'Sự cố giao hàng',
 }
 
 export const PAYMENT_METHOD_LABELS = { cod: 'Tiền mặt', momo: 'MoMo', vnpay: 'VNPay', banking: 'Chuyển khoản' }

@@ -14,6 +14,7 @@ export const SYSTEM_CANCEL_REASONS = {
   accept_timeout: 'Quán không xác nhận đơn kịp thời (tự hủy)',
   no_shipper: 'Không tìm được shipper (tự hủy)',
   admin_cancel: 'Quản trị viên hủy thay khách',
+  delivery_issue: 'Hủy do sự cố giao hàng',
 }
 
 // Same values as REJECT_REASONS on the server

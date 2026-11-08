@@ -18,12 +18,36 @@ import IssueResolutionView from './IssueResolutionView.jsx'
 import ResolveIssueForm from './ResolveIssueForm.jsx'
 
 const FORM_ID = 'resolve-issue-form'
-const EMPTY_FORM = { decision: 'resolved', hasPenalty: false, target: '', action: '', fineAmount: '', note: '' }
+const EMPTY_FORM = { decision: 'resolved', hasPenalty: false, target: '', action: '', fineAmount: '', note: '', orderAction: 'none' }
+const SHIPPER_ACTIVE_STATUSES = ['ready_for_pickup', 'delivering']
+
+// Same rule as the server: the order can be cancelled / released only while the reporting shipper still holds it
+const getHeldOrderStatus = (issue) => {
+  const { order, shipper } = issue
+  const held = order && SHIPPER_ACTIVE_STATUSES.includes(order.status) && String(order.shipper) === String(shipper?._id)
+  return held ? order.status : null
+}
+
+const isShipperLock = (form) =>
+  form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend' && form.target === 'shipper'
+
+const getConfirmMessage = (form) => {
+  const parts = []
+  if (form.orderAction === 'cancel') parts.push('Đơn hàng sẽ bị hủy (khách đã thanh toán sẽ có yêu cầu hoàn tiền).')
+  if (form.orderAction === 'release') parts.push('Đơn hàng sẽ được trả về hàng chờ cho shipper khác.')
+  if (form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend') {
+    parts.push(`${PENALTY_TARGET_LABELS[form.target] || ''} sẽ bị đình chỉ ngay sau khi lưu.`)
+  }
+  return `${parts.join(' ')} Bạn chắc chắn chứ?`
+}
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
-const validate = (form) => {
+const validate = (form, heldOrderStatus) => {
   const errors = {}
   if (form.note.trim().length < 5) errors.note = 'Kết luận xử lý ít nhất 5 ký tự'
+  if (isShipperLock(form) && heldOrderStatus && form.orderAction === 'none') {
+    errors.orderAction = 'Shipper đang giữ đơn: hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản'
+  }
   if (form.decision === 'resolved' && form.hasPenalty) {
     if (!form.target) errors['penalty.target'] = 'Vui lòng chọn bên vi phạm'
     if (!form.action) errors['penalty.action'] = 'Vui lòng chọn hình thức xử phạt'
@@ -32,9 +56,10 @@ const validate = (form) => {
   return errors
 }
 
-const toPayload = (form) => ({
+const toPayload = (form, heldOrderStatus) => ({
   decision: form.decision,
   note: form.note.trim(),
+  orderAction: heldOrderStatus ? form.orderAction : 'none',
   penalty:
     form.decision === 'resolved' && form.hasPenalty
       ? {
@@ -55,7 +80,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
-  const [confirmSuspend, setConfirmSuspend] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     let ignore = false
@@ -74,10 +99,12 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
     }
   }, [issueId])
 
+  const heldOrderStatus = issue ? getHeldOrderStatus(issue) : null
+
   const submit = async () => {
     setSaving(true)
     try {
-      const response = await deliveryIssueApi.resolveDeliveryIssue(issueId, toPayload(form))
+      const response = await deliveryIssueApi.resolveDeliveryIssue(issueId, toPayload(form, heldOrderStatus))
       setIssue(response.data)
       toast.success(response.message)
       onResolved()
@@ -87,20 +114,21 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       toast.error(getErrorMessage(error, 'Không lưu được kết quả xử lý'))
     } finally {
       setSaving(false)
-      setConfirmSuspend(false)
+      setConfirming(false)
     }
   }
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const nextErrors = validate(form)
+    const nextErrors = validate(form, heldOrderStatus)
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
     }
-    // Suspending locks an account or stops a restaurant: ask once more
-    if (form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend') {
-      setConfirmSuspend(true)
+    // Suspending (locks an account / stops a restaurant) or changing the order: ask once more
+    const isSuspend = form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend'
+    if (isSuspend || (heldOrderStatus && form.orderAction !== 'none')) {
+      setConfirming(true)
       return
     }
     submit()
@@ -114,7 +142,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       title={issue ? `Sự cố ${issue.code}` : 'Báo cáo sự cố'}
       subtitle={issue && `Shipper báo cáo lúc ${formatDateTime(issue.createdAt)}`}
       badge={status && <AdminBadge tone={status.tone}>{status.label}</AdminBadge>}
-      closeDisabled={saving || confirmSuspend}
+      closeDisabled={saving || confirming}
       onClose={onClose}
       footer={
         isOpen && (
@@ -187,6 +215,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
                 form={form}
                 errors={errors}
                 violationCounts={issue.violationCounts}
+                heldOrderStatus={heldOrderStatus}
                 disabled={saving}
                 onChange={(changes) => {
                   setForm((prev) => ({ ...prev, ...changes }))
@@ -202,13 +231,13 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       )}
 
       <ConfirmDialog
-        open={confirmSuspend}
-        title="Đình chỉ hoạt động?"
-        message={`${PENALTY_TARGET_LABELS[form.target] || ''} sẽ bị đình chỉ ngay sau khi lưu. Bạn chắc chắn chứ?`}
-        confirmLabel="Đình chỉ"
+        open={confirming}
+        title="Xác nhận kết quả xử lý"
+        message={getConfirmMessage(form)}
+        confirmLabel="Xác nhận"
         loading={saving}
         onConfirm={submit}
-        onCancel={() => setConfirmSuspend(false)}
+        onCancel={() => setConfirming(false)}
       />
     </AdminDrawer>
   )
