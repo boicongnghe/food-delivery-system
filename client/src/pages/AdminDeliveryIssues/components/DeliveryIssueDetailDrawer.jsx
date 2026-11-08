@@ -142,7 +142,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
         <>
           <AdminSection title="Nội dung báo cáo" aside={<AdminBadge tone="brand">{DELIVERY_ISSUE_TYPE_LABELS[issue.type]}</AdminBadge>}>
             <p className="whitespace-pre-line rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4 text-sm text-slate-800 dark:text-slate-200">
-              {issue.description}
+              {issue.description || 'Không có mô tả bổ sung.'}
             </p>
             {['customer_unreachable', 'customer_refused'].includes(issue.type) && (
               <div className="mt-3 space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">

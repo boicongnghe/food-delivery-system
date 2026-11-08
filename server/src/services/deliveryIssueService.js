@@ -172,5 +172,10 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
   if (penaltyRecord?.action === 'suspend') {
     await applySuspension(adminId, issue, penaltyRecord.target);
   }
+  const hasOpenIssue = await DeliveryIssue.exists({ order: issue.order, status: 'open' });
+  await Order.updateOne(
+    { _id: issue.order },
+    { $set: { deliveryIssueFlagged: Boolean(hasOpenIssue) } },
+  );
   return getDeliveryIssueDetail(issueId);
 };

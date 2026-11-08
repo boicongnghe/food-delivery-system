@@ -1,4 +1,5 @@
 import DriverDashboard from '../models/DriverDashboard.js';
+import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
@@ -40,10 +41,11 @@ const getOrCreateDashboard = async (userId) => {
 const getDashboard = async (userId, period) => {
   validatePeriod(period);
 
-  const [dashboard, user, shipper] = await Promise.all([
+  const [dashboard, user, shipper, ratingCount] = await Promise.all([
     getOrCreateDashboard(userId),
     User.findById(userId).select('fullName phone avatar').lean(),
-    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status').lean(),
+    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status rating').lean(),
+    Review.countDocuments({ shipper: userId, isHidden: false, shipperRating: { $ne: null } }),
   ]);
   if (!dashboard.periods?.[period]) {
     throw new ApiError(404, 'Driver dashboard data was not found');
@@ -66,6 +68,10 @@ const getDashboard = async (userId, period) => {
     isDemo: dashboard.isDemo,
     updatedAt: dashboard.updatedAt,
     ...dashboard.periods[period],
+    ...(!dashboard.isDemo && shipper && {
+      rating: shipper.rating,
+      ratingCount,
+    }),
     payoutBank: dashboard.profile.bankName
       ? `${dashboard.profile.bankName} · ****${(bankAccountNumber || '').slice(-4)}`
       : dashboard.periods[period].payoutBank,
@@ -183,6 +189,13 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
 };
 
 const updateOnlineStatus = async (userId, isOnline) => {
+  if (isOnline) {
+    const shipper = await Shipper.findOne({ user: userId }).select('status').lean();
+    if (shipper?.status !== 'approved') {
+      throw new ApiError(403, 'Hồ sơ tài xế cần được duyệt trước khi bật trạng thái trực tuyến');
+    }
+  }
+
   await getOrCreateDashboard(userId);
   const updatedDashboard = await DriverDashboard.findOneAndUpdate(
     { userId },
