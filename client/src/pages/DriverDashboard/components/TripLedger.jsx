@@ -3,7 +3,7 @@ function formatVND(amount) {
 }
 
 function TripLedger({ trips, periodLabel }) {
-  const total = trips.reduce((sum, trip) => sum + trip.baseFare + trip.bonus + trip.tip, 0)
+  const total = trips.reduce((sum, trip) => sum + Number(trip.baseFare || 0) + Number(trip.bonus || 0), 0)
 
   return (
     <div className="section-card" id="trip-ledger-section">
@@ -22,7 +22,7 @@ function TripLedger({ trips, periodLabel }) {
               <th scope="col">Mã cuốc &amp; Giờ</th>
               <th scope="col">Quán ăn &amp; Địa chỉ</th>
               <th scope="col">Khoảng cách</th>
-              <th scope="col" style={{ textAlign: 'right' }}>Chi tiết cước</th>
+              <th scope="col" style={{ textAlign: 'right' }}>Chi tiết thu nhập</th>
               <th scope="col" style={{ textAlign: 'right' }}>Thực nhận</th>
               <th scope="col" style={{ textAlign: 'center' }}>Trạng thái</th>
             </tr>
@@ -42,17 +42,12 @@ function TripLedger({ trips, periodLabel }) {
                 <td>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'right', lineHeight: 1.6 }}>
                     <div>Cước: {formatVND(trip.baseFare)}</div>
-                    {trip.bonus > 0 && <div style={{ color: 'var(--brand)' }}>Thưởng: +{formatVND(trip.bonus)}</div>}
-                    {trip.tip   > 0 && <div style={{ color: 'var(--amber)' }}>Tip: +{formatVND(trip.tip)}</div>}
+                    {trip.bonus > 0 && <div>Thưởng: {formatVND(trip.bonus)}</div>}
                   </div>
                 </td>
                 <td>
                   <div className="trip-earnings-cell">
-                    <span className="trip-base-fare">{formatVND(trip.baseFare + trip.bonus + trip.tip)}</span>
-                    <div className="trip-extras">
-                      {trip.bonus > 0 && <span className="trip-extra-tag bonus">+{formatVND(trip.bonus)} thưởng</span>}
-                      {trip.tip   > 0 && <span className="trip-extra-tag tip">+{formatVND(trip.tip)} tip</span>}
-                    </div>
+                    <span className="trip-base-fare">{formatVND(Number(trip.baseFare || 0) + Number(trip.bonus || 0))}</span>
                   </div>
                 </td>
                 <td style={{ textAlign: 'center' }}>
@@ -74,7 +69,7 @@ function TripLedger({ trips, periodLabel }) {
       <div className="ledger-footer">
         <div>
           <div className="ledger-total-label">Tổng {trips.length} chuyến</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cước gốc + Thưởng + Tiền tip</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Tổng cước và thưởng, không gồm tiền tip</div>
         </div>
         <div className="ledger-total-value">{formatVND(total)}</div>
       </div>

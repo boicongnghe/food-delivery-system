@@ -1,10 +1,10 @@
 # Driver dashboard API
 
 The driver dashboard reads a MongoDB dashboard snapshot for the authenticated
-shipper. It does not fabricate fallback data or derive earnings from orders;
-earnings and performance metrics must be supplied in that snapshot. For
-non-demo accounts, the displayed shipper rating and rating count come from the
-current visible customer reviews rather than the dashboard snapshot.
+shipper. Completing a delivery credits its shipping fee to the shipper's
+virtual wallet and updates trip earnings. Other performance metrics are read
+from the dashboard snapshot. The displayed shipper rating and rating count come
+from current visible customer reviews.
 
 Both `/shipper` and `/shipper/dashboard` use the API-backed earnings dashboard.
 The profile header supports avatar uploads through the authenticated Cloudinary
@@ -16,6 +16,7 @@ upload endpoint.
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `GET /api/drivers/me/dashboard?period=today|week|month`
+- `POST /api/drivers/me/withdrawals` with `{ "amount": 10000 }`
 - `GET /api/drivers/me/settings`
 - `PATCH /api/drivers/me/settings`
 - `PATCH /api/drivers/me/password`
@@ -42,8 +43,11 @@ Settings let a shipper update their name, phone, avatar URL, and bank account
 details, and change their password after confirming the current password.
 Verified identity and vehicle information are read-only after registration; the
 settings endpoint returns only a masked citizen ID and the submitted vehicle
-details. Bank details are stored for display/reference only; the project does
-not integrate a payment provider or execute withdrawals. Full bank account
+details. Completed delivery fees are credited to the shipper's virtual wallet.
+Withdrawal requests must be at least 10,000 VND, at most 2,000,000 VND each,
+and at most 5,000,000 VND per Vietnam calendar day. A request deducts the
+virtual balance and is stored in MongoDB; it does not transfer money to a bank.
+Full bank account
 numbers are returned only from the authenticated settings endpoint and are not
 included in dashboard responses.
 
@@ -72,15 +76,14 @@ Example shape (replace the placeholder ObjectId and values with real data):
     avatarUrl: ""
   },
   isOnline: false,
+  walletBalance: 0,
   periods: {
     today: {
       totalEarnings: 0,
       baseFare: 0,
       bonus: 0,
-      tips: 0,
       completedTrips: 0,
       tripGoal: 0,
-      walletBalance: 0,
       pendingBalance: 0,
       weeklyEarnings: 0,
       rating: 0,
@@ -103,9 +106,9 @@ Example shape (replace the placeholder ObjectId and values with real data):
 
 Array item fields:
 
-- `earningsByHour`: `{ hour, base, bonus, tip, surge }`
+- `earningsByHour`: `{ hour, base, surge }`
 - `forecast`: `{ hour, demand }` where `demand` is from 0 to 100
-- `trips`: `{ id, time, restaurant, address, distance, baseFare, bonus, tip, status, surge }`
+- `trips`: `{ id, time, restaurant, address, distance, baseFare, status, surge }`
 - `missions`: `{ id, title, reward, current, target, status }`
 - `reviews`: `{ id, quote, customer, stars }`
 - `badges`: `{ id, icon, label, count }`
@@ -125,8 +128,8 @@ The shipper order tab refreshes available and active orders every five minutes,
 and every 15 seconds while the shipper's order is still being cooked.
 Available orders are not filtered by location. The application does not request
 or store GPS coordinates, calculate route distance, or enforce distance-based
-pickup/delivery confirmation. Estimated shipper payout uses the order shipping
-fee because the project has no separate surge, tip, or commission ledger.
+pickup/delivery confirmation. Shipper earnings include the order shipping fee and applicable bonuses;
+tips are excluded. Delivery completion currently credits the order shipping fee to the wallet.
 
 The kitchen cooks only after a shipper accepts (docs/order-flow.md). The open
 pool lists `confirmed` orders (accepted by the restaurant, not cooked yet) and
@@ -150,42 +153,23 @@ not have phone-system integration, so call attempts are recorded by the shipper
 after placing them. Evidence images must be uploaded to the `delivery-issues`
 Cloudinary folder before submission.
 
-## Temporary demo reviews
+## Driver dashboard data
 
-To log in to the API-backed driver dashboard, configure `NODE_ENV=development`
-and `MONGO_URI` in `server/.env`, then run these commands from `server/`:
+The driver dashboard reads and writes its data in MongoDB configured by
+`MONGO_URI` in `server/.env`. Earnings are recorded when a real delivery is
+completed. Demo dashboard snapshots already present in MongoDB are retained,
+but are not returned by the API; the first real delivery clears those snapshots
+before recording the real payout.
+
+To create a local demo shipper account for API testing, configure
+`NODE_ENV=development` and `MONGO_URI`, then run this from `server/`:
 
 ```bash
 npm run seed:driver-account
-npm run seed:driver-demo
 ```
 
-The account seed creates `taixe@fooddelivery.vn` with password `password123`
-and an approved demo shipper profile only when the account does not exist. It
-does not modify an existing account or password. The demo login button then
-authenticates through the backend and receives a real JWT for dashboard API
-requests.
-
-For local/demo use, `npm run seed:driver-demo` fills the selected shipper's
-profile, earnings, wallet, trips, missions, reviews, badges, chart, forecast,
-and hotspots for today, week, and month. It targets
-`taixe@fooddelivery.vn`; if that account does not exist and there is exactly one
-shipper account, it targets that account instead. To choose a specific shipper,
-set `DRIVER_DEMO_EMAIL` in `server/.env`. The script refuses to overwrite a
-dashboard with existing non-demo operational data.
-
-Set `NODE_ENV=development`; the script refuses to run unless this is explicitly
-configured. It does not create or reset user accounts.
-
-Run it from `server/` after configuring `MONGO_URI`:
-
-```bash
-npm run seed:driver-demo
-```
-
-The dashboard record and seeded reviews/badges are marked as demo data, and the
-dashboard shows a notice. All seeded metrics and records are illustrative, not
-real delivery operations or customer-submitted reviews.
+This only creates the demo account when it does not already exist. It does not
+seed dashboard earnings or trips.
 
 ## Demo delivery orders
 

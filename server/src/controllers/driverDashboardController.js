@@ -1,6 +1,7 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import driverDashboardService from '../services/driverDashboardService.js';
+import * as shipperWalletService from '../services/shipperWalletService.js';
 
 const getDashboard = asyncHandler(async (req, res) => {
   const dashboard = await driverDashboardService.getDashboard(
@@ -62,12 +63,22 @@ const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
+const requestWithdrawal = asyncHandler(async (req, res) => {
+  const result = await shipperWalletService.requestWithdrawal(req.user.id, req.body.amount);
+  res.status(201).json({
+    success: true,
+    data: result,
+    message: 'Yêu cầu rút tiền đã được ghi nhận vào ví ảo; hệ thống chưa chuyển khoản ngân hàng',
+  });
+});
+
 const driverDashboardController = {
   getDashboard,
   getSettings,
   updateOnlineStatus,
   updateSettings,
   changePassword,
+  requestWithdrawal,
 };
 
 export default driverDashboardController;

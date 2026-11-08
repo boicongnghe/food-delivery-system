@@ -30,6 +30,58 @@ const notifyRestaurantOwner = async (restaurantId, payload) => {
   if (restaurant?.owner) await sendRealtimeNotification(restaurant.owner, payload);
 };
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
+const DASHBOARD_PERIODS = ['today', 'week', 'month'];
+const DASHBOARD_PERIOD_FIELDS = [
+  'totalEarnings',
+  'baseFare',
+  'bonus',
+  'completedTrips',
+  'tripGoal',
+  'walletBalance',
+  'pendingBalance',
+  'weeklyEarnings',
+  'rating',
+  'tier',
+  'ratingCount',
+  'consecutiveFiveStarTrips',
+  'payoutBank',
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+];
+const DASHBOARD_ARRAY_FIELDS = new Set([
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+]);
+const DASHBOARD_STRING_FIELDS = new Set(['tier', 'payoutBank']);
+
+const clearDemoDashboard = async (shipperId, session) => {
+  const fields = { isDemo: false, 'profile.tier': '' };
+  for (const period of DASHBOARD_PERIODS) {
+    for (const field of DASHBOARD_PERIOD_FIELDS) {
+      fields[`periods.${period}.${field}`] = DASHBOARD_ARRAY_FIELDS.has(field)
+        ? []
+        : DASHBOARD_STRING_FIELDS.has(field)
+          ? ''
+          : 0;
+    }
+  }
+
+  await DriverDashboard.updateOne(
+    { userId: shipperId, isDemo: true },
+    { $set: fields },
+    { session },
+  );
+};
 
 export const getShipperStatus = async (shipperId) => {
   const shipper = await Shipper.findOne({ user: shipperId }).select('status').lean();
@@ -381,25 +433,29 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
         { $set: { activeOrderId: null } },
         { session },
       );
+      await clearDemoDashboard(shipperId, session);
       const dashboardUpdate = await DriverDashboard.updateOne(
         { userId: shipperId },
         {
           $inc: {
-            'periods.today.pendingBalance': payout,
             'periods.today.totalEarnings': payout,
             'periods.today.baseFare': payout,
             'periods.today.completedTrips': 1,
             'periods.today.weeklyEarnings': payout,
-            'periods.week.pendingBalance': payout,
+            walletBalance: payout,
             'periods.week.totalEarnings': payout,
             'periods.week.baseFare': payout,
             'periods.week.completedTrips': 1,
             'periods.week.weeklyEarnings': payout,
-            'periods.month.pendingBalance': payout,
             'periods.month.totalEarnings': payout,
             'periods.month.baseFare': payout,
             'periods.month.completedTrips': 1,
             'periods.month.weeklyEarnings': payout,
+          },
+          $set: {
+            'periods.today.pendingBalance': 0,
+            'periods.week.pendingBalance': 0,
+            'periods.month.pendingBalance': 0,
           },
           $push: {
             'periods.today.trips': {
@@ -415,7 +471,6 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
                 distance: '',
                 baseFare: payout,
                 bonus: 0,
-                tip: 0,
                 status: 'Đã giao',
                 surge: false,
               }],
