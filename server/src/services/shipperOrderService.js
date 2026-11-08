@@ -364,7 +364,6 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
         { userId: shipperId },
         {
           $inc: {
-            'periods.today.pendingBalance': payout,
             'periods.today.totalEarnings': payout,
             'periods.today.baseFare': payout,
             'periods.today.completedTrips': 1,
@@ -378,6 +377,8 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
             'periods.month.baseFare': payout,
             'periods.month.completedTrips': 1,
             'periods.month.weeklyEarnings': payout,
+          },
+          $set: {
             'periods.today.pendingBalance': 0,
             'periods.week.pendingBalance': 0,
             'periods.month.pendingBalance': 0,

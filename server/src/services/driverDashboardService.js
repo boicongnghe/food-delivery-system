@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
 import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
@@ -14,7 +15,7 @@ const getWithdrawalLimits = async (shipperId) => {
   const [result] = await ShipperWithdrawal.aggregate([
     {
       $match: {
-        shipper: shipperId,
+        shipper: new mongoose.Types.ObjectId(shipperId),
         createdAt: { $gte: startOfVietnamDay(day), $lt: startOfVietnamDay(addDays(day, 1)) },
       },
     },
@@ -103,10 +104,12 @@ const getDashboard = async (userId, period) => {
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
   const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
-  if (dashboard.walletBalance == null) {
-    dashboard.walletBalance = Number(dashboard.periods.today?.walletBalance || 0);
+  if (dashboard.walletBalance == null || (dashboard.isDemo && dashboard.walletBalance !== 0)) {
+    dashboard.walletBalance = dashboard.isDemo
+      ? 0
+      : Number(dashboard.periods.today?.walletBalance || 0);
     await DriverDashboard.updateOne(
-      { userId, walletBalance: null },
+      { userId, ...(dashboard.isDemo ? {} : { walletBalance: null }) },
       { $set: { walletBalance: dashboard.walletBalance } },
     );
   }

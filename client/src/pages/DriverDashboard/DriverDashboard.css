@@ -1544,6 +1544,20 @@
 .payout-dialog-icon { font-size: 28px; }
 .payout-dialog h2 { margin: 12px 0 8px; font-size: 20px; }
 .payout-dialog p { margin-bottom: 18px; color: var(--text-secondary); font-size: 13px; }
+.payout-form { display: flex; flex-direction: column; gap: 10px; }
+.payout-amount-label { color: var(--text-primary); font-size: 13px; font-weight: 700; }
+.payout-form input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  color: var(--text-primary);
+}
+.payout-form .wallet-integration-note,
+.payout-error { margin: 0; font-size: 12px; }
+.payout-error { color: #dc2626; }
+.payout-form .cta-btn:disabled { cursor: not-allowed; opacity: 0.6; }
 .payout-dialog-close {
   position: absolute;
   top: 10px;

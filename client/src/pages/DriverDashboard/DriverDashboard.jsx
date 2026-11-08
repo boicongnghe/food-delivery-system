@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Camera, ChevronRight, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
 import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
 import Navbar from '../../components/Navbar/Navbar.jsx'
@@ -36,7 +37,7 @@ const SUPPORT_TOPICS = [
   },
   {
     question: 'Tôi có thể rút tiền ngay trên trang này không?',
-    answer: 'Chưa thể. Dự án chưa kết nối ngân hàng hoặc cổng thanh toán nên trang không thể tạo lệnh chuyển tiền.',
+    answer: 'Bạn có thể gửi yêu cầu rút từ ví ảo theo hạn mức hiển thị. Dự án chưa kết nối ngân hàng nên yêu cầu chưa chuyển thành giao dịch thật.',
   },
 ]
 
@@ -84,6 +85,9 @@ function DriverDashboard() {
   const [actionError, setActionError] = useState('')
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [showPayoutNotice, setShowPayoutNotice] = useState(false)
+  const [withdrawalAmount, setWithdrawalAmount] = useState('')
+  const [withdrawalError, setWithdrawalError] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   useEffect(() => {
@@ -136,6 +140,29 @@ function DriverDashboard() {
     setDashboard(current => current
       ? { ...current, profile: updated.profile, payoutBank: updated.payoutBank }
       : current)
+  }
+
+  const openWithdrawalDialog = () => {
+    setWithdrawalAmount('')
+    setWithdrawalError('')
+    setShowPayoutNotice(true)
+  }
+
+  const handleWithdrawal = async (event) => {
+    event.preventDefault()
+    setWithdrawing(true)
+    setWithdrawalError('')
+    try {
+      const result = await driverApi.requestWithdrawal(Number(withdrawalAmount))
+      toast.success(result.message)
+      setShowPayoutNotice(false)
+      setWithdrawalAmount('')
+      setReloadCount(count => count + 1)
+    } catch (error) {
+      setWithdrawalError(getErrorMessage(error))
+    } finally {
+      setWithdrawing(false)
+    }
   }
 
   const periodLabel = DATE_TABS.find(tab => tab.id === period)?.label || DATE_TABS[0].label
@@ -281,7 +308,7 @@ function DriverDashboard() {
               <>
                 <StatCards
                   summary={{ ...summary, tier: profile?.tier }}
-                  onWithdraw={() => setShowPayoutNotice(true)}
+                  onWithdraw={openWithdrawalDialog}
                 />
                 <div className="receipt-banner">
                   <div className="receipt-banner-left">
@@ -334,8 +361,8 @@ function DriverDashboard() {
                     {Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ
                   </p>
                   <div className="wallet-overview-row">
-                    <span>Đang chờ xử lý</span>
-                    <strong>{Number(summary.pendingBalance || 0).toLocaleString('vi-VN')}đ</strong>
+                    <span>Hạn mức rút còn hôm nay</span>
+                    <strong>{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>
                   </div>
                   <div className="wallet-overview-row">
                     <span>Thu nhập tuần này</span>
@@ -347,13 +374,13 @@ function DriverDashboard() {
                   </div>
                   <button
                     className="cta-btn wallet-overview-action"
-                    onClick={() => setShowPayoutNotice(true)}
+                    onClick={openWithdrawalDialog}
                     type="button"
                   >
                     Yêu cầu rút tiền
                   </button>
                   <p className="wallet-integration-note">
-                    Chuyển khoản chưa khả dụng: chưa kết nối ngân hàng hoặc cổng thanh toán.
+                    Yêu cầu rút sẽ trừ ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
                   </p>
                 </div>
               </section>
@@ -394,7 +421,7 @@ function DriverDashboard() {
       {showPayoutNotice && (
         <div
           className="payout-dialog-backdrop"
-          onClick={() => setShowPayoutNotice(false)}
+          onClick={() => !withdrawing && setShowPayoutNotice(false)}
           role="presentation"
         >
           <section
@@ -407,25 +434,58 @@ function DriverDashboard() {
             <button
               aria-label="Đóng thông báo"
               className="payout-dialog-close"
-              onClick={() => setShowPayoutNotice(false)}
+              onClick={() => !withdrawing && setShowPayoutNotice(false)}
               type="button"
             >
               ×
             </button>
             <span className="payout-dialog-icon" aria-hidden="true">🏦</span>
-            <h2 id="payout-dialog-title">Rút tiền chưa khả dụng</h2>
+            <h2 id="payout-dialog-title">Yêu cầu rút tiền</h2>
             <p>
               Số dư ví hiện tại là{' '}
               <strong>{Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ</strong>.
-              {' '}Ứng dụng chưa kết nối ngân hàng hoặc cổng thanh toán nên chưa thể gửi yêu cầu hay chuyển tiền.
             </p>
-            <button
-              className="cta-btn"
-              onClick={() => setShowPayoutNotice(false)}
-              type="button"
-            >
-              Đã hiểu
-            </button>
+            <p>
+              Mỗi lần rút {Number(summary.withdrawalLimits?.minimum || 0).toLocaleString('vi-VN')}–
+              {Number(summary.withdrawalLimits?.perWithdrawal || 0).toLocaleString('vi-VN')}đ.
+              Hạn mức còn hôm nay:{' '}
+              <strong>{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>.
+            </p>
+            <form className="payout-form" onSubmit={handleWithdrawal}>
+              <label className="payout-amount-label" htmlFor="withdrawal-amount">Số tiền muốn rút (VND)</label>
+              <input
+                autoFocus
+                id="withdrawal-amount"
+                max={Math.min(
+                  summary.walletBalance || 0,
+                  summary.withdrawalLimits?.perWithdrawal || 0,
+                  summary.withdrawalLimits?.dailyRemaining || 0,
+                )}
+                min={summary.withdrawalLimits?.minimum || 1}
+                onChange={event => setWithdrawalAmount(event.target.value)}
+                placeholder="Nhập số tiền"
+                required
+                step="1"
+                type="number"
+                value={withdrawalAmount}
+              />
+              {withdrawalError && <p className="payout-error" role="alert">{withdrawalError}</p>}
+              <p className="wallet-integration-note">
+                Yêu cầu được ghi nhận và trừ vào ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
+              </p>
+              <button
+                className="cta-btn"
+                disabled={
+                  withdrawing
+                  || !summary.walletBalance
+                  || !summary.withdrawalLimits?.dailyRemaining
+                  || summary.walletBalance < (summary.withdrawalLimits?.minimum || Infinity)
+                }
+                type="submit"
+              >
+                {withdrawing ? 'Đang gửi yêu cầu…' : 'Xác nhận rút'}
+              </button>
+            </form>
           </section>
         </div>
       )}

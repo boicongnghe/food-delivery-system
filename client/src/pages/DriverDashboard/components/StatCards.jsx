@@ -84,8 +84,8 @@ function StatCards({ summary, onWithdraw }) {
         </div>
         <div className="stat-card-breakdown">
           <div className="breakdown-row">
-            <span className="breakdown-row-label">Đang chờ xử lý</span>
-            <span className="breakdown-row-value">{formatVND(summary.pendingBalance)}</span>
+            <span className="breakdown-row-label">Hạn mức rút còn hôm nay</span>
+            <span className="breakdown-row-value">{formatVND(summary.withdrawalLimits?.dailyRemaining)}</span>
           </div>
           <div className="breakdown-row">
             <span className="breakdown-row-label">Tổng thu nhập tuần</span>

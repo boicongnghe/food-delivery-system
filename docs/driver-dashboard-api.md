@@ -1,10 +1,10 @@
 # Driver dashboard API
 
 The driver dashboard reads a MongoDB dashboard snapshot for the authenticated
-shipper. It does not fabricate fallback data or derive earnings from orders;
-earnings and performance metrics must be supplied in that snapshot. For
-non-demo accounts, the displayed shipper rating and rating count come from the
-current visible customer reviews rather than the dashboard snapshot.
+shipper. Completing a delivery credits its shipping fee to the shipper's
+virtual wallet and updates trip earnings. Other performance metrics are read
+from the dashboard snapshot. The displayed shipper rating and rating count come
+from current visible customer reviews.
 
 Both `/shipper` and `/shipper/dashboard` use the API-backed earnings dashboard.
 The profile header supports avatar uploads through the authenticated Cloudinary
@@ -16,6 +16,7 @@ upload endpoint.
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `GET /api/drivers/me/dashboard?period=today|week|month`
+- `POST /api/drivers/me/withdrawals` with `{ "amount": 10000 }`
 - `GET /api/drivers/me/settings`
 - `PATCH /api/drivers/me/settings`
 - `PATCH /api/drivers/me/password`
@@ -42,8 +43,11 @@ Settings let a shipper update their name, phone, avatar URL, and bank account
 details, and change their password after confirming the current password.
 Verified identity and vehicle information are read-only after registration; the
 settings endpoint returns only a masked citizen ID and the submitted vehicle
-details. Bank details are stored for display/reference only; the project does
-not integrate a payment provider or execute withdrawals. Full bank account
+details. Completed delivery fees are credited to the shipper's virtual wallet.
+Withdrawal requests must be at least 10,000 VND, at most 2,000,000 VND each,
+and at most 5,000,000 VND per Vietnam calendar day. A request deducts the
+virtual balance and is stored in MongoDB; it does not transfer money to a bank.
+Full bank account
 numbers are returned only from the authenticated settings endpoint and are not
 included in dashboard responses.
 
@@ -72,6 +76,7 @@ Example shape (replace the placeholder ObjectId and values with real data):
     avatarUrl: ""
   },
   isOnline: false,
+  walletBalance: 0,
   periods: {
     today: {
       totalEarnings: 0,
@@ -80,7 +85,6 @@ Example shape (replace the placeholder ObjectId and values with real data):
       tips: 0,
       completedTrips: 0,
       tripGoal: 0,
-      walletBalance: 0,
       pendingBalance: 0,
       weeklyEarnings: 0,
       rating: 0,
