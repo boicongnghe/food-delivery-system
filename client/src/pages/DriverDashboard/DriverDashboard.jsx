@@ -277,11 +277,6 @@ function DriverDashboard() {
 
         {!isLoading && !loadError && dashboard && (
           <>
-            {dashboard.isDemo && (
-              <p className="dashboard-demo-notice" role="note">
-                Đây là dữ liệu DEMO để minh họa dashboard, không phải dữ liệu vận hành thật.
-              </p>
-            )}
             {activeTab === 'dashboard' && (
               <>
                 <StatCards

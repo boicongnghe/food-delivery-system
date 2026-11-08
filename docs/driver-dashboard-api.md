@@ -145,42 +145,23 @@ not have phone-system integration, so call attempts are recorded by the shipper
 after placing them. Evidence images must be uploaded to the `delivery-issues`
 Cloudinary folder before submission.
 
-## Temporary demo reviews
+## Driver dashboard data
 
-To log in to the API-backed driver dashboard, configure `NODE_ENV=development`
-and `MONGO_URI` in `server/.env`, then run these commands from `server/`:
+The driver dashboard reads and writes its data in MongoDB configured by
+`MONGO_URI` in `server/.env`. Earnings are recorded when a real delivery is
+completed. Demo dashboard snapshots already present in MongoDB are retained,
+but are not returned by the API; the first real delivery clears those snapshots
+before recording the real payout.
+
+To create a local demo shipper account for API testing, configure
+`NODE_ENV=development` and `MONGO_URI`, then run this from `server/`:
 
 ```bash
 npm run seed:driver-account
-npm run seed:driver-demo
 ```
 
-The account seed creates `taixe@fooddelivery.vn` with password `password123`
-and an approved demo shipper profile only when the account does not exist. It
-does not modify an existing account or password. The demo login button then
-authenticates through the backend and receives a real JWT for dashboard API
-requests.
-
-For local/demo use, `npm run seed:driver-demo` fills the selected shipper's
-profile, earnings, wallet, trips, missions, reviews, badges, chart, forecast,
-and hotspots for today, week, and month. It targets
-`taixe@fooddelivery.vn`; if that account does not exist and there is exactly one
-shipper account, it targets that account instead. To choose a specific shipper,
-set `DRIVER_DEMO_EMAIL` in `server/.env`. The script refuses to overwrite a
-dashboard with existing non-demo operational data.
-
-Set `NODE_ENV=development`; the script refuses to run unless this is explicitly
-configured. It does not create or reset user accounts.
-
-Run it from `server/` after configuring `MONGO_URI`:
-
-```bash
-npm run seed:driver-demo
-```
-
-The dashboard record and seeded reviews/badges are marked as demo data, and the
-dashboard shows a notice. All seeded metrics and records are illustrative, not
-real delivery operations or customer-submitted reviews.
+This only creates the demo account when it does not already exist. It does not
+seed dashboard earnings or trips.
 
 ## Demo delivery orders
 

@@ -1145,17 +1145,6 @@
    ===================================================== */
 .praise-list { display: flex; flex-direction: column; gap: 10px; }
 
-.dashboard-demo-notice {
-  margin: 0 0 16px;
-  padding: 10px 14px;
-  border: 1px solid #f4d48a;
-  border-radius: var(--radius-sm);
-  background: #fff8e7;
-  color: #805b13;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .praise-item {
   background: var(--bg-card-alt);
   border-left: 3px solid var(--border);

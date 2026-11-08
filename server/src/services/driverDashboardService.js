@@ -6,6 +6,30 @@ import ApiError from '../utils/ApiError.js';
 
 const VALID_PERIODS = new Set(['today', 'week', 'month']);
 
+const emptyDashboardPeriod = () => ({
+  totalEarnings: 0,
+  baseFare: 0,
+  bonus: 0,
+  tips: 0,
+  completedTrips: 0,
+  tripGoal: 0,
+  walletBalance: 0,
+  pendingBalance: 0,
+  weeklyEarnings: 0,
+  rating: 0,
+  tier: '',
+  ratingCount: 0,
+  consecutiveFiveStarTrips: 0,
+  payoutBank: '',
+  earningsByHour: [],
+  forecast: [],
+  trips: [],
+  missions: [],
+  reviews: [],
+  badges: [],
+  hotspots: [],
+});
+
 const validatePeriod = (period) => {
   if (!VALID_PERIODS.has(period)) {
     throw new ApiError(400, 'Period must be today, week, or month');
@@ -52,6 +76,7 @@ const getDashboard = async (userId, period) => {
   }
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
+  const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
 
   return {
     profile: {
@@ -59,22 +84,22 @@ const getDashboard = async (userId, period) => {
       name: user.fullName,
       phone: user.phone,
       avatarUrl: user.avatar,
+      ...(dashboard.isDemo && { tier: '' }),
       ...(shipper && {
         vehicle: shipper.vehicleInfo,
         licensePlate: '',
       }),
     },
     isOnline: dashboard.isOnline,
-    isDemo: dashboard.isDemo,
     updatedAt: dashboard.updatedAt,
-    ...dashboard.periods[period],
-    ...(!dashboard.isDemo && shipper && {
+    ...periodData,
+    ...(shipper && {
       rating: shipper.rating,
       ratingCount,
     }),
     payoutBank: dashboard.profile.bankName
       ? `${dashboard.profile.bankName} · ****${(bankAccountNumber || '').slice(-4)}`
-      : dashboard.periods[period].payoutBank,
+      : periodData.payoutBank,
   };
 };
 

@@ -15,6 +15,59 @@ const AVAILABLE_FILTER = {
 };
 const ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
+const DASHBOARD_PERIODS = ['today', 'week', 'month'];
+const DASHBOARD_PERIOD_FIELDS = [
+  'totalEarnings',
+  'baseFare',
+  'bonus',
+  'tips',
+  'completedTrips',
+  'tripGoal',
+  'walletBalance',
+  'pendingBalance',
+  'weeklyEarnings',
+  'rating',
+  'tier',
+  'ratingCount',
+  'consecutiveFiveStarTrips',
+  'payoutBank',
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+];
+const DASHBOARD_ARRAY_FIELDS = new Set([
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+]);
+const DASHBOARD_STRING_FIELDS = new Set(['tier', 'payoutBank']);
+
+const clearDemoDashboard = async (shipperId, session) => {
+  const fields = { isDemo: false, 'profile.tier': '' };
+  for (const period of DASHBOARD_PERIODS) {
+    for (const field of DASHBOARD_PERIOD_FIELDS) {
+      fields[`periods.${period}.${field}`] = DASHBOARD_ARRAY_FIELDS.has(field)
+        ? []
+        : DASHBOARD_STRING_FIELDS.has(field)
+          ? ''
+          : 0;
+    }
+  }
+
+  await DriverDashboard.updateOne(
+    { userId: shipperId, isDemo: true },
+    { $set: fields },
+    { session },
+  );
+};
 
 export const getShipperStatus = async (shipperId) => {
   const shipper = await Shipper.findOne({ user: shipperId }).select('status').lean();
@@ -306,6 +359,7 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
         { $set: { activeOrderId: null } },
         { session },
       );
+      await clearDemoDashboard(shipperId, session);
       const dashboardUpdate = await DriverDashboard.updateOne(
         { userId: shipperId },
         {
