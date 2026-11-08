@@ -36,6 +36,7 @@ const enrichUserData = async (user) => {
         businessLicense: restaurant.businessLicense,
         rating: restaurant.rating,
         status: restaurant.status,
+        logo: restaurant.logo,
       };
     }
   } else if (user.role === 'shipper') {

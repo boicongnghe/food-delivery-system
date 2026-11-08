@@ -8,7 +8,6 @@ import { DEFAULT_PREP_TIME, DEFAULT_SHIFT, MAX_CATEGORIES, WEEK_DAYS } from './c
 import ImageSection from './components/ImageSection.jsx'
 import BasicInfoSection from './components/BasicInfoSection.jsx'
 import OpeningHoursSection from './components/OpeningHoursSection.jsx'
-import PayoutAccountSection from './components/PayoutAccountSection.jsx'
 import PrepTimeSection from './components/PrepTimeSection.jsx'
 import RestaurantPreviewCard from './components/RestaurantPreviewCard.jsx'
 
@@ -29,11 +28,6 @@ function toFormState(restaurant) {
         : { dayOfWeek, isOpen: true, shifts: [{ ...DEFAULT_SHIFT }] }
     }),
     prepTime: restaurant?.prepTime || DEFAULT_PREP_TIME,
-    payoutAccount: {
-      bankName: restaurant?.payoutAccount?.bankName || '',
-      accountNumber: restaurant?.payoutAccount?.accountNumber || '',
-      accountHolder: restaurant?.payoutAccount?.accountHolder || '',
-    },
   }
 }
 
@@ -269,12 +263,6 @@ export default function RestaurantProfile() {
             prepTime={form.prepTime}
             error={errors.prepTime}
             onChange={(prepTime) => handleFieldChange('prepTime', prepTime)}
-          />
-
-          <PayoutAccountSection
-            account={form.payoutAccount}
-            error={errors.payoutAccount}
-            onChange={(payoutAccount) => handleFieldChange('payoutAccount', payoutAccount)}
           />
 
           {/* Action bar */}

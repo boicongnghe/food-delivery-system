@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { BellRing, ChefHat, CircleCheckBig, CookingPot, Store, WifiOff } from 'lucide-react'
+import { BellRing, ChefHat, CircleCheckBig, CookingPot, PauseCircle, Search, Store, WifiOff } from 'lucide-react'
 import orderApi from '../../api/orderApi.js'
+import restaurantApi from '../../api/restaurantApi.js'
 import NoRestaurantNotice from '../../components/NoRestaurantNotice/NoRestaurantNotice.jsx'
 import useInterval from '../../hooks/useInterval.js'
 import useNow from '../../hooks/useNow.js'
@@ -12,8 +13,9 @@ import { playNotificationSound } from '../../utils/playNotificationSound.js'
 import { ACCEPT_BLOCKED_MESSAGES, POLL_INTERVAL_MS, SOUND_STORAGE_KEY } from './constants.js'
 import BoardHeaderBar from './components/BoardHeaderBar.jsx'
 import BoardNotice from './components/BoardNotice.jsx'
+import BoardTabs from './components/BoardTabs.jsx'
 import CancelledOrderCard from './components/CancelledOrderCard.jsx'
-import OrderColumn from './components/OrderColumn.jsx'
+import ConfirmedOrderCard from './components/ConfirmedOrderCard.jsx'
 import OrderDetailDrawer from './components/OrderDetailDrawer.jsx'
 import PendingOrderCard from './components/PendingOrderCard.jsx'
 import PreparingOrderCard from './components/PreparingOrderCard.jsx'
@@ -22,6 +24,7 @@ import RejectOrderDialog from './components/RejectOrderDialog.jsx'
 
 const EMPTY_BOARD = {
   pending: [],
+  confirmed: [],
   preparing: [],
   readyForPickup: [],
   recentlyCancelled: [],
@@ -38,9 +41,13 @@ const readSoundSetting = () => {
 
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
-// Kitchen order board: accept / reject new orders, mark them ready for shippers
+const TAB_KEYS = ['pending', 'confirmed', 'preparing', 'ready']
+const DEFAULT_TAB = 'pending'
+
+// Kitchen order board: accept / reject new orders, cook once a shipper takes them, mark them ready
 export default function OrderBoard() {
-  const { restaurant } = useOutletContext()
+  const { restaurant, setRestaurant } = useOutletContext()
+  const [togglingAccepting, setTogglingAccepting] = useState(false)
 
   const [board, setBoard] = useState(EMPTY_BOARD)
   const [lastSyncedAt, setLastSyncedAt] = useState(null) // null = never loaded successfully
@@ -55,12 +62,27 @@ export default function OrderBoard() {
   // Open order detail lives in the URL (?order=<id>): survives F5, can be shared, Back closes it
   const [searchParams, setSearchParams] = useSearchParams()
   const detailOrderId = searchParams.get('order')
+  // Open tab also lives in the URL (?tab=preparing): F5 keeps the kitchen on the same step
+  const activeTab = TAB_KEYS.includes(searchParams.get('tab')) ? searchParams.get('tab') : DEFAULT_TAB
 
+  // One URL update for both values: two separate updates in a row would overwrite each other
   const openDetail = useCallback(
-    (orderId) => {
+    (orderId, tab) => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         next.set('order', orderId)
+        if (tab) next.set('tab', tab)
+        return next
+      })
+    },
+    [setSearchParams],
+  )
+
+  const changeTab = useCallback(
+    (tab) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', tab)
         return next
       })
     },
@@ -112,7 +134,7 @@ export default function OrderBoard() {
             <button
               type="button"
               onClick={() => {
-                openDetailRef.current(newestOrderId)
+                openDetailRef.current(newestOrderId, 'pending')
                 toast.dismiss(t.id)
               }}
               className="rounded bg-white px-2 py-0.5 text-xs font-bold text-slate-900"
@@ -241,6 +263,24 @@ export default function OrderBoard() {
     }
   }
 
+  // Pause / resume new orders. Orders already on the board are not affected.
+  const toggleAcceptingOrders = async () => {
+    const next = restaurant.isAcceptingOrders === false
+    if (!next && !window.confirm('Tạm ngưng nhận đơn mới? Khách sẽ không đặt được món cho tới khi bạn mở lại. Đơn đang có vẫn xử lý bình thường.')) {
+      return
+    }
+    setTogglingAccepting(true)
+    try {
+      const response = await restaurantApi.setAcceptingOrders(next)
+      setRestaurant(response.data)
+      toast.success(response.message)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Không đổi được trạng thái nhận đơn'))
+    } finally {
+      setTogglingAccepting(false)
+    }
+  }
+
   const toggleSound = () => {
     const next = !soundEnabled
     setSoundEnabled(next)
@@ -260,10 +300,100 @@ export default function OrderBoard() {
   const acceptBlockedReason = restaurant.status === 'approved' ? '' : ACCEPT_BLOCKED_MESSAGES[restaurant.status]
   const pendingCount = board.pending.length
 
+  // One screen per step of the flow: quán nhận -> shipper nhận -> bếp nấu -> chờ shipper lấy
+  const tabs = [
+    {
+      key: 'pending',
+      step: 1,
+      label: 'Đơn mới',
+      icon: BellRing,
+      tone: 'red',
+      count: pendingCount,
+      urgent: pendingCount > 0,
+      hint: 'Xác nhận hoặc từ chối đơn. Quá hạn không nhận, đơn tự hủy và tính lỗi cho quán.',
+      isEmpty: pendingCount === 0 && board.recentlyCancelled.length === 0,
+      emptyText: 'Chưa có đơn mới. Bảng tự cập nhật mỗi 15 giây và đổ chuông khi có đơn.',
+      content: [
+        ...board.recentlyCancelled.map((order) => (
+          <CancelledOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
+        )),
+        ...board.pending.map((order) => (
+          <PendingOrderCard
+            key={order._id}
+            order={order}
+            now={now}
+            busy={busyIds.has(order._id)}
+            acceptBlockedReason={acceptBlockedReason}
+            onAccept={() => acceptOrder(order)}
+            onReject={() => setRejectTarget(order)}
+            onView={() => openDetail(order._id)}
+          />
+        )),
+      ],
+    },
+    {
+      key: 'confirmed',
+      step: 2,
+      label: 'Chờ shipper nhận',
+      icon: Search,
+      tone: 'sky',
+      count: board.confirmed.length,
+      urgent: false,
+      hint: 'Chưa cần nấu. Đơn chuyển sang "Bếp đang nấu" ngay khi có shipper nhận.',
+      isEmpty: board.confirmed.length === 0,
+      emptyText: 'Không có đơn nào đang chờ shipper.',
+      content: board.confirmed.map((order) => (
+        <ConfirmedOrderCard key={order._id} order={order} now={now} onView={() => openDetail(order._id)} />
+      )),
+    },
+    {
+      key: 'preparing',
+      step: 3,
+      label: 'Bếp đang nấu',
+      icon: CookingPot,
+      tone: 'amber',
+      count: board.preparing.length,
+      // A kitchen past its handover time needs attention even from another tab
+      urgent: board.preparing.some((order) => order.kitchenDueAt && now > new Date(order.kitchenDueAt).getTime()),
+      hint: 'Shipper đã nhận và đang đến quán. Nấu xong bấm "Đã xong" để shipper lấy hàng.',
+      isEmpty: board.preparing.length === 0,
+      emptyText: 'Bếp đang rảnh. Đơn vào đây khi shipper đã nhận.',
+      content: board.preparing.map((order) => (
+        <PreparingOrderCard
+          key={order._id}
+          order={order}
+          now={now}
+          busy={busyIds.has(order._id)}
+          onReady={() => markReady(order)}
+          onView={() => openDetail(order._id)}
+        />
+      )),
+    },
+    {
+      key: 'ready',
+      step: 4,
+      label: 'Chờ shipper lấy',
+      icon: CircleCheckBig,
+      tone: 'green',
+      count: board.readyForPickup.length,
+      urgent: false,
+      hint: 'Món đã đóng gói tại quầy. Đơn rời bảng khi shipper xác nhận đã lấy hàng.',
+      isEmpty: board.readyForPickup.length === 0,
+      emptyText: 'Không có đơn nào chờ shipper lấy.',
+      content: board.readyForPickup.map((order) => (
+        <ReadyOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
+      )),
+    },
+  ]
+  const currentTab = tabs.find((tab) => tab.key === activeTab)
+
   return (
     <>
       <BoardHeaderBar
         isOpen={isOpenNow(restaurant.openingHours)}
+        isAcceptingOrders={restaurant.isAcceptingOrders !== false}
+        togglingAccepting={togglingAccepting}
+        onToggleAccepting={toggleAcceptingOrders}
         stats={board.stats}
         lastSyncedAt={lastSyncedAt}
         soundEnabled={soundEnabled}
@@ -285,6 +415,12 @@ export default function OrderBoard() {
           >
             Cập nhật thành công lần cuối lúc {formatClock(lastSyncedAt, true)}. Hệ thống tự thử lại mỗi 15 giây.
             Đơn mới có thể chưa hiển thị. ({syncError})
+          </BoardNotice>
+        )}
+
+        {restaurant.isAcceptingOrders === false && (
+          <BoardNotice tone="warning" icon={PauseCircle} title="Quán đang tạm ngưng nhận đơn – khách không đặt được món mới">
+            Các đơn đã có vẫn xử lý bình thường. Bật lại công tắc "Nhận đơn mới" khi bếp sẵn sàng.
           </BoardNotice>
         )}
 
@@ -310,76 +446,37 @@ export default function OrderBoard() {
             </button>
           </div>
         ) : !hasLoaded ? (
-          <div className="grid gap-5 lg:grid-cols-3">
-            {[1, 2, 3].map((key) => (
-              <div key={key} className="h-80 animate-pulse rounded-lg bg-brand-light" />
-            ))}
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {TAB_KEYS.map((key) => (
+                <div key={key} className="h-16 animate-pulse rounded-lg bg-brand-light" />
+              ))}
+            </div>
+            <div className="h-80 animate-pulse rounded-lg bg-brand-light" />
           </div>
         ) : (
-          <div className="grid items-start gap-5 lg:grid-cols-3">
-            <OrderColumn
-              title="Đơn mới (chờ nhận)"
-              icon={BellRing}
-              tone="red"
-              count={pendingCount}
-              isEmpty={pendingCount === 0 && board.recentlyCancelled.length === 0}
-              emptyText="Chưa có đơn mới. Bảng tự cập nhật mỗi 15 giây."
-            >
-              {board.recentlyCancelled.map((order) => (
-                <CancelledOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
-              ))}
-              {board.pending.map((order) => (
-                <PendingOrderCard
-                  key={order._id}
-                  order={order}
-                  now={now}
-                  busy={busyIds.has(order._id)}
-                  acceptBlockedReason={acceptBlockedReason}
-                  onAccept={() => acceptOrder(order)}
-                  onReject={() => setRejectTarget(order)}
-                  onView={() => openDetail(order._id)}
-                />
-              ))}
-            </OrderColumn>
+          <div className="space-y-5">
+            <BoardTabs tabs={tabs} activeKey={activeTab} onChange={changeTab} />
 
-            <OrderColumn
-              title="Đang chuẩn bị (bếp nấu)"
-              icon={CookingPot}
-              tone="amber"
-              count={board.preparing.length}
-              isEmpty={board.preparing.length === 0}
-              emptyText="Bếp đang rảnh. Nhận đơn mới để bắt đầu nấu."
-            >
-              {board.preparing.map((order) => (
-                <PreparingOrderCard
-                  key={order._id}
-                  order={order}
-                  now={now}
-                  busy={busyIds.has(order._id)}
-                  onReady={() => markReady(order)}
-                  onView={() => openDetail(order._id)}
-                />
-              ))}
-            </OrderColumn>
-
-            <OrderColumn
-              title="Sẵn sàng lấy hàng"
-              icon={CircleCheckBig}
-              tone="green"
-              count={board.readyForPickup.length}
-              isEmpty={board.readyForPickup.length === 0}
-              emptyText="Chưa có đơn chờ shipper."
-            >
-              {board.readyForPickup.map((order) => (
-                <ReadyOrderCard key={order._id} order={order} onView={() => openDetail(order._id)} />
-              ))}
-            </OrderColumn>
+            <section role="tabpanel" aria-label={currentTab.label} className="space-y-3">
+              <p className="flex items-center gap-2 text-sm text-slate-600">
+                <currentTab.icon className="h-4 w-4 shrink-0" />
+                {currentTab.hint}
+              </p>
+              {currentTab.isEmpty ? (
+                <div className="rounded-lg border border-dashed border-brand-soft bg-white px-6 py-14 text-center text-sm text-slate-500">
+                  {currentTab.emptyText}
+                </div>
+              ) : (
+                <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{currentTab.content}</div>
+              )}
+            </section>
           </div>
         )}
 
         <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-500">
           <ChefHat className="h-3.5 w-3.5" />
-          Đơn đã sẵn sàng sẽ hiển thị cho shipper. Đơn rời bảng khi shipper xác nhận đã lấy hàng.
+          Quán nhận đơn → shipper nhận đơn → bếp mới nấu. Đơn rời bảng khi shipper xác nhận đã lấy hàng.
         </p>
       </div>
 

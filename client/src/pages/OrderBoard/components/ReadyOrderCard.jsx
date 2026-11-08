@@ -32,7 +32,7 @@ export default function ReadyOrderCard({ order, onView }) {
             <Bike className="h-4 w-4" />
             Shipper: {shipperName}
           </p>
-          <p className="text-xs text-emerald-800">Đã nhận đơn – đang đến quán lấy hàng</p>
+          <p className="text-xs text-emerald-800">Món đã xong – shipper đang đến quán lấy hàng</p>
         </div>
       ) : (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">

@@ -72,3 +72,19 @@ export const upsertRestaurantByOwner = async (ownerId, { expectedUpdatedAt, ...p
   }
   return restaurant;
 };
+
+/**
+ * Pause / resume new orders. Orders already placed are not touched: the kitchen still accepts, cooks and
+ * hands them over. updatedAt is left alone on purpose, so an open profile form never gets a false 409.
+ */
+export const setAcceptingOrders = async (ownerId, isAcceptingOrders) => {
+  const restaurant = await Restaurant.findOneAndUpdate(
+    { owner: ownerId },
+    { $set: { isAcceptingOrders, acceptingOrdersChangedAt: new Date() } },
+    { returnDocument: 'after', runValidators: true, timestamps: false },
+  ).select(OWNER_FIELDS);
+  if (!restaurant) {
+    throw new ApiError(404, 'Bạn chưa có hồ sơ nhà hàng');
+  }
+  return restaurant;
+};

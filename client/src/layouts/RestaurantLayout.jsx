@@ -50,15 +50,24 @@ export default function RestaurantLayout() {
     setReloadKey((key) => key + 1)
   }
 
+  // The owner's pause switch (order board) wins over the opening hours
   const status = restaurant
-    ? isOpenNow(restaurant.openingHours)
-      ? { label: 'Đang mở cửa', isOpen: true }
-      : { label: 'Đã đóng cửa', isOpen: false }
+    ? restaurant.isAcceptingOrders === false
+      ? { label: 'Tạm ngưng nhận đơn', isOpen: false }
+      : isOpenNow(restaurant.openingHours)
+        ? { label: 'Đang mở cửa', isOpen: true }
+        : { label: 'Đã đóng cửa', isOpen: false }
     : null
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
-      <Header subtitle="Kênh Quán Ăn" navItems={RESTAURANT_NAV_ITEMS} status={status} />
+      <Header
+        subtitle="Kênh Quán Ăn"
+        navItems={RESTAURANT_NAV_ITEMS}
+        status={status}
+        accountImage={restaurant?.logo}
+        accountName={restaurant?.name}
+      />
 
       {restaurant?.status === 'pending' && (
         <div className="bg-amber-500 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-xs text-center animate-in fade-in">

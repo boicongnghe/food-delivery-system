@@ -31,8 +31,10 @@ function OrderHistory() {
         return <span className="badge badge-delivering">Đang giao</span>
       case 'preparing':
         return <span className="badge badge-preparing">Đang nấu</span>
+      case 'ready_for_pickup':
+        return <span className="badge badge-preparing">Chờ shipper lấy</span>
       case 'confirmed':
-        return <span className="badge badge-confirmed">Đã nhận đơn</span>
+        return <span className="badge badge-confirmed">Đang tìm shipper</span>
       default:
         return <span className="badge badge-pending">Chờ xác nhận</span>
     }

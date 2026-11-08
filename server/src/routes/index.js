@@ -14,6 +14,7 @@ import reviewRoutes from './reviewRoutes.js';
 import complaintRoutes from './complaintRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import chatRoutes from './chatRoutes.js';
+import webhookRoutes from './webhookRoutes.js';
 
 const router = Router();
 
@@ -41,5 +42,6 @@ router.use('/reviews', reviewRoutes);
 router.use('/complaints', complaintRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/chat', chatRoutes);
+router.use('/webhooks', webhookRoutes);
 
 export default router;

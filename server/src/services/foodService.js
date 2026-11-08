@@ -10,7 +10,7 @@ import ApiError from '../utils/ApiError.js';
  * Only whitelisted restaurant fields leave the server: never legal documents, payout account or admin data.
  */
 export const PUBLIC_RESTAURANT_FIELDS =
-  'name description address location phone categories logo coverImage openingHours rating ratingCount';
+  'name description address location phone categories logo coverImage openingHours isAcceptingOrders rating ratingCount';
 
 // Same case-insensitive comparison as the category unique index
 const NAME_COLLATION = { locale: 'vi', strength: 2 };

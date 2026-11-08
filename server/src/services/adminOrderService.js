@@ -12,7 +12,12 @@ import { toPage } from '../utils/pagination.js';
 import { legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { sendRealtimeNotification } from '../socket.js';
 import { countByStatus } from './feedbackPolicy.js';
-import { cancelAssignedOrder, releaseOrderToPool } from './orderAssignmentService.js';
+import {
+  NOT_PICKED_UP_STATUSES,
+  SHIPPER_POOL_STATUSES,
+  cancelAssignedOrder,
+  releaseOrderToPool,
+} from './orderAssignmentService.js';
 import { cancelOrderBySystem } from './orderCancelService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PLACED_ORDER_FILTER } from './orderPolicy.js';
@@ -23,7 +28,8 @@ import { PLACED_ORDER_FILTER } from './orderPolicy.js';
 // Tab -> order statuses (same tabs as ADMIN_ORDER_TABS of the query validation)
 const TAB_STATUSES = {
   pending: ['pending'],
-  preparing: ['confirmed', 'preparing'],
+  confirmed: ['confirmed'],
+  preparing: ['preparing'],
   ready_for_pickup: ['ready_for_pickup'],
   delivering: ['delivering'],
   delivered: ['delivered'],
@@ -72,7 +78,7 @@ const ATTENTION_FILTER = {
     {
       $or: [
         { status: 'preparing', 'timeouts.prepEscalatedAt': { $ne: null } },
-        { status: 'ready_for_pickup', shipper: null, 'timeouts.shipperAlertedAt': { $ne: null } },
+        { status: { $in: SHIPPER_POOL_STATUSES }, shipper: null, 'timeouts.shipperAlertedAt': { $ne: null } },
         { status: 'ready_for_pickup', shipper: { $ne: null }, 'timeouts.pickupAlertedAt': { $ne: null } },
       ],
     },
@@ -173,11 +179,11 @@ export const cancelOrderAsAdmin = async (orderId, { note }) => {
 
 /**
  * The shipper accepted the order but does not pick it up: give it back to the pool for another shipper.
- * Only before pickup; the food is still at the restaurant.
+ * Only before pickup (kitchen cooking or food ready); the food is still at the restaurant.
  */
 export const releaseShipperAsAdmin = async (orderId, { note }) => {
   const order = await findPlacedOrder(orderId);
-  if (order.status !== 'ready_for_pickup' || !order.shipper) {
+  if (!NOT_PICKED_UP_STATUSES.includes(order.status) || !order.shipper) {
     throw new ApiError(409, 'Chỉ đổi shipper được khi shipper đã nhận đơn nhưng chưa lấy hàng');
   }
   const released = await releaseOrderToPool(order, { note: `Quản trị viên chuyển đơn cho shipper khác: ${note}` });

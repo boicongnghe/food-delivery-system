@@ -46,23 +46,22 @@ export default function CommissionTab({ range }) {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure label="Doanh thu gộp" value={formatCurrency(totals.grossRevenue)} />
         <Figure label={`Phí nền tảng (${totals.commissionRate}%)`} value={`−${formatCurrency(totals.platformFee)}`} tone="text-red-700" />
-        <Figure label="Đến hạn chuyển khoản" value={formatCurrency(totals.settledAmount)} tone="text-emerald-700" />
-        <Figure label="Chưa đến kỳ" value={formatCurrency(totals.pendingAmount)} tone="text-amber-700" />
+        <Figure label="Đã vào ví" value={formatCurrency(totals.settledAmount)} tone="text-emerald-700" />
+        <Figure label="Chờ đối soát" value={formatCurrency(totals.pendingAmount)} tone="text-amber-700" />
       </div>
 
       <div className="flex flex-col gap-2 rounded-xl border border-brand-soft/70 bg-brand-light/60 px-4 py-3 text-xs text-slate-600">
         <PayoutAccountInfo account={result.payoutAccount} />
         <p className="flex items-start gap-1.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
-          Quyết toán theo tuần (Thứ Hai – Chủ Nhật), chuyển khoản dự kiến vào Thứ Hai tuần sau. "Đến hạn chuyển khoản" chỉ
-          tính theo lịch, chưa phải xác nhận quán đã nhận tiền; số liệu là ước tính và có thể thay đổi khi đơn thay đổi trạng
-          thái. Phí nền tảng = tiền món × tỉ lệ hoa hồng của ngày đặt đơn; phí đóng gói và phí giao hàng không tính hoa hồng.
+          Thực nhận của đơn hoàn thành được cộng vào ví sau đối soát cuối ngày ("Đã vào ví"); đơn hôm nay đang "Chờ đối soát".
+          Quán rút tiền về ngân hàng ở tab Ví & rút tiền (tối đa 3 lần mỗi tuần). Phí nền tảng = tiền món × tỉ lệ hoa hồng của ngày đặt đơn; phí đóng gói và phí giao hàng không tính hoa hồng.
           Voucher hiện do nền tảng tài trợ nên quán nhận đủ tiền món.
         </p>
       </div>
 
       <section className="rounded-xl border border-brand-soft/70 bg-white shadow-sm">
-        <h2 className="border-b border-slate-100 px-4 py-3 font-serif text-lg font-semibold text-slate-900">Chu kỳ quyết toán</h2>
+        <h2 className="border-b border-slate-100 px-4 py-3 font-serif text-lg font-semibold text-slate-900">Sao kê theo tuần</h2>
         {result.cycles.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-slate-500">Chưa có đơn hoàn thành trong kỳ.</p>
         ) : (
@@ -73,8 +72,7 @@ export default function CommissionTab({ range }) {
                   {formatDay(cycle.from)} – {formatDay(cycle.to)}
                 </span>
                 <span className="text-slate-500">{cycle.deliveredOrders} đơn</span>
-                <span className="text-slate-500">Chuyển khoản {formatDay(cycle.payoutDate)}</span>
-                {cycle.isPartial && <span className="text-xs text-slate-400">(một phần chu kỳ nằm ngoài kỳ đang xem)</span>}
+                {cycle.isPartial && <span className="text-xs text-slate-400">(một phần tuần nằm ngoài kỳ đang xem)</span>}
                 <span className="ml-auto font-bold tabular-nums text-slate-900">{formatCurrency(cycle.netRevenue)}</span>
                 <SettlementBadge status={cycle.status} />
               </li>

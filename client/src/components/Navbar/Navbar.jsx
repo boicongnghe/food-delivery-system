@@ -346,6 +346,7 @@ export default function Navbar() {
                   >
                     <img
                       src={
+                        user.restaurantDetails?.logo ||
                         user.avatar ||
                         'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
                       }

@@ -1,0 +1,230 @@
+// Food Delivery Management (WDP301) - Database Schema (SDS overview) for https://dbdiagram.io
+// Overview only: key + business fields. Defaults, enum values and constraints are in the Table Description.
+// Full field list: docs/database-schema.dbml
+// Grey table = embedded sub-document (stored inside orders, not a collection).
+// Every collection also has createdAt / updatedAt (Mongoose timestamps).
+
+Project food_delivery {
+  database_type: 'MongoDB'
+}
+
+// ---------- Accounts ----------
+
+Table users [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  fullName string
+  email string [unique]
+  password string
+  phone string
+  role enum
+  authProvider enum
+  avatar string
+  addresses array
+  isActive boolean
+  isVerified boolean
+}
+
+Table addresses [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  user ObjectId [ref: > users._id]
+  recipientName string
+  phone string
+  addressLine string
+  location object
+  isDefault boolean
+}
+
+Table shippers [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  user ObjectId [unique, ref: - users._id]
+  fullName string
+  phone string
+  citizenId string
+  vehicleInfo string
+  vehicleRegistration object
+  vehicleInsurance object
+  status enum
+  rating number
+}
+
+Table driverdashboards [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  userId ObjectId [unique, ref: - users._id]
+  profile object
+  isOnline boolean
+  activeOrderId ObjectId [ref: > orders._id]
+  periods object
+}
+
+// ---------- Restaurant & menu ----------
+
+Table restaurants [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  owner ObjectId [unique, ref: - users._id]
+  name string
+  description string
+  address string
+  location object
+  phone string
+  categories array
+  logo string
+  coverImage string
+  openingHours array
+  prepTime number
+  isAcceptingOrders boolean
+  businessLicense object
+  payoutAccount object
+  rating number
+  status enum
+}
+
+Table menucategories [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  restaurant ObjectId [ref: > restaurants._id]
+  name string
+  sortOrder number
+}
+
+Table menuitems [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  restaurant ObjectId [ref: > restaurants._id]
+  category ObjectId [ref: > menucategories._id]
+  name string
+  price number
+  originalPrice number
+  image string
+  tags array
+  optionGroups array
+  isAvailable boolean
+  isVisible boolean
+  isDeleted boolean
+}
+
+// ---------- Orders & payment ----------
+
+Table orders [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  orderCode string
+  customer ObjectId [ref: > users._id]
+  restaurant ObjectId [ref: > restaurants._id]
+  shipper ObjectId [ref: > users._id]
+  items array
+  subtotal number
+  shippingFee number
+  discount number
+  total number
+  "promotion.code" string [ref: > promotion_rules.code]
+  delivery object
+  payment object
+  status enum
+  statusHistory array
+  cancellation object
+  refund object
+}
+
+Table orders_items [headercolor: #95A5A6] {
+  _id ObjectId [pk]
+  menuItem ObjectId [ref: > menuitems._id]
+  name string
+  unitPrice number
+  quantity number
+  options array
+  lineTotal number
+}
+
+Table order_status_history [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  order ObjectId [ref: > orders._id]
+  fromStatus string
+  toStatus string
+  changedByRole enum
+}
+
+Table payments [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  order ObjectId [ref: > orders._id]
+  customer ObjectId [ref: > users._id]
+  amount number
+  paymentMethod enum
+  transactionCode string [unique]
+  status enum
+  paidAt date
+}
+
+// ---------- Post-delivery ----------
+
+Table reviews [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  order ObjectId [unique, ref: - orders._id]
+  customer ObjectId [ref: > users._id]
+  restaurant ObjectId [ref: > restaurants._id]
+  shipper ObjectId [ref: > users._id]
+  restaurantRating number
+  shipperRating number
+  comment string
+  isHidden boolean
+}
+
+Table complaints [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  code string [unique]
+  order ObjectId [unique, ref: - orders._id]
+  customer ObjectId [ref: > users._id]
+  restaurant ObjectId [ref: > restaurants._id]
+  category enum
+  description string
+  status enum
+  resolution object
+}
+
+Table deliveryissues [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  code string [unique]
+  order ObjectId [ref: > orders._id]
+  shipper ObjectId [ref: > users._id]
+  restaurant ObjectId [ref: > restaurants._id]
+  type enum
+  description string
+  status enum
+  resolution object
+}
+
+Table notifications [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  recipient ObjectId [ref: > users._id]
+  order ObjectId [ref: > orders._id]
+  title string
+  message string
+  type enum
+  isRead boolean
+}
+
+// ---------- Platform (admin) ----------
+
+Table commissionrules [headercolor: #C0392B] {
+  _id ObjectId [pk]
+  restaurant ObjectId [ref: > restaurants._id]
+  name string
+  target enum
+  rate number
+  effectiveFrom string
+  effectiveTo string
+}
+
+Table promotion_rules [headercolor: #C0392B] {
+  _id ObjectId [pk]
+  code string [unique]
+  title string
+  discountType enum
+  discountValue number
+  minOrderValue number
+  maxDiscount number
+  startDate date
+  endDate date
+  usageLimit number
+  usedCount number
+  isActive boolean
+}
+
+// Embedded: orders.items holds the order lines (snapshot at order time)
+Ref: orders.items < orders_items._id
