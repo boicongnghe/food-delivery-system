@@ -285,37 +285,23 @@ const run = async () => {
 
   // 4. Dọn sạch và tạo địa chỉ Hòa Lạc cho Address collection
   await Address.deleteMany({});
-  for (const addr of HOA_LAC_CUSTOMER_ADDRESSES) {
-    await Address.create({
-      user: owner._id,
-      recipientName: addr.recipientName,
-      phone: addr.phone,
-      addressLine: addr.addressLine,
-      isDefault: addr.isDefault,
-      location: addr.location,
-    });
-  }
-  console.log(`[Seed Hòa Lạc] Đã nạp ${HOA_LAC_CUSTOMER_ADDRESSES.length} địa chỉ nhận hàng tại Hòa Lạc vào Address collection`);
-
-  // 5. Cập nhật user.addresses cho tài khoản khách hàng
   const customers = await User.find({
     $or: [{ role: 'customer' }, { email: 'khachhang@fooddelivery.vn' }],
   });
 
   for (const c of customers) {
-    c.addresses = HOA_LAC_CUSTOMER_ADDRESSES.map((a) => ({
-      title: a.title,
-      receiverName: a.recipientName,
-      receiverPhone: a.phone,
-      street: a.addressLine,
-      city: 'Hà Nội',
-      district: 'Thạch Thất',
-      ward: 'Hòa Lạc',
-      isDefault: a.isDefault,
-      location: a.location,
-    }));
-    await c.save();
-    console.log(`[Seed Hòa Lạc] Đã cập nhật 4 địa chỉ Hòa Lạc cho tài khoản khách: ${c.email}`);
+    for (const addr of HOA_LAC_CUSTOMER_ADDRESSES) {
+      await Address.create({
+        user: c._id,
+        title: addr.title,
+        recipientName: addr.recipientName,
+        phone: addr.phone,
+        addressLine: addr.addressLine,
+        isDefault: addr.isDefault,
+        location: addr.location,
+      });
+    }
+    console.log(`[Seed Hòa Lạc] Đã nạp ${HOA_LAC_CUSTOMER_ADDRESSES.length} địa chỉ vào Address collection cho khách: ${c.email}`);
   }
 
   console.log('[Seed Hòa Lạc] Hoàn tất toàn bộ dữ liệu Hòa Lạc!');

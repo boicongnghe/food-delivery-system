@@ -70,8 +70,9 @@ function Checkout() {
           promotionApi.getPromotions({ activeOnly: true }),
         ])
         let addrs = []
-        if (addrRes.status === 'fulfilled' && addrRes.value?.data?.data) {
-          addrs = addrRes.value.data.data
+        if (addrRes.status === 'fulfilled') {
+          const raw = addrRes.value?.data?.data || addrRes.value?.data || []
+          addrs = Array.isArray(raw) ? raw : []
         }
         // If empty in Address collection, check user's saved addresses in authApi
         if (addrs.length === 0) {

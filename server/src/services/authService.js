@@ -8,6 +8,7 @@ import Order from '../models/Order.js';
 import Notification from '../models/Notification.js';
 import ApiError from '../utils/ApiError.js';
 import * as emailService from './emailService.js';
+import * as addressService from './addressService.js';
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -362,97 +363,27 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
 };
 
 export const getUserAddresses = async (userId) => {
-  const user = await User.findById(userId);
-  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
-  return user.addresses || [];
+  return addressService.getAddressesByUser(userId);
 };
 
 export const addUserAddress = async (userId, addressData) => {
-  const user = await User.findById(userId);
-  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
-
-  const shouldBeDefault = Boolean(addressData.isDefault) || !user.addresses || user.addresses.length === 0;
-
-  if (shouldBeDefault && user.addresses) {
-    user.addresses.forEach((addr) => {
-      addr.isDefault = false;
-    });
-  }
-
-  const newAddress = {
-    title: (addressData.title || 'Nhà riêng').trim(),
-    receiverName: (addressData.receiverName || user.fullName).trim(),
-    receiverPhone: (addressData.receiverPhone || user.phone).trim(),
-    street: (addressData.street || '').trim(),
-    ward: (addressData.ward || '').trim(),
-    district: (addressData.district || '').trim(),
-    city: (addressData.city || 'TP.HCM').trim(),
-    isDefault: shouldBeDefault,
-  };
-
-  user.addresses.push(newAddress);
-
-  await user.save();
-  return user.addresses;
+  await addressService.createAddress(userId, addressData);
+  return addressService.getAddressesByUser(userId);
 };
 
 export const updateUserAddress = async (userId, addressId, addressData) => {
-  const user = await User.findById(userId);
-  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
-
-  const address = user.addresses.id(addressId);
-  if (!address) throw new ApiError(404, 'Không tìm thấy địa chỉ cần cập nhật');
-
-  if (addressData.isDefault) {
-    user.addresses.forEach((addr) => {
-      addr.isDefault = false;
-    });
-    address.isDefault = true;
-  }
-
-  if (addressData.title !== undefined) address.title = addressData.title.trim();
-  if (addressData.receiverName !== undefined) address.receiverName = addressData.receiverName.trim();
-  if (addressData.receiverPhone !== undefined) address.receiverPhone = addressData.receiverPhone.trim();
-  if (addressData.street !== undefined) address.street = addressData.street.trim();
-  if (addressData.ward !== undefined) address.ward = addressData.ward.trim();
-  if (addressData.district !== undefined) address.district = addressData.district.trim();
-  if (addressData.city !== undefined) address.city = addressData.city.trim();
-
-  await user.save();
-  return user.addresses;
+  await addressService.updateAddress(userId, addressId, addressData);
+  return addressService.getAddressesByUser(userId);
 };
 
 export const deleteUserAddress = async (userId, addressId) => {
-  const user = await User.findById(userId);
-  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
-
-  const addrToDelete = user.addresses.id(addressId);
-  if (!addrToDelete) throw new ApiError(404, 'Không tìm thấy địa chỉ');
-
-  const wasDefault = addrToDelete.isDefault;
-  user.addresses.pull({ _id: addressId });
-
-  if (wasDefault && user.addresses.length > 0) {
-    user.addresses[0].isDefault = true;
-  }
-
-  await user.save();
-  return user.addresses;
+  await addressService.deleteAddress(userId, addressId);
+  return addressService.getAddressesByUser(userId);
 };
 
 export const setDefaultUserAddress = async (userId, addressId) => {
-  const user = await User.findById(userId);
-  if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
-
-  const targetAddr = user.addresses.id(addressId);
-  if (!targetAddr) throw new ApiError(404, 'Không tìm thấy địa chỉ');
-
-  user.addresses.forEach((addr) => {
-    addr.isDefault = addr._id.toString() === addressId.toString();
-  });
-
-  await user.save();
-  return user.addresses;
+  await addressService.setDefaultAddress(userId, addressId);
+  return addressService.getAddressesByUser(userId);
 };
 
 // Aliases for compatibility

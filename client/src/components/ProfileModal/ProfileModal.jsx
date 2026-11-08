@@ -31,6 +31,7 @@ import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/CartContext.jsx'
 import authApi from '../../api/authApi.js'
+import { addressApi } from '../../api/addressApi.js'
 import uploadApi from '../../api/uploadApi.js'
 
 export default function ProfileModal({ isOpen, onClose }) {
@@ -90,12 +91,11 @@ export default function ProfileModal({ isOpen, onClose }) {
   const fetchAddresses = async () => {
     try {
       setLoadingAddresses(true)
-      const res = await authApi.getAddresses()
-      if (res.data) {
-        setAddresses(res.data)
-      }
-    } catch {
-      // ignore or toast
+      const res = await addressApi.getAddresses()
+      const list = res.data?.data || res.data || []
+      setAddresses(Array.isArray(list) ? list : [])
+    } catch (err) {
+      console.error('Failed to load addresses:', err)
     } finally {
       setLoadingAddresses(false)
     }
@@ -117,6 +117,13 @@ export default function ProfileModal({ isOpen, onClose }) {
       }
     }
   }, [isOpen, user, isCustomer])
+
+  // Automatically refresh addresses when user switches to 'addresses' tab
+  useEffect(() => {
+    if (isOpen && activeTab === 'addresses' && isCustomer) {
+      fetchAddresses()
+    }
+  }, [isOpen, activeTab, isCustomer])
 
   if (!isOpen || !user) return null
 
@@ -200,15 +207,22 @@ export default function ProfileModal({ isOpen, onClose }) {
 
     setSavingAddress(true)
     try {
+      const payload = {
+        title: addressForm.title,
+        recipientName: addressForm.receiverName || user.fullName,
+        phone: addressForm.receiverPhone || user.phone,
+        addressLine: addressForm.street + (addressForm.district ? `, ${addressForm.district}` : ''),
+        isDefault: addressForm.isDefault,
+      }
+
       if (editingAddressId) {
-        const res = await authApi.updateAddress(editingAddressId, addressForm)
-        setAddresses(res.data)
+        await addressApi.updateAddress(editingAddressId, payload)
         toast.success('Cập nhật địa chỉ thành công!')
       } else {
-        const res = await authApi.addAddress(addressForm)
-        setAddresses(res.data)
+        await addressApi.createAddress(payload)
         toast.success('Thêm địa chỉ giao hàng mới thành công!')
       }
+      await fetchAddresses()
       setShowAddressForm(false)
       setEditingAddressId(null)
       setAddressForm({
@@ -231,8 +245,8 @@ export default function ProfileModal({ isOpen, onClose }) {
     if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?')) return
 
     try {
-      const res = await authApi.deleteAddress(addressId)
-      setAddresses(res.data)
+      await addressApi.deleteAddress(addressId)
+      await fetchAddresses()
       toast.success('Đã xóa địa chỉ thành công!')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể xóa địa chỉ.')
@@ -242,8 +256,8 @@ export default function ProfileModal({ isOpen, onClose }) {
   // Handler: Set as Default Address
   const handleSetDefaultAddress = async (addressId) => {
     try {
-      const res = await authApi.setDefaultAddress(addressId)
-      setAddresses(res.data)
+      await addressApi.setDefaultAddress(addressId)
+      await fetchAddresses()
       toast.success('Đã đặt làm địa chỉ giao hàng mặc định!')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể đặt mặc định.')
@@ -255,9 +269,9 @@ export default function ProfileModal({ isOpen, onClose }) {
     setEditingAddressId(addr._id)
     setAddressForm({
       title: addr.title || 'Nhà riêng',
-      receiverName: addr.receiverName || user.fullName || '',
-      receiverPhone: addr.receiverPhone || user.phone || '',
-      street: addr.street || '',
+      receiverName: addr.recipientName || addr.receiverName || user.fullName || '',
+      receiverPhone: addr.phone || addr.receiverPhone || user.phone || '',
+      street: addr.addressLine || addr.street || '',
       district: addr.district || '',
       isDefault: Boolean(addr.isDefault),
     })
@@ -779,14 +793,14 @@ export default function ProfileModal({ isOpen, onClose }) {
                           </div>
 
                           <p className="text-xs font-bold text-slate-900 mt-1">
-                            {addr.street}
-                            {addr.district && `, ${addr.district}`}
+                            {addr.addressLine || addr.street}
+                            {addr.district && !addr.addressLine?.includes(addr.district) && `, ${addr.district}`}
                           </p>
 
-                          {(addr.receiverName || addr.receiverPhone) && (
+                          {(addr.recipientName || addr.receiverName || addr.phone || addr.receiverPhone) && (
                             <p className="text-[11px] text-slate-500">
-                              Người nhận: <span className="font-semibold text-slate-700">{addr.receiverName || user.fullName}</span>
-                              {addr.receiverPhone && ` • SĐT: ${addr.receiverPhone}`}
+                              Người nhận: <span className="font-semibold text-slate-700">{addr.recipientName || addr.receiverName || user.fullName}</span>
+                              {(addr.phone || addr.receiverPhone) && ` • SĐT: ${addr.phone || addr.receiverPhone}`}
                             </p>
                           )}
                         </div>
