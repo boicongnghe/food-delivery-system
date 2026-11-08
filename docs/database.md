@@ -109,8 +109,10 @@ TODO: nhóm chốt thiết kế.
 ```mermaid
 stateDiagram-v2
     [*] --> pending : khách đặt món
-    pending --> preparing : quán NHẬN đơn
+    pending --> confirmed : quán NHẬN đơn (chưa nấu, tìm shipper)
     pending --> cancelled : quán TỪ CHỐI / khách hủy (hoàn tiền nếu đã trả online)
+    confirmed --> preparing : shipper NHẬN đơn, bếp bắt đầu nấu
+    confirmed --> cancelled : khách hủy / không có shipper (TO-07)
     preparing --> ready_for_pickup : bếp bấm "Đã xong"
     ready_for_pickup --> delivering : shipper xác nhận đã lấy hàng
     delivering --> delivered : giao thành công
@@ -118,7 +120,7 @@ stateDiagram-v2
     cancelled --> [*]
 ```
 
-`pending` → `preparing` → `ready_for_pickup` → `delivering` → `delivered`, và `cancelled`. **Không còn trạng thái `confirmed`**: quán nhận đơn là chuyển thẳng sang chuẩn bị món.
+`pending` → `confirmed` → `preparing` → `ready_for_pickup` → `delivering` → `delivered`, và `cancelled`. **Bếp chỉ nấu khi đã có shipper nhận đơn**: quán nhận đơn thì sang `confirmed` (đang tìm shipper), shipper nhận thì sang `preparing`. Chi tiết: [order-flow.md](order-flow.md).
 
 **Quy tắc bắt buộc khi đổi trạng thái** (module Cart & Order và Shipper cũng phải theo):
 
@@ -136,14 +138,14 @@ stateDiagram-v2
   - Nhận đơn và chuyển "sẵn sàng" chỉ khi: COD đang `unpaid` (shipper thu tiền) **hoặc** online đã `paid`. Điều kiện này nằm ngay trong câu lệnh cập nhật atomic.
   - Danh sách cho shipper cũng chỉ gồm đơn có thanh toán hợp lệ.
 - **Trạng thái nhà hàng khi xử lý đơn** (khác quy tắc sửa thực đơn):
-  - **Nhận đơn mới**: chỉ nhà hàng `approved`.
+  - **Nhận đơn mới**: chỉ nhà hàng `approved`. Khách chỉ đặt được khi quán trong giờ mở cửa **và** không bật tạm ngưng (`isAcceptingOrders`, xem [order-flow.md](order-flow.md) mục 4).
   - **Từ chối (hoàn tiền) và báo "Đã xong"**: được phép ở mọi trạng thái, kể cả `suspended`, để đơn đã nhận không bị kẹt và khách luôn được hoàn tiền.
   - Admin duyệt nhà hàng qua `PATCH /api/admin/restaurants/:id/status` (module Admin, xem [post-delivery-admin.md](post-delivery-admin.md)). Với dữ liệu demo, `npm run seed:orders` tự đặt nhà hàng thành `approved`.
 - **Chi tiết đơn / phiếu bếp (UC23):**
   - `GET /api/restaurants/me/orders/:id` trả thêm `customerInsight: { completedOrders, isRegular }`. **Khách quen** = ≥ 3 đơn giao thành công tại quán trong 90 ngày; không trả thêm thông tin nào khác của khách.
   - `GET /api/restaurants/me/orders/lookup?code=GN-0042` tra cứu đơn của quán mình theo mã (mọi trạng thái).
-  - Số phiếu bếp được ghi **trong cùng lệnh cập nhật** chuyển sang `preparing` (R14), nên đơn đã nhận luôn có số phiếu. Khi 2 người bấm nhận cùng lúc, request thua bỏ phí một số, nên dãy số phiếu có thể bị nhảy (chấp nhận được).
-- Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `ready_for_pickup`, `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn: gán `shipper` (trạng thái vẫn `ready_for_pickup`); khi lấy hàng: chuyển `delivering`.
+  - Số phiếu bếp được ghi **trong cùng lệnh cập nhật** chuyển sang `preparing` (R14), tức lúc shipper nhận đơn, nên đơn đang nấu luôn có số phiếu. Khi 2 người bấm nhận cùng lúc, request thua bỏ phí một số, nên dãy số phiếu có thể bị nhảy (chấp nhận được).
+- Shipper lấy danh sách đơn chờ qua `GET /api/orders/available-for-pickup` (đơn `confirmed`, hoặc `preparing`/`ready_for_pickup` được trả về hàng chờ; `shipper: null`, thanh toán hợp lệ). Danh sách này **chỉ có khu vực giao** (quận, thành phố), không có tên, số điện thoại, địa chỉ chi tiết của khách; các thông tin đó chỉ trả cho shipper đã được gán đơn. Khi shipper nhận đơn `confirmed`: gán `shipper` và chuyển `preparing` (bếp nấu); khi bếp xong: `ready_for_pickup`; khi lấy hàng: `delivering`.
 
 - **Module sau giao hàng (đánh giá, khiếu nại, sự cố) dựa vào `statusHistory`:** thời điểm giao/hủy lấy từ dòng `delivered`/`cancelled` cuối cùng. Module Shipper khi chuyển đơn sang `delivered` **bắt buộc** `$push` dòng này, nếu không thì khách sẽ không đánh giá hoặc khiếu nại được.
 
@@ -195,6 +197,9 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm. `resolution.orderAction`: `none` \| `release` \| `cancel` (admin xử lý đơn shipper không giao tiếp được) |
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
+| `restaurant_vouchers` | `RestaurantVoucher.js` | Voucher quán tự chạy, quán chịu tiền: `code` (unique theo quán), `discountType`, `discountValue`, `maxDiscount`, `minOrderValue`, `startAt`/`endAt`, `usageLimit`, `perCustomerLimit`, `isActive`. Đơn lưu bản sao ở `orders.restaurantVoucher`. Xem [restaurant-voucher.md](restaurant-voucher.md) |
+| `restaurant_wallets` | `RestaurantWallet.js` | Ví của quán (mỗi quán một document): `withdrawnTotal`, `weekStart`/`weekCount` (giới hạn 3 lần rút/tuần), `version` (compare-and-set). Số dư tính từ đơn, xem [restaurant-wallet.md](restaurant-wallet.md) |
+| `restaurant_withdrawals` | `RestaurantWithdrawal.js` | Lệnh rút tiền `RT-0001`: `amount`, bản sao `bankAccount`, `status` `processing → succeeded \| failed`, `providerRef`, `idempotencyKey` (unique theo quán) |
 
 ## 7. `platform_settings`
 

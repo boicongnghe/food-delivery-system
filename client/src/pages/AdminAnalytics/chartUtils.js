@@ -34,6 +34,8 @@ export const formatPeriodLong = (key) =>
 export const getPresetRange = (preset, today) => {
   const firstOfMonth = `${today.slice(0, 7)}-01`
   switch (preset) {
+    case 'today':
+      return { from: today, to: today }
     case '7d':
       return { from: addDays(today, -6), to: today }
     case '90d':

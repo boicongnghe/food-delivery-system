@@ -1,12 +1,13 @@
 import { BadgeCheck, Clock, ImageIcon, MapPin, Smartphone, Star } from 'lucide-react'
 import { isOpenNow } from '../../../utils/openingHours.js'
+import { DEFAULT_PREP_TIME } from '../constants.js'
 
-// Distance, fee and times depend on each customer's location/order.
-// These sample values only show how the card looks in the customer app.
-const SAMPLE_DELIVERY = { eta: '15 - 20 phút', distance: '1.2 km', fee: '16.000đ', prepTime: '~10 phút' }
+// Shown as a range: the declared preparation time is an average, a busy kitchen may need a few minutes more
+const PREP_TIME_MARGIN = 5
 
 export default function RestaurantPreviewCard({ form, coverUrl, isVerified, rating, ratingCount }) {
   const isOpen = isOpenNow(form.openingHours)
+  const prepTime = Number(form.prepTime) || DEFAULT_PREP_TIME
 
   return (
     <div>
@@ -36,7 +37,7 @@ export default function RestaurantPreviewCard({ form, coverUrl, isVerified, rati
           </span>
           <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
             <Clock className="w-3 h-3" />
-            {SAMPLE_DELIVERY.eta}
+            Chuẩn bị {prepTime} – {prepTime + PREP_TIME_MARGIN} phút
           </span>
         </div>
 
@@ -71,22 +72,6 @@ export default function RestaurantPreviewCard({ form, coverUrl, isVerified, rati
               “{form.description}”
             </p>
           )}
-
-          {/* Delivery stats */}
-          <div className="grid grid-cols-3 divide-x divide-brand-soft rounded-md bg-brand-light py-2 text-center">
-            <div>
-              <p className="text-[11px] text-slate-500">Khoảng cách</p>
-              <p className="text-sm font-bold text-slate-800">{SAMPLE_DELIVERY.distance}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Phí giao</p>
-              <p className="text-sm font-bold text-brand">{SAMPLE_DELIVERY.fee}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-500">Chuẩn bị</p>
-              <p className="text-sm font-bold text-slate-800">{SAMPLE_DELIVERY.prepTime}</p>
-            </div>
-          </div>
 
           {form.categories.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

@@ -59,9 +59,12 @@ export default function OverviewTab({ report, onOpenTab }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-soft/70 bg-brand-light/60 px-4 py-3">
         <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-700">
           <CalendarClock className="h-4 w-4 text-brand" aria-hidden="true" />
-          Chu kỳ tuần này ({formatDay(currentCycle.from)} – {formatDay(currentCycle.to)}):
+          Tuần này ({formatDay(currentCycle.from)} – {formatDay(currentCycle.to)}):
           <b className="tabular-nums text-slate-900">{formatCurrency(currentCycle.netRevenue)}</b>
-          từ {currentCycle.deliveredOrders} đơn · dự kiến chuyển khoản ngày {formatDay(currentCycle.payoutDate)}
+          từ {currentCycle.deliveredOrders} đơn · tiền vào ví sau đối soát cuối ngày
+          <button type="button" onClick={() => onOpenTab('wallet')} className="font-semibold text-brand hover:underline">
+            Xem ví
+          </button>
         </p>
         <PayoutAccountInfo account={report.payoutAccount} />
       </div>
@@ -76,7 +79,10 @@ export default function OverviewTab({ report, onOpenTab }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <TopDishes dishes={report.topDishes} />
         <RecentOrders orders={report.recentOrders} onShowAll={() => onOpenTab('orders')} />
-        <RatingSummary reviews={report.reviews} onShowAll={() => onOpenTab('reviews')} />
+        <RatingSummary
+          reviews={report.reviews}
+          onShowAll={(rating) => onOpenTab('reviews', rating ? { rating: String(rating) } : {})}
+        />
       </div>
 
       {report.complaints.total > 0 && (

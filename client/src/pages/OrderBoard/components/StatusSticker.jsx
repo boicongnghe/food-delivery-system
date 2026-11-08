@@ -2,6 +2,7 @@ import { ORDER_STATUS_LABELS } from '../constants.js'
 
 const STICKER_CLASSES = {
   pending: 'border-red-300 bg-red-50 text-red-800',
+  confirmed: 'border-sky-300 bg-sky-50 text-sky-800',
   preparing: 'border-amber-300 bg-amber-100 text-amber-900',
   ready_for_pickup: 'border-emerald-300 bg-emerald-50 text-emerald-800',
   delivering: 'border-sky-300 bg-sky-50 text-sky-800',

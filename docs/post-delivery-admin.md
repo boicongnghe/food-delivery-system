@@ -54,10 +54,10 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 | GET | `/shippers/:id` | Hồ sơ đăng ký đầy đủ của tài xế |
 | PATCH | `/shippers/:id/status` | Như nhà hàng |
 | GET | `/pending-approvals`, `/stats` | Trang tổng quan (không kèm file) |
-| GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Đơn toàn sàn, chỉ xem. `status`: `all` | `pending` | `preparing` (gồm `confirmed`) | `ready_for_pickup` | `delivering` | `delivered` | `cancelled`. `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
+| GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Đơn toàn sàn, chỉ xem. `status`: `all` | `pending` | `confirmed` (chờ shipper nhận) | `preparing` | `ready_for_pickup` | `delivering` | `delivered` | `cancelled`. `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
 | GET | `/orders/:id` | Chi tiết đơn + `related: { complaint, review, deliveryIssues }` |
 | PATCH | `/orders/:id/cancel` | `{ note }`. Hủy thay khách khi đơn chưa được lấy hàng, kể cả khi shipper đã nhận ([order-timeouts.md](order-timeouts.md)) |
-| PATCH | `/orders/:id/release-shipper` | `{ note }`. Shipper đã nhận nhưng chưa lấy hàng: trả đơn về hàng chờ cho shipper khác |
+| PATCH | `/orders/:id/release-shipper` | `{ note }`. Shipper đã nhận nhưng chưa lấy hàng (bếp đang nấu hoặc món đã xong): trả đơn về hàng chờ cho shipper khác, bếp giữ nguyên trạng thái |
 | PATCH | `/orders/:id/refund` | `{ result: 'succeeded' \| 'failed', reference?, note? }`. Ghi kết quả chuyển trả tiền (R06) |
 | GET, POST | `/commission-rules` | UC40. GET trả `{ today, items, currentDefaults }` |
 | PUT, DELETE | `/commission-rules/:id` | UC40 |
@@ -81,7 +81,7 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 - **Đánh giá (UC17):** chỉ đơn `delivered`, trong 7 ngày kể từ lúc giao, mỗi đơn một lần. Đơn có shipper thì bắt buộc chấm sao shipper.
 - **Kiểm duyệt (UC43):** ẩn đánh giá phải chọn lý do (`spam`, `offensive`, `irrelevant`, `personal_info`, `other` kèm ghi chú). Ẩn hoặc hiện lại đều tính lại điểm nhà hàng và shipper. Khách vẫn thấy đánh giá của mình kèm lý do bị ẩn.
 - **Khiếu nại (UC18 → UC42):** đơn `delivered` hoặc `cancelled`, trong 7 ngày, mỗi đơn một lần, tối đa 3 ảnh. Không khiếu nại được đơn online chưa từng thanh toán (khách hủy ở trang thanh toán). Admin chấp nhận (có thể hoàn tiền) hoặc từ chối, luôn kèm phản hồi cho khách. Số tiền hoàn ≤ số khách đã trả (`payment.status` là `paid`/`refunded`) trừ phần đã hoàn khi hủy. Hoàn tiền hiện là **mô phỏng**.
-- **Sự cố (UC34 → UC45):** shipper chỉ báo cáo được khi đơn mình đang giữ ở `ready_for_pickup`/`delivering`; đơn đã kết thúc thì không báo được nữa. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Khi xác nhận, admin có thể xử phạt một bên:
+- **Sự cố (UC34 → UC45):** shipper chỉ báo cáo được khi đơn mình đang giữ ở `preparing`/`ready_for_pickup`/`delivering`; đơn đã kết thúc thì không báo được nữa. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Khi xác nhận, admin có thể xử phạt một bên:
   - `warning`, `fine` (10.000–5.000.000đ, mô phỏng): chỉ ghi nhận vào lịch sử vi phạm.
   - `suspend`: nhà hàng chuyển `suspended` (không nhận đơn mới, vẫn hoàn tất được đơn đang có); shipper hoặc khách bị **khóa tài khoản**, mở lại ở UC37.
   - **Xử lý đơn hàng** (`orderAction`, dùng được cả khi xác nhận lẫn bác bỏ), chỉ khi shipper báo cáo vẫn đang giữ đơn:

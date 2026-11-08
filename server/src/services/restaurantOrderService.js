@@ -1,10 +1,8 @@
 import Order from '../models/Order.js';
-import Restaurant from '../models/Restaurant.js';
 import ApiError from '../utils/ApiError.js';
 import { startOfTodayInVietnam } from '../utils/date.js';
 import { maskPhone } from '../utils/maskPhone.js';
 import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
-import { getNextKitchenTicketNo } from './counterService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import {
   PAYMENT_ALLOWS_FULFILLMENT_FILTER,
@@ -13,17 +11,15 @@ import {
   waitingSince,
 } from './orderPolicy.js';
 import { getOrderTimeouts } from './settingService.js';
-import {
-  REGULAR_CUSTOMER_MIN_ORDERS,
-  REGULAR_CUSTOMER_WINDOW_DAYS,
-  calculateKitchenDueAt,
-} from './orderTiming.js';
+import { REGULAR_CUSTOMER_MIN_ORDERS, REGULAR_CUSTOMER_WINDOW_DAYS } from './orderTiming.js';
 import { sendRealtimeNotification, broadcastRealtimeNotification } from '../socket.js';
 
-const ACTIVE_STATUSES = ['pending', 'preparing', 'ready_for_pickup'];
+// confirmed = accepted, waiting for a shipper; the kitchen cooks once a shipper takes it (docs/order-flow.md)
+const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup'];
 const RECENT_CANCEL_WINDOW_MS = 10 * 60 * 1000; // customer-cancelled orders stay visible 10 minutes
 const STATUS_LABELS = {
   pending: 'chờ nhận',
+  confirmed: 'đang tìm shipper',
   preparing: 'đang chuẩn bị',
   ready_for_pickup: 'sẵn sàng lấy hàng',
   delivering: 'đang giao',
@@ -54,6 +50,8 @@ const toRestaurantView = (order) => ({
   packagingFee: order.packagingFee,
   shippingFee: order.shippingFee,
   discount: order.discount,
+  // The restaurant's own voucher (it pays it); the rest of "discount" is the platform's
+  restaurantVoucher: { code: order.restaurantVoucher?.code || null, discountAmount: order.restaurantVoucher?.discountAmount || 0 },
   total: order.total,
   customerNote: order.customerNote,
   delivery: {
@@ -73,6 +71,8 @@ const toRestaurantView = (order) => ({
   refund: { status: order.refund?.status || 'none', amount: order.refund?.amount || 0 },
   statusHistory: order.statusHistory,
   acceptedAt: order.acceptedAt,
+  // The kitchen starts when a shipper takes the order (older orders: when the restaurant accepted)
+  cookingStartedAt: order.statusHistory?.findLast((entry) => entry.status === 'preparing')?.at || order.acceptedAt,
   readyAt: order.readyAt,
   kitchenTicketNo: order.kitchenTicketNo,
   kitchenDueAt: order.kitchenDueAt,
@@ -108,7 +108,7 @@ export const getBoard = async (restaurantId) => {
   const byStatus = (status) => activeOrders.filter((order) => order.status === status).map(toRestaurantView);
 
   // TO-02 / TO-03: the board shows when a waiting order is reminded and when it cancels itself
-  const { acceptRemind, acceptTimeout } = await getOrderTimeouts();
+  const { acceptRemind, acceptTimeout, shipperTimeout } = await getOrderTimeouts();
   const withAcceptDeadlines = (order) => {
     const since = waitingSince(order).getTime();
     return {
@@ -119,8 +119,19 @@ export const getBoard = async (restaurantId) => {
     };
   };
 
+  // TO-07: a confirmed order cancels itself when no shipper takes it in time (nothing cooked yet)
+  const withShipperDeadline = (order) => {
+    const since = new Date(order.timeouts?.releasedAt || order.acceptedAt || order.createdAt).getTime();
+    return {
+      ...toRestaurantView(order),
+      waitingShipperSince: new Date(since),
+      shipperDeadline: new Date(since + shipperTimeout * 60 * 1000),
+    };
+  };
+
   return {
     pending: activeOrders.filter((order) => order.status === 'pending').map(withAcceptDeadlines),
+    confirmed: activeOrders.filter((order) => order.status === 'confirmed').map(withShipperDeadline),
     preparing: byStatus('preparing'),
     readyForPickup: byStatus('ready_for_pickup'),
     recentlyCancelled: recentlyCancelled.map(toRestaurantView),
@@ -196,21 +207,11 @@ const transitionOrder = async ({ restaurantId, orderId, fromStatus, conditions =
 
 const historyEntry = (status, at) => ({ statusHistory: { status, at, byRole: 'restaurant' } });
 
-// Yes: start cooking. COD orders are accepted unpaid; online orders only when already paid.
+// Yes: the restaurant confirms it will make the order. The kitchen does not cook yet: the order is shown to
+// shippers and cooking starts when one of them takes it (shipperOrderService.acceptOrder).
+// COD orders are accepted unpaid; online orders only when already paid.
 export const acceptOrder = async (restaurantId, orderId) => {
   const now = new Date();
-  const [current, restaurant, settings] = await Promise.all([
-    Order.findOne({ _id: orderId, restaurant: restaurantId }).select('status').lean(),
-    Restaurant.findById(restaurantId).select('prepTime').lean(),
-    getOrderTimeouts(),
-  ]);
-  // TO-04: handover deadline = now + the restaurant's declared preparation time
-  const kitchenDueAt = calculateKitchenDueAt(now, restaurant?.prepTime || settings.defaultPrepTime);
-
-  // The ticket number is written in the same atomic update as "preparing": an accepted order can never
-  // miss its number. A request that loses a race leaves a gap in the numbering (accepted trade-off).
-  const kitchenTicketNo = current?.status === 'pending' ? await getNextKitchenTicketNo(restaurantId, now) : null;
-
   const accepted = await transitionOrder({
     restaurantId,
     orderId,
@@ -218,29 +219,34 @@ export const acceptOrder = async (restaurantId, orderId) => {
     conditions: PAYMENT_ALLOWS_FULFILLMENT_FILTER,
     conditionError: 'Thanh toán của đơn không hợp lệ, không thể nhận đơn',
     update: {
-      $set: { status: 'preparing', acceptedAt: now, kitchenDueAt, kitchenTicketNo },
-      $push: historyEntry('preparing', now),
+      $set: { status: 'confirmed', acceptedAt: now },
+      $push: historyEntry('confirmed', now),
     },
   });
 
   await recordStatusChange({
     orderId: accepted._id,
     fromStatus: 'pending',
-    toStatus: 'preparing',
+    toStatus: 'confirmed',
     role: 'restaurant',
     action: 'Quán đã nhận đơn',
-    note: `Bếp bắt đầu chế biến (phiếu bếp #${String(kitchenTicketNo).padStart(2, '0')})`,
+    note: 'Đang tìm shipper. Bếp bắt đầu nấu khi có shipper nhận đơn',
   });
 
   if (accepted.customer) {
     sendRealtimeNotification(accepted.customer, {
-      title: 'Quán đã nhận đơn & đang nấu! 🍳',
-      message: `Đơn #${accepted.orderCode || accepted.orderNumber || ''} đã được bếp xác nhận và bắt đầu chế biến.`,
+      title: 'Quán đã nhận đơn! 🧾',
+      message: `Đơn #${accepted.orderCode || accepted.orderNumber || ''} đã được quán xác nhận. Hệ thống đang tìm shipper, bếp sẽ nấu ngay khi có shipper nhận.`,
       type: 'order',
       orderId: accepted._id,
       link: `/orders/${accepted._id}`,
     });
   }
+
+  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+    orderId: accepted._id,
+    orderCode: accepted.orderCode || accepted.orderNumber,
+  });
 
   return toRestaurantView(accepted);
 };
@@ -309,7 +315,7 @@ export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   return toRestaurantView(rejected);
 };
 
-// Kitchen done: the order becomes visible to shippers (payment must still be valid)
+// Kitchen done: the shipper who took the order can pick it up (payment must still be valid)
 export const markReady = async (restaurantId, orderId) => {
   const now = new Date();
   const ready = await transitionOrder({
@@ -343,10 +349,13 @@ export const markReady = async (restaurantId, orderId) => {
     });
   }
 
-  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
-    orderId: ready._id,
-    orderCode: ready.orderCode || ready.orderNumber,
-  });
+  // Normally a shipper already holds the order; one given back to the pool is announced again
+  if (!ready.shipper) {
+    broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+      orderId: ready._id,
+      orderCode: ready.orderCode || ready.orderNumber,
+    });
+  }
 
   return toRestaurantView(ready);
 };

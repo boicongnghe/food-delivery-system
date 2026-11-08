@@ -6,12 +6,10 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
   const [hovered, setHovered] = useState(null)
   const maxTotal = Math.max(
     1,
-    ...earningsByHour.map(item => item.base + item.bonus + item.tip),
+    ...earningsByHour.map(item => Number(item.base || 0) + Number(item.bonus || 0)),
   )
   const activeEarning = Number.isInteger(hovered) ? earningsByHour[hovered] : null
-  const activeTotal = activeEarning
-    ? activeEarning.base + activeEarning.bonus + activeEarning.tip
-    : 0
+  const activeTotal = Number(activeEarning?.base || 0) + Number(activeEarning?.bonus || 0)
 
   return (
     <div className="section-card" id="earnings-chart-section">
@@ -28,15 +26,11 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
         <div className="chart-legend">
           <div className="chart-legend-item">
             <div className="legend-dot" style={{ background: '#6b7280' }} />
-            Cước cơ bản
+            Phí giao đơn
           </div>
           <div className="chart-legend-item">
-            <div className="legend-dot" style={{ background: '#d93025' }} />
+            <div className="legend-dot" style={{ background: 'var(--green)' }} />
             Thưởng
-          </div>
-          <div className="chart-legend-item">
-            <div className="legend-dot" style={{ background: '#d97706' }} />
-            Tiền tip
           </div>
           <div className="chart-legend-item">
             <div className="legend-dot" style={{ background: '#bfdbfe', border: '1px dashed #1d4ed8' }} />
@@ -51,13 +45,8 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
               <strong>{activeTotal.toLocaleString('vi-VN')}đ</strong>
             </div>
             <div className="chart-detail-values">
-              <span>Cước {activeEarning.base.toLocaleString('vi-VN')}đ</span>
-              {activeEarning.bonus > 0 && (
-                <span className="bonus">Thưởng +{activeEarning.bonus.toLocaleString('vi-VN')}đ</span>
-              )}
-              {activeEarning.tip > 0 && (
-                <span className="tip">Tip +{activeEarning.tip.toLocaleString('vi-VN')}đ</span>
-              )}
+              <span>Cước {Number(activeEarning.base || 0).toLocaleString('vi-VN')}đ</span>
+              <span>Thưởng {Number(activeEarning.bonus || 0).toLocaleString('vi-VN')}đ</span>
             </div>
           </div>
         ) : (
@@ -72,10 +61,11 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
 
           {/* Actual data */}
           {earningsByHour.map((d, i) => {
-            const total  = d.base + d.bonus + d.tip
-            const baseH  = (d.base  / maxTotal) * MAX_BAR_H
-            const bonusH = (d.bonus / maxTotal) * MAX_BAR_H
-            const tipH   = (d.tip   / maxTotal) * MAX_BAR_H
+            const base = Number(d.base || 0)
+            const bonus = Number(d.bonus || 0)
+            const total = base + bonus
+            const baseH = (base / maxTotal) * MAX_BAR_H
+            const bonusH = (bonus / maxTotal) * MAX_BAR_H
 
             return (
               <div
@@ -96,9 +86,8 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
                 aria-label={`${d.hour}: ${total.toLocaleString('vi-VN')}đ`}
               >
                 <div className="chart-bars-inner">
-                  {tipH   > 0 && <div className="chart-bar tip"   style={{ height: `${tipH}px` }} />}
-                  {bonusH > 0 && <div className="chart-bar bonus" style={{ height: `${bonusH}px` }} />}
                   {baseH  > 0 && <div className="chart-bar base"  style={{ height: `${baseH}px` }} />}
+                  {bonusH > 0 && <div className="chart-bar bonus" style={{ height: `${bonusH}px` }} />}
                 </div>
                 <span className="chart-x-label">{d.hour}</span>
               </div>

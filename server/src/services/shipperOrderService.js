@@ -1,20 +1,87 @@
 import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
+import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
+import { sendRealtimeNotification } from '../socket.js';
+import { getKitchenStartFields } from './kitchenService.js';
+import {
+  NOT_PICKED_UP_STATUSES,
+  SHIPPER_ACTIVE_STATUSES as ACTIVE_STATUSES,
+  SHIPPER_POOL_STATUSES,
+} from './orderAssignmentService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
 
+// Orders a shipper can take: confirmed by the restaurant (the kitchen waits for a shipper before cooking),
+// or given back to the pool while cooking / ready
 const AVAILABLE_FILTER = {
-  status: 'ready_for_pickup',
+  status: { $in: SHIPPER_POOL_STATUSES },
   shipper: null,
   ...PAYMENT_ALLOWS_FULFILLMENT_FILTER,
 };
-const ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
+const codeOf = (order) => order.orderCode || order.orderNumber || '';
+
+const notifyRestaurantOwner = async (restaurantId, payload) => {
+  const restaurant = await Restaurant.findById(restaurantId).select('owner').lean();
+  if (restaurant?.owner) await sendRealtimeNotification(restaurant.owner, payload);
+};
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
+const DASHBOARD_PERIODS = ['today', 'week', 'month'];
+const DASHBOARD_PERIOD_FIELDS = [
+  'totalEarnings',
+  'baseFare',
+  'bonus',
+  'completedTrips',
+  'tripGoal',
+  'walletBalance',
+  'pendingBalance',
+  'weeklyEarnings',
+  'rating',
+  'tier',
+  'ratingCount',
+  'consecutiveFiveStarTrips',
+  'payoutBank',
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+];
+const DASHBOARD_ARRAY_FIELDS = new Set([
+  'earningsByHour',
+  'forecast',
+  'trips',
+  'missions',
+  'reviews',
+  'badges',
+  'hotspots',
+]);
+const DASHBOARD_STRING_FIELDS = new Set(['tier', 'payoutBank']);
+
+const clearDemoDashboard = async (shipperId, session) => {
+  const fields = { isDemo: false, 'profile.tier': '' };
+  for (const period of DASHBOARD_PERIODS) {
+    for (const field of DASHBOARD_PERIOD_FIELDS) {
+      fields[`periods.${period}.${field}`] = DASHBOARD_ARRAY_FIELDS.has(field)
+        ? []
+        : DASHBOARD_STRING_FIELDS.has(field)
+          ? ''
+          : 0;
+    }
+  }
+
+  await DriverDashboard.updateOne(
+    { userId: shipperId, isDemo: true },
+    { $set: fields },
+    { session },
+  );
+};
 
 export const getShipperStatus = async (shipperId) => {
   const shipper = await Shipper.findOne({ user: shipperId }).select('status').lean();
@@ -52,6 +119,8 @@ const toAvailableOrder = (order) => {
     estimatedPay: order.shippingFee,
     total: order.total,
     amountToCollect: order.payment.method === 'cod' ? order.total : 0,
+    acceptedAt: order.acceptedAt,
+    kitchenDueAt: order.kitchenDueAt,
     readyAt: order.readyAt,
   };
 };
@@ -61,10 +130,10 @@ export const listAvailableForPickup = async (shipperId, { page, limit }) => {
   const [orders, totalItems] = await Promise.all([
     Order.find(AVAILABLE_FILTER)
       .populate('restaurant', 'name address')
-      .sort({ readyAt: 1 })
+      .sort({ acceptedAt: 1 }) // waiting longest first
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment readyAt status')
+      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
       .lean(),
     Order.countDocuments(AVAILABLE_FILTER),
   ]);
@@ -79,7 +148,7 @@ export const getAvailableOrderDetail = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
   const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
     .populate('restaurant', 'name address phone')
-    .select('orderCode restaurant delivery items total shippingFee payment readyAt status')
+    .select('orderCode restaurant delivery items total shippingFee payment acceptedAt kitchenDueAt readyAt status')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Đơn hàng không còn trong danh sách chờ nhận');
@@ -97,10 +166,15 @@ export const getActiveOrders = async (shipperId) => {
   return orders;
 };
 
+/**
+ * Take an order. A confirmed order starts cooking now (status preparing, kitchen deadline from the
+ * restaurant's prepTime): the kitchen never cooks for an order nobody will deliver. An order given back
+ * to the pool keeps its kitchen status. Conditional on the status just read: two shippers cannot both win.
+ */
 export const acceptOrder = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
   const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
-    .populate('restaurant', 'name address phone')
+    .select('status restaurant customer orderCode orderNumber')
     .lean();
   if (!order) {
     throw new ApiError(409, 'Đơn hàng không còn khả dụng, vui lòng tải lại danh sách');
@@ -115,17 +189,25 @@ export const acceptOrder = async (shipperId, orderId) => {
       $or: [{ activeOrderId: null }, { activeOrderId: { $exists: false } }],
     },
     { $set: { activeOrderId: orderId } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!reserved) {
     throw new ApiError(409, 'Bạn đang có một đơn giao hàng chưa hoàn tất');
   }
 
-  const acceptedAt = new Date();
+  const now = new Date();
+  const startsKitchen = order.status === 'confirmed';
+  const kitchen = startsKitchen ? await getKitchenStartFields(order.restaurant, now) : null;
+  const update = startsKitchen
+    ? {
+        $set: { shipper: shipperId, shipperAcceptedAt: now, status: 'preparing', ...kitchen },
+        $push: { statusHistory: { status: 'preparing', at: now, byRole: 'shipper' } },
+      }
+    : { $set: { shipper: shipperId, shipperAcceptedAt: now } };
   const accepted = await Order.findOneAndUpdate(
-    { _id: orderId, ...AVAILABLE_FILTER },
-    { $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt } },
-    { new: true, runValidators: true },
+    { _id: orderId, ...AVAILABLE_FILTER, status: order.status },
+    update,
+    { returnDocument: 'after', runValidators: true },
   );
   if (!accepted) {
     await DriverDashboard.updateOne(
@@ -135,23 +217,61 @@ export const acceptOrder = async (shipperId, orderId) => {
     throw new ApiError(409, 'Đơn hàng vừa được shipper khác nhận');
   }
 
+  if (startsKitchen) {
+    const ticket = String(kitchen.kitchenTicketNo).padStart(2, '0');
+    await recordStatusChange({
+      orderId: accepted._id,
+      fromStatus: 'confirmed',
+      toStatus: 'preparing',
+      role: 'shipper',
+      action: 'Shipper đã nhận đơn',
+      note: `Bếp bắt đầu chế biến (phiếu bếp #${ticket})`,
+    });
+    await notifyRestaurantOwner(accepted.restaurant, {
+      title: `Đơn #${codeOf(accepted)}: đã có shipper, bắt đầu nấu 🍳`,
+      message: `Shipper đã nhận đơn và đang đến quán. Phiếu bếp #${ticket}.`,
+      type: 'order',
+      orderId: accepted._id,
+      link: `/restaurant/orders?order=${accepted._id}`,
+    });
+    if (accepted.customer) {
+      await sendRealtimeNotification(accepted.customer, {
+        title: 'Đã có shipper, quán đang nấu! 🍳',
+        message: `Đơn #${codeOf(accepted)} đã có shipper nhận giao và bếp bắt đầu chế biến.`,
+        type: 'order',
+        orderId: accepted._id,
+        link: `/orders/${accepted._id}`,
+      });
+    }
+  }
+
   return Order.findById(accepted._id)
     .populate('restaurant', 'name address phone')
     .populate('customer', 'fullName phone')
     .lean();
 };
 
+// Within 3 minutes and before pickup the shipper may give the order back. The kitchen keeps cooking;
+// the order returns to the pool and the no-shipper rules (TO-06, TO-07) count again from now.
 export const cancelAcceptance = async (shipperId, orderId) => {
-  const cutoff = new Date(Date.now() - ACCEPTANCE_WINDOW_MS);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - ACCEPTANCE_WINDOW_MS);
   const released = await Order.findOneAndUpdate(
     {
       _id: orderId,
       shipper: shipperId,
-      status: 'ready_for_pickup',
+      status: { $in: NOT_PICKED_UP_STATUSES },
       shipperAcceptedAt: { $gte: cutoff },
     },
-    { $set: { shipper: null, shipperAcceptedAt: null } },
-    { new: true },
+    {
+      $set: {
+        shipper: null,
+        shipperAcceptedAt: null,
+        'timeouts.shipperAlertedAt': null,
+        'timeouts.releasedAt': now,
+      },
+    },
+    { returnDocument: 'after' },
   );
   if (!released) {
     throw new ApiError(409, 'Chỉ có thể trả đơn trong 3 phút sau khi nhận và trước khi xác nhận lấy hàng');
@@ -161,6 +281,13 @@ export const cancelAcceptance = async (shipperId, orderId) => {
     { userId: shipperId, activeOrderId: orderId },
     { $set: { activeOrderId: null } },
   );
+  await notifyRestaurantOwner(released.restaurant, {
+    title: `Đơn #${codeOf(released)}: shipper đã trả đơn`,
+    message: 'Hệ thống đang tìm shipper khác. Bếp tiếp tục chuẩn bị món như bình thường.',
+    type: 'order',
+    orderId: released._id,
+    link: `/restaurant/orders?order=${released._id}`,
+  });
   return { orderId, released: true };
 };
 
@@ -306,25 +433,29 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
         { $set: { activeOrderId: null } },
         { session },
       );
+      await clearDemoDashboard(shipperId, session);
       const dashboardUpdate = await DriverDashboard.updateOne(
         { userId: shipperId },
         {
           $inc: {
-            'periods.today.pendingBalance': payout,
             'periods.today.totalEarnings': payout,
             'periods.today.baseFare': payout,
             'periods.today.completedTrips': 1,
             'periods.today.weeklyEarnings': payout,
-            'periods.week.pendingBalance': payout,
+            walletBalance: payout,
             'periods.week.totalEarnings': payout,
             'periods.week.baseFare': payout,
             'periods.week.completedTrips': 1,
             'periods.week.weeklyEarnings': payout,
-            'periods.month.pendingBalance': payout,
             'periods.month.totalEarnings': payout,
             'periods.month.baseFare': payout,
             'periods.month.completedTrips': 1,
             'periods.month.weeklyEarnings': payout,
+          },
+          $set: {
+            'periods.today.pendingBalance': 0,
+            'periods.week.pendingBalance': 0,
+            'periods.month.pendingBalance': 0,
           },
           $push: {
             'periods.today.trips': {
@@ -340,7 +471,6 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
                 distance: '',
                 baseFare: payout,
                 bonus: 0,
-                tip: 0,
                 status: 'Đã giao',
                 surge: false,
               }],

@@ -2,10 +2,11 @@ import { useRef } from 'react'
 import toast from 'react-hot-toast'
 import { Camera, ImageIcon } from 'lucide-react'
 import { MAX_IMAGE_SIZE } from '../constants.js'
+import FieldError from './FieldError.jsx'
 
 const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp'
 
-export default function ImageSection({ coverUrl, logoUrl, onCoverChange, onLogoChange }) {
+export default function ImageSection({ coverUrl, logoUrl, errors = {}, onCoverChange, onLogoChange }) {
   const coverInputRef = useRef(null)
   const logoInputRef = useRef(null)
 
@@ -86,6 +87,7 @@ export default function ImageSection({ coverUrl, logoUrl, onCoverChange, onLogoC
         className="hidden"
         onChange={(event) => handleFileChange(event, onLogoChange)}
       />
+      <FieldError message={errors.coverImage || errors.logo} />
     </section>
   )
 }

@@ -127,6 +127,12 @@ const orderSchema = new mongoose.Schema(
       code: { type: String, default: null },
       discountAmount: { type: Number, default: 0 },
     },
+    // Restaurant-funded voucher (docs/restaurant-voucher.md). discount = this + the platform voucher (promotion)
+    restaurantVoucher: {
+      voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'RestaurantVoucher', default: null },
+      code: { type: String, default: null },
+      discountAmount: { type: Number, min: 0, default: 0 },
+    },
     total: { type: Number, default: 0 },
     totalPrice: { type: Number, default: 0 },
 
@@ -290,6 +296,7 @@ orderSchema.index({ restaurant: 1, status: 1, createdAt: 1 });
 orderSchema.index({ status: 1, shipper: 1, readyAt: 1 });
 orderSchema.index({ status: 1, createdAt: 1 }); // timeout job: pending orders by age
 orderSchema.index({ status: 1, kitchenDueAt: 1 }); // timeout job: orders past their prep time
+orderSchema.index({ 'restaurantVoucher.voucher': 1, customer: 1 }); // voucher usage (total and per customer)
 
 const Order = mongoose.model('Order', orderSchema);
 

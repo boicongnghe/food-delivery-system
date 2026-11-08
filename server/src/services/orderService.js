@@ -10,6 +10,7 @@ import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../
 import { recordStatusChange } from './orderHistoryService.js';
 import { refundRequestFields } from './orderPolicy.js';
 import { validateAndApplyPromotion } from './promotionService.js';
+import { resolveVoucherForOrder } from './restaurantVoucherService.js';
 import { completeDelivery } from './shipperOrderService.js';
 import { sendRealtimeNotification } from '../socket.js';
 import User from '../models/User.js';
@@ -73,6 +74,12 @@ export const resolveRestaurant = async (identifier) => {
 const assertRestaurantTakingOrders = async (restaurant) => {
   if (restaurant.status !== 'approved') {
     throw new ApiError(400, 'Nhà hàng chưa được kích hoạt hoặc đang tạm ngưng hoạt động');
+  }
+  if (restaurant.isAcceptingOrders === false) {
+    throw new ApiError(
+      400,
+      `Nhà hàng "${restaurant.name}" đang tạm ngưng nhận đơn. Vui lòng quay lại sau hoặc chọn quán khác.`,
+    );
   }
   const { closingCutoff } = await getOrderTimeouts();
   const acceptance = getOrderAcceptance(restaurant.openingHours, closingCutoff);
@@ -209,7 +216,7 @@ const generateOrderNumber = () => {
 };
 
 export const createOrder = async (userId, data) => {
-  const { restaurantId, items, deliveryAddress, paymentMethod = 'banking', promotionCode } = data;
+  const { restaurantId, items, deliveryAddress, paymentMethod = 'banking', promotionCode, restaurantVoucherCode } = data;
 
   if (paymentMethod !== 'banking') {
     throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
@@ -295,12 +302,28 @@ export const createOrder = async (userId, data) => {
 
   const shippingFee = calculateShippingFee(distanceKm);
 
-  // Validate promotion
+  // Restaurant voucher first (funded by the restaurant), then the platform voucher on what is left
+  const restaurantVoucher = { voucher: null, code: null, discountAmount: 0 };
+  if (restaurantVoucherCode) {
+    const applied = await resolveVoucherForOrder({
+      restaurantId: realRestaurantId,
+      code: restaurantVoucherCode,
+      subtotal,
+      customerId: userId,
+    });
+    Object.assign(restaurantVoucher, {
+      voucher: applied.voucher._id,
+      code: applied.voucher.code,
+      discountAmount: applied.discountAmount,
+    });
+  }
+
+  // Validate promotion (platform voucher)
   let discountAmount = 0;
   let appliedPromoCode = null;
 
   if (promotionCode) {
-    const promoResult = await validateAndApplyPromotion(promotionCode, subtotal);
+    const promoResult = await validateAndApplyPromotion(promotionCode, subtotal - restaurantVoucher.discountAmount);
     discountAmount = promoResult.discountAmount;
     appliedPromoCode = promoResult.promotion ? promoResult.promotion.code : null;
 
@@ -309,7 +332,8 @@ export const createOrder = async (userId, data) => {
     }
   }
 
-  const totalPrice = Math.max(0, subtotal + shippingFee - discountAmount);
+  const totalDiscount = restaurantVoucher.discountAmount + discountAmount;
+  const totalPrice = Math.max(0, subtotal + shippingFee - totalDiscount);
 
   const orderNumber = generateOrderNumber();
 
@@ -328,12 +352,13 @@ export const createOrder = async (userId, data) => {
     distanceKm,
     subtotal,
     shippingFee,
-    // Same amount in both: the kitchen, reports and admin read "discount"
-    discount: discountAmount,
+    // discount = everything the customer saved; each voucher keeps its own part (who pays it)
+    discount: totalDiscount,
     promotion: {
       code: appliedPromoCode,
       discountAmount,
     },
+    restaurantVoucher,
     totalPrice,
     paymentMethod,
     paymentStatus: 'pending',

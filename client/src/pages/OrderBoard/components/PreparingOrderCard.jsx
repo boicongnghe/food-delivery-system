@@ -1,11 +1,11 @@
-import { AlarmClock, ChefHat, PackageCheck } from 'lucide-react'
+import { AlarmClock, Bike, ChefHat, PackageCheck } from 'lucide-react'
 import { formatClock, formatCountdown, formatDuration } from '../../../utils/formatTime.js'
 import CustomerNote from './CustomerNote.jsx'
 import OrderCardHeader from './OrderCardHeader.jsx'
 import OrderItemList from './OrderItemList.jsx'
 
 export default function PreparingOrderCard({ order, now, busy, onReady, onView }) {
-  const cookingMs = now - new Date(order.acceptedAt).getTime()
+  const cookingMs = now - new Date(order.cookingStartedAt || order.acceptedAt).getTime()
   const dueAt = order.kitchenDueAt ? new Date(order.kitchenDueAt).getTime() : null
   const isLate = dueAt !== null && now > dueAt
 
@@ -36,6 +36,10 @@ export default function PreparingOrderCard({ order, now, busy, onReady, onView }
           Phiếu bếp #{String(order.kitchenTicketNo).padStart(2, '0')}
         </p>
       )}
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+        <Bike className="h-3.5 w-3.5" />
+        {order.shipper?.fullName ? `Shipper ${order.shipper.fullName} đang đến quán` : 'Đang tìm shipper khác (shipper cũ đã trả đơn)'}
+      </p>
       <div className="border-t border-brand-soft/60 pt-3">
         <OrderItemList items={order.items} />
       </div>
@@ -52,7 +56,7 @@ export default function PreparingOrderCard({ order, now, busy, onReady, onView }
         ) : (
           <PackageCheck className="h-4 w-4" />
         )}
-        Đã xong – Chờ shipper
+        Đã xong – Báo shipper lấy
       </button>
     </article>
   )

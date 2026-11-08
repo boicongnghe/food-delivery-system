@@ -54,6 +54,6 @@ export const confirmDelivered = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: result,
-    message: `Đã xác nhận giao hàng, ${result.payout.toLocaleString('vi-VN')}đ được cộng vào số dư chờ`,
+    message: `Đã xác nhận giao hàng, ${result.payout.toLocaleString('vi-VN')}đ được cộng vào ví ảo`,
   });
 });

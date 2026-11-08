@@ -11,7 +11,12 @@ import {
   countByStatus,
   ensureOwnEvidence,
 } from './feedbackPolicy.js';
-import { SHIPPER_ACTIVE_STATUSES as ACTIVE_STATUSES, cancelAssignedOrder, releaseOrderToPool } from './orderAssignmentService.js';
+import {
+  NOT_PICKED_UP_STATUSES,
+  SHIPPER_ACTIVE_STATUSES as ACTIVE_STATUSES,
+  cancelAssignedOrder,
+  releaseOrderToPool,
+} from './orderAssignmentService.js';
 
 // SC-0001, SC-0002, ...
 const generateIssueCode = async () => `SC-${String(await getNextSequence('deliveryIssue')).padStart(4, '0')}`;
@@ -157,7 +162,7 @@ const assertOrderActionAllowed = (issue, order, orderAction) => {
       { field: 'orderAction', message: 'Chọn "Giữ nguyên đơn hàng"' },
     ]);
   }
-  if (orderAction === 'release' && order.status !== 'ready_for_pickup') {
+  if (orderAction === 'release' && !NOT_PICKED_UP_STATUSES.includes(order.status)) {
     throw new ApiError(409, 'Shipper đã lấy hàng, không thể trả đơn về hàng chờ', [
       { field: 'orderAction', message: 'Hãy hủy đơn hoặc giữ nguyên để shipper tiếp tục giao' },
     ]);
