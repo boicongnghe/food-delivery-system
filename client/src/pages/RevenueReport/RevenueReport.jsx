@@ -23,6 +23,7 @@ import PrintableSettlement from './components/PrintableSettlement.jsx'
 import ReportLoadError from './components/ReportLoadError.jsx'
 import ReportFilterBar from './components/ReportFilterBar.jsx'
 import ReviewsTab from './components/ReviewsTab.jsx'
+import WalletTab from './components/WalletTab.jsx'
 
 const DEFAULT_PRESET = '30d'
 const TAB_VALUES = REPORT_TABS.map((tab) => tab.value)
@@ -30,7 +31,7 @@ const EXPORT_LABELS = { overview: 'Xuất doanh thu (CSV)', orders: 'Xuất đơ
 
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
-// Revenue report of the owner's restaurant: overview, order history, reviews and weekly settlement
+// Revenue report of the owner's restaurant: overview, order history, reviews, statement and wallet
 export default function RevenueReport() {
   const { restaurant } = useOutletContext()
   const [today] = useState(todayInVietnam)
@@ -45,7 +46,8 @@ export default function RevenueReport() {
   // Active tab lives in the URL (?tab=orders): survives F5 and Back
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = TAB_VALUES.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'overview'
-  const openTab = (tab) => setSearchParams(tab === 'overview' ? {} : { tab })
+  // extra: more URL params of the tab, e.g. { rating: 5 } opens the 5-star comments
+  const openTab = (tab, extra = {}) => setSearchParams(tab === 'overview' ? {} : { tab, ...extra })
 
   // The figures on screen may belong to the previous range while the new one loads or fails:
   // overviewRequest.isCurrent says if they are the chosen range (only then export is allowed)
@@ -133,7 +135,7 @@ export default function RevenueReport() {
   const exportSettlements = async () => {
     const { data } = await reportApi.getSettlements(range)
     downloadCsv(`hoa-hong-${fileSuffix}.csv`, [
-      ['Ngày', 'Số đơn', 'Doanh thu gộp (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Voucher quán (đ)', 'Thực nhận (đ)', 'Ngày chuyển khoản dự kiến', 'Trạng thái'],
+      ['Ngày', 'Số đơn', 'Doanh thu gộp (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Voucher quán (đ)', 'Thực nhận (đ)', 'Tuần', 'Trạng thái'],
       ...data.days.map((day) => [
         formatDay(day.day),
         day.deliveredOrders,
@@ -142,7 +144,7 @@ export default function RevenueReport() {
         day.platformFee,
         day.restaurantVoucher,
         day.netRevenue,
-        formatDay(day.cycle.payoutDate),
+        `${formatDay(day.cycle.from)} - ${formatDay(day.cycle.to)}`,
         SETTLEMENT_STATUS[day.status].label,
       ]),
     ])
@@ -179,12 +181,14 @@ export default function RevenueReport() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-slate-900 sm:text-3xl">Báo cáo doanh thu & thống kê</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {restaurant.name} · từ {formatDay(range.from)} đến {formatDay(range.to)} · đơn tính theo ngày đặt, tiền chỉ tính đơn
-          hoàn thành
+          {activeTab === 'wallet'
+            ? `${restaurant.name} · số dư ví và lịch sử rút tiền`
+            : `${restaurant.name} · từ ${formatDay(range.from)} đến ${formatDay(range.to)} · đơn tính theo ngày đặt, tiền chỉ tính đơn hoàn thành`}
         </p>
       </div>
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-brand-soft" role="tablist" aria-label="Mục báo cáo">
+      {/* overflow-y-hidden: the tabs' -mb-px underline would otherwise add a 1px vertical scrollbar */}
+      <nav className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-brand-soft" role="tablist" aria-label="Mục báo cáo">
         {REPORT_TABS.map((tab) => (
           <button
             key={tab.value}
@@ -201,19 +205,22 @@ export default function RevenueReport() {
         ))}
       </nav>
 
-      <ReportFilterBar
-        preset={preset}
-        customRange={customRange}
-        today={today}
-        onPresetChange={changePreset}
-        onCustomRangeChange={(changes) => setCustomRange((prev) => ({ ...prev, ...changes }))}
-        onApplyCustomRange={applyCustomRange}
-        exportLabel={EXPORT_LABELS[activeTab]}
-        onExport={canExport ? runExport : null}
-        exporting={exporting}
-        onPrint={printStatement}
-        printing={printing}
-      />
+      {/* The wallet is not tied to a date range */}
+      {activeTab !== 'wallet' && (
+        <ReportFilterBar
+          preset={preset}
+          customRange={customRange}
+          today={today}
+          onPresetChange={changePreset}
+          onCustomRangeChange={(changes) => setCustomRange((prev) => ({ ...prev, ...changes }))}
+          onApplyCustomRange={applyCustomRange}
+          exportLabel={EXPORT_LABELS[activeTab]}
+          onExport={canExport ? runExport : null}
+          exporting={exporting}
+          onPrint={printStatement}
+          printing={printing}
+        />
+      )}
 
       {activeTab === 'overview' && overviewRequest.error && (
         <ReportLoadError message={overviewRequest.error} stale={Boolean(overview)} onRetry={overviewRequest.retry} />
@@ -237,6 +244,7 @@ export default function RevenueReport() {
       {activeTab === 'orders' && <OrderHistoryTab range={range} filters={orderFilters} onFiltersChange={changeOrderFilters} />}
       {activeTab === 'reviews' && <ReviewsTab range={range} />}
       {activeTab === 'commission' && <CommissionTab range={range} />}
+      {activeTab === 'wallet' && <WalletTab />}
 
       {printJob && (
         <PrintPortal>

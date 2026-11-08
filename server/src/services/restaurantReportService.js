@@ -2,7 +2,7 @@ import CommissionRule from '../models/CommissionRule.js';
 import Complaint from '../models/Complaint.js';
 import Order from '../models/Order.js';
 import Review from '../models/Review.js';
-import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { addDays, mondayOf, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { maskPhone } from '../utils/maskPhone.js';
 import { toPage } from '../utils/pagination.js';
@@ -72,20 +72,22 @@ const tabOf = (status, cancellation) => {
 const loadCommissionRules = (restaurantId) =>
   CommissionRule.find({ target: 'restaurant', $or: [{ restaurant: null }, { restaurant: restaurantId }] }).lean();
 
-// ---------- Weekly settlement (simulated, no payment gateway): Monday-Sunday, paid the next Monday
+// ---------- Settlement into the wallet (docs/restaurant-wallet.md)
+// The money of a day enters the wallet after the end-of-day reconciliation: days before today are credited
+// ("settled"), today's orders wait ("pending"). The owner withdraws from the wallet; weeks only group the statement.
 
-const dayOfWeek = (day) => new Date(`${day}T00:00:00.000Z`).getUTCDay(); // 0 = Sunday
+const creditStatusOf = (day, today) => (day < today ? 'settled' : 'pending');
 
 export const getSettlementCycle = (day, today = vietnamDateString()) => {
-  const from = addDays(day, -((dayOfWeek(day) + 6) % 7));
-  const payoutDate = addDays(from, 7);
-  return { from, to: addDays(from, 6), payoutDate, status: today >= payoutDate ? 'settled' : 'pending' };
+  const from = mondayOf(day);
+  const to = addDays(from, 6);
+  return { from, to, status: to < today ? 'settled' : 'pending' };
 };
 
 // "0123456789" -> "**** 6789": enough for the owner to recognise the account on screen and on paper
 const maskAccountNumber = (accountNumber = '') => (accountNumber ? `**** ${accountNumber.slice(-4)}` : '');
 
-const toPayoutAccountView = (payoutAccount = {}) => ({
+export const toPayoutAccountView = (payoutAccount = {}) => ({
   isSet: Boolean(payoutAccount.accountNumber),
   bankName: payoutAccount.bankName || '',
   accountNumber: maskAccountNumber(payoutAccount.accountNumber),
@@ -554,8 +556,8 @@ export const getSettlements = async (restaurant, { from, to }) => {
       subtotal: stats.subtotal,
       commissionRate: stats.rate,
       ...toMoney(stats),
-      cycle: { from: cycle.from, to: cycle.to, payoutDate: cycle.payoutDate },
-      status: cycle.status,
+      cycle: { from: cycle.from, to: cycle.to },
+      status: creditStatusOf(stats.day, today),
     };
   });
 
@@ -598,4 +600,23 @@ export const getSettlements = async (restaurant, { from, to }) => {
     days,
     hasCommissionRules: rules.length > 0,
   };
+};
+
+/**
+ * What the restaurant has earned for its wallet: net revenue of the delivered orders, with the same daily
+ * figures and rounding as the statement (tab "Chi tiết hoa hồng"), so the wallet always matches it.
+ * @returns {Promise<{ credited: number, pending: number }>} credited = days before today, pending = today
+ */
+export const getWalletEarnings = async (restaurantId, today = vietnamDateString()) => {
+  const first = await Order.findOne({ restaurant: restaurantId, status: 'delivered' }).sort({ createdAt: 1 }).select('createdAt').lean();
+  if (!first) return { credited: 0, pending: 0 };
+
+  const rules = await loadCommissionRules(restaurantId);
+  const dailyStats = await loadDailyStats(restaurantId, vietnamDateString(first.createdAt), today, rules);
+  const earnings = { credited: 0, pending: 0 };
+  for (const stats of dailyStats.values()) {
+    if (stats.delivered === 0) continue;
+    earnings[creditStatusOf(stats.day, today) === 'settled' ? 'credited' : 'pending'] += toMoney(stats).netRevenue;
+  }
+  return earnings;
 };

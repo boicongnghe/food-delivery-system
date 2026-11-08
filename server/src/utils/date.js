@@ -25,3 +25,7 @@ export const addDays = (dateString, days) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
+
+// "2026-11-05" (Thursday) -> "2026-11-02": Monday of its Vietnam week (weeks run Monday - Sunday)
+export const mondayOf = (dateString) =>
+  addDays(dateString, -((new Date(`${dateString}T00:00:00.000Z`).getUTCDay() + 6) % 7));
