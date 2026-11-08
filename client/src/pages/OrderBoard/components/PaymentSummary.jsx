@@ -13,7 +13,16 @@ export default function PaymentSummary({ order }) {
       <SummaryRow label="Tạm tính món ăn:" value={formatCurrency(order.subtotal)} />
       <SummaryRow label="Phí đóng gói:" value={formatCurrency(order.packagingFee)} />
       <SummaryRow label="Phí giao hàng:" value={formatCurrency(order.shippingFee)} />
-      <SummaryRow label="Giảm giá:" value={`-${formatCurrency(order.discount)}`} />
+      {order.restaurantVoucher?.discountAmount > 0 && (
+        <SummaryRow
+          label={`Voucher quán (${order.restaurantVoucher.code}):`}
+          value={`-${formatCurrency(order.restaurantVoucher.discountAmount)}`}
+        />
+      )}
+      <SummaryRow
+        label={order.restaurantVoucher?.discountAmount > 0 ? 'Voucher nền tảng:' : 'Giảm giá:'}
+        value={`-${formatCurrency((order.discount || 0) - (order.restaurantVoucher?.discountAmount || 0))}`}
+      />
       <p className="flex justify-between border-t border-brand-soft/60 pt-2 font-bold text-slate-900">
         <span>Tổng tiền đơn hàng:</span>
         <span className="text-brand">{formatCurrency(order.total)}</span>

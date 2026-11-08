@@ -9,6 +9,7 @@ import { isOpenNow } from '../utils/openingHours.js'
 const RESTAURANT_NAV_ITEMS = [
   { to: '/restaurant/orders', label: 'Đơn Hàng Bếp' },
   { to: '/restaurant/menu', label: 'Thực Đơn & Món Ăn' },
+  { to: '/restaurant/vouchers', label: 'Khuyến Mãi' },
   { to: '/restaurant/profile', label: 'Hồ Sơ Quán' },
   { to: '/restaurant/revenue', label: 'Thống Kê' },
 ]

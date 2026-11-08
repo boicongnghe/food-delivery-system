@@ -7,6 +7,7 @@ import menuCategoryRoutes from './menuCategoryRoutes.js';
 import menuItemRoutes from './menuItemRoutes.js';
 import restaurantOrderRoutes from './restaurantOrderRoutes.js';
 import restaurantReportRoutes from './restaurantReportRoutes.js';
+import restaurantVoucherRoutes from './restaurantVoucherRoutes.js';
 import restaurantWalletRoutes from './restaurantWalletRoutes.js';
 
 const router = Router();
@@ -20,6 +21,8 @@ router.use('/me/orders', restaurantOrderRoutes);
 router.use('/me/reports', restaurantReportRoutes);
 // Wallet: balance credited from delivered orders, withdrawals to the bank account (docs/restaurant-wallet.md)
 router.use('/me/wallet', restaurantWalletRoutes);
+// Vouchers the restaurant runs with its own money (docs/restaurant-voucher.md)
+router.use('/me/vouchers', restaurantVoucherRoutes);
 
 // UC19 - Restaurant owner manages their own restaurant profile
 router.get('/me', protect, authorize('restaurant_owner'), restaurantController.getMyRestaurant);

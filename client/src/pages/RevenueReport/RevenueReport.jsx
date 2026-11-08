@@ -114,7 +114,7 @@ export default function RevenueReport() {
     const { data } = await reportApi.exportOrders({ ...range, ...orderFilters })
     if (data.truncated) toast(`Chỉ xuất ${data.limit} đơn mới nhất – hãy chọn khoảng ngày ngắn hơn`)
     downloadCsv(`don-hang-${fileSuffix}.csv`, [
-      ['Mã đơn', 'Thời gian đặt', 'Khách hàng', 'Món', 'Thanh toán', 'Trạng thái', 'Doanh thu gộp (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Thực nhận (đ)'],
+      ['Mã đơn', 'Thời gian đặt', 'Khách hàng', 'Món', 'Thanh toán', 'Trạng thái', 'Doanh thu gộp (đ)', 'Voucher quán (đ)', 'Tỉ lệ hoa hồng (%)', 'Phí nền tảng (đ)', 'Thực nhận (đ)'],
       ...data.items.map((order) => [
         order.orderCode,
         formatDateTime(order.createdAt),
@@ -125,6 +125,7 @@ export default function RevenueReport() {
           ? CANCEL_REASON_LABELS[order.cancellation?.reason] || CANCELLED_BY_LABELS[order.cancellation?.by] || 'Đã hủy'
           : ORDER_STATUS_LABELS[order.status],
         order.grossRevenue,
+        order.restaurantVoucher || 0,
         order.commissionRate,
         order.platformFee,
         order.netRevenue,

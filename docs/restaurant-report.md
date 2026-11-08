@@ -12,9 +12,9 @@ Dùng **cùng quy tắc với báo cáo admin (UC44)** để hai bên luôn ra c
 | Đơn được tính | Bỏ qua đơn online chưa từng thanh toán, kể cả khi khách đã hủy ở trang thanh toán (quán chưa từng thấy đơn). Cùng bộ lọc `PLACED_ORDER_FILTER` với báo cáo admin nên số đơn và số đơn hủy hai bên khớp nhau |
 | Doanh thu gộp | `subtotal + packagingFee` của đơn **đã giao** (`delivered`). Không gồm phí giao hàng (thuộc shipper) |
 | Tiền món / Topping | Topping = tổng giá option × số lượng; tiền món = `subtotal` − topping |
-| Phí nền tảng | `round(subtotal × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói không tính hoa hồng |
+| Phí nền tảng | `round((subtotal − voucher quán) × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói và phần quán tự giảm bằng voucher không tính hoa hồng |
 | Tỉ lệ hoa hồng | Quy tắc `CommissionRule` (target `restaurant`) đang hiệu lực ngày đặt đơn: quy tắc riêng của quán ưu tiên hơn quy tắc mặc định; không có quy tắc → 0% |
-| Voucher quán | Luôn 0đ: voucher hiện do nền tảng tài trợ (`PromotionRule` chưa có trường quán) nên quán nhận đủ tiền món |
+| Voucher quán | Tổng `orders.restaurantVoucher.discountAmount` của đơn hoàn thành: quán tự chịu ([restaurant-voucher.md](restaurant-voucher.md)). Mã của nền tảng do nền tảng chịu, không trừ vào quán |
 | Thực nhận | Doanh thu gộp − phí nền tảng − voucher quán |
 | Bồi thường khiếu nại | Nền tảng chi trả, chỉ hiển thị để tham khảo, **không** trừ vào tiền quyết toán |
 

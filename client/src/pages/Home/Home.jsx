@@ -241,7 +241,8 @@ export default function Home() {
             openingHours: r.openingHours || [],
             isAcceptingOrders: r.isAcceptingOrders !== false,
             isKitchenActive: isOpenNow(r.openingHours) && r.isAcceptingOrders !== false,
-            promo: 'Freeship đơn từ 99k',
+            // Best running voucher of the restaurant (empty = no promotion line)
+            promo: r.voucherLabel || '',
             signatureDishes: ['Món đặc sắc quán', 'Combo tiết kiệm'],
           }))
           setApiPartners(mappedPartners)
@@ -845,11 +846,13 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Promo Tag */}
-                    <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
-                      <Tag className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">{partner.promo}</span>
-                    </div>
+                    {/* Promo Tag: the restaurant's best running voucher, only when it has one */}
+                    {partner.promo && (
+                      <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
+                        <Tag className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{partner.promo}</span>
+                      </div>
+                    )}
 
                     {/* Signature Dishes List */}
                     {partner.signatureDishes && partner.signatureDishes.length > 0 && (

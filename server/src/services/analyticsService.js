@@ -46,6 +46,7 @@ const groupOrders = (start, end) =>
           $sum: { $cond: [{ $gt: ['$discount', 0] }, '$discount', { $ifNull: ['$promotion.discountAmount', 0] }] },
         },
         refunded: { $sum: '$payment.refundAmount' },
+        restaurantVoucher: { $sum: { $ifNull: ['$restaurantVoucher.discountAmount', 0] } },
       },
     },
   ]);
@@ -176,7 +177,8 @@ export const getAnalytics = async ({ from, to }) => {
     }
     if (status !== 'delivered') continue;
 
-    const restaurantCommission = percentOf(group.subtotal, resolveRate(rules, 'restaurant', restaurant, day));
+    // No commission on the food a restaurant gave away with its own voucher (docs/restaurant-voucher.md)
+    const restaurantCommission = percentOf(group.subtotal - group.restaurantVoucher, resolveRate(rules, 'restaurant', restaurant, day));
     const shipperCommission = percentOf(group.shippingFee, resolveRate(rules, 'shipper', null, day));
     totals.deliveredOrders += group.orders;
     totals.gmv += group.total;
