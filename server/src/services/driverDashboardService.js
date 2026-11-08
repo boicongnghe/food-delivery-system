@@ -35,7 +35,6 @@ const emptyDashboardPeriod = () => ({
   totalEarnings: 0,
   baseFare: 0,
   bonus: 0,
-  tips: 0,
   completedTrips: 0,
   tripGoal: 0,
   walletBalance: 0,
@@ -53,6 +52,13 @@ const emptyDashboardPeriod = () => ({
   reviews: [],
   badges: [],
   hotspots: [],
+});
+
+const withoutEarningAddOns = (entries = []) => entries.map((entry) => {
+  const result = { ...entry };
+  delete result.tip;
+  delete result.tips;
+  return result;
 });
 
 const validatePeriod = (period) => {
@@ -104,6 +110,12 @@ const getDashboard = async (userId, period) => {
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
   const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
+  periodData.totalEarnings = (periodData.baseFare || 0) + (periodData.bonus || 0);
+  periodData.weeklyEarnings = dashboard.isDemo
+    ? 0
+    : (dashboard.periods.week?.baseFare || 0) + (dashboard.periods.week?.bonus || 0);
+  periodData.earningsByHour = withoutEarningAddOns(periodData.earningsByHour);
+  periodData.trips = withoutEarningAddOns(periodData.trips);
   if (dashboard.walletBalance == null || (dashboard.isDemo && dashboard.walletBalance !== 0)) {
     dashboard.walletBalance = dashboard.isDemo
       ? 0

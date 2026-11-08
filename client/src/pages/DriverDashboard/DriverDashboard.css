@@ -673,7 +673,6 @@
 .breakdown-row-label  { color: var(--text-muted); }
 .breakdown-row-value  { font-weight: 600; color: var(--text-secondary); }
 .breakdown-row-value.bonus { color: var(--green); }
-.breakdown-row-value.tip   { color: var(--amber); }
 
 /* Progress bar */
 .trip-progress {
@@ -875,8 +874,6 @@
   color: var(--text-primary);
 }
 
-.chart-detail-values .bonus { color: var(--brand); }
-.chart-detail-values .tip { color: var(--amber); }
 
 .chart-interaction-hint {
   margin: -4px 0 14px;
@@ -926,8 +923,7 @@
 }
 
 .chart-bar.base  { background: #6b7280; }
-.chart-bar.bonus { background: var(--brand); }
-.chart-bar.tip   { background: #d97706; }
+.chart-bar.bonus { background: var(--green); }
 
 .chart-x-label {
   position: absolute;
@@ -1034,8 +1030,6 @@
   font-weight: 600;
 }
 
-.trip-extra-tag.bonus { background: var(--red-bg);   color: var(--brand); }
-.trip-extra-tag.tip   { background: var(--amber-bg); color: var(--amber); }
 
 .trip-status-badge {
   display: inline-flex;

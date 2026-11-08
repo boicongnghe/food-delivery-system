@@ -14,19 +14,15 @@ function StatCards({ summary, onWithdraw }) {
           <span className="stat-card-label">Tổng thu nhập kỳ này</span>
           <div className="stat-card-icon" aria-hidden="true">💰</div>
         </div>
-        <div className="stat-card-value">{formatVND(summary.totalEarnings)}</div>
+        <div className="stat-card-value">{formatVND(summary.baseFare)}</div>
         <div className="stat-card-breakdown">
           <div className="breakdown-row">
-            <span className="breakdown-row-label">Cước gốc</span>
+            <span className="breakdown-row-label">Phí giao đơn</span>
             <span className="breakdown-row-value">{formatVND(summary.baseFare)}</span>
           </div>
           <div className="breakdown-row">
-            <span className="breakdown-row-label">Tiền thưởng</span>
-            <span className="breakdown-row-value bonus">+{formatVND(summary.bonus)}</span>
-          </div>
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Tiền tip</span>
-            <span className="breakdown-row-value tip">+{formatVND(summary.tips)}</span>
+            <span className="breakdown-row-label">Thưởng</span>
+            <span className="breakdown-row-value bonus">{formatVND(summary.bonus)}</span>
           </div>
         </div>
       </div>

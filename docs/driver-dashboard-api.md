@@ -82,7 +82,6 @@ Example shape (replace the placeholder ObjectId and values with real data):
       totalEarnings: 0,
       baseFare: 0,
       bonus: 0,
-      tips: 0,
       completedTrips: 0,
       tripGoal: 0,
       pendingBalance: 0,
@@ -107,9 +106,9 @@ Example shape (replace the placeholder ObjectId and values with real data):
 
 Array item fields:
 
-- `earningsByHour`: `{ hour, base, bonus, tip, surge }`
+- `earningsByHour`: `{ hour, base, surge }`
 - `forecast`: `{ hour, demand }` where `demand` is from 0 to 100
-- `trips`: `{ id, time, restaurant, address, distance, baseFare, bonus, tip, status, surge }`
+- `trips`: `{ id, time, restaurant, address, distance, baseFare, status, surge }`
 - `missions`: `{ id, title, reward, current, target, status }`
 - `reviews`: `{ id, quote, customer, stars }`
 - `badges`: `{ id, icon, label, count }`
@@ -128,8 +127,8 @@ empty until operational data is added.
 The shipper order tab refreshes available and active orders every five minutes.
 Available orders are not filtered by location. The application does not request
 or store GPS coordinates, calculate route distance, or enforce distance-based
-pickup/delivery confirmation. Estimated shipper payout uses the order shipping
-fee because the project has no separate surge, tip, or commission ledger.
+pickup/delivery confirmation. Shipper earnings include the order shipping fee and applicable bonuses;
+tips are excluded. Delivery completion currently credits the order shipping fee to the wallet.
 
 An accepted order remains in `ready_for_pickup` until the shipper confirms
 pickup, then transitions to `delivering` and `delivered`. Acceptance can be
