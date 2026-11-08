@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Ticket, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -112,8 +112,23 @@ function Checkout() {
   // Tự động tính phí vận chuyển dựa trên khoảng cách GPS từ nhà hàng đến địa chỉ nhận
   useEffect(() => {
     const fetchShippingFee = async () => {
-      const restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
+      let restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
       if (!restaurantId || !selectedAddressId) return
+
+      const KNOWN_RESTAURANTS = {
+        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+      }
+      if (restaurantId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) {
+        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
+        if (KNOWN_RESTAURANTS[rName]) {
+          restaurantId = KNOWN_RESTAURANTS[rName]
+        }
+      }
 
       const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
       const params = { restaurantId, addressId: selectedAddressId }
@@ -354,8 +369,25 @@ function Checkout() {
 
     try {
       setIsSubmitting(true)
+
+      let orderRestaurantId = cart.restaurant?.id || cart.restaurant?._id
+      const KNOWN_RESTAURANTS = {
+        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+      }
+      if (orderRestaurantId?.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
+        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
+        if (KNOWN_RESTAURANTS[rName]) {
+          orderRestaurantId = KNOWN_RESTAURANTS[rName]
+        }
+      }
+
       const payload = {
-        restaurantId: cart.restaurant.id,
+        restaurantId: orderRestaurantId,
         items: cart.items.map((item) => ({
           menuItemId: item.food._id || item.food.id,
           quantity: item.quantity,

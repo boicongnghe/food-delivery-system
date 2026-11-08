@@ -6,13 +6,46 @@ export const CartContext = createContext(null)
 const GUEST_CART_KEY = 'food_delivery_cart_guest'
 const EMPTY_CART = { restaurant: null, items: [] }
 
+const KNOWN_RESTAURANTS = {
+  'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+  'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+  'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+  'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+  'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+  'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+}
+
+const resolveKnownRestaurantId = (name, fallbackId) => {
+  if (!name) return fallbackId
+  const key = String(name).trim().toLowerCase()
+  return KNOWN_RESTAURANTS[key] || fallbackId
+}
+
+const healCartRestaurant = (cartData) => {
+  if (!cartData?.restaurant) return cartData || EMPTY_CART
+  const curId = String(cartData.restaurant.id || '')
+  if (curId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(curId)) {
+    const healed = resolveKnownRestaurantId(cartData.restaurant.name, curId)
+    if (healed && healed !== curId) {
+      return {
+        ...cartData,
+        restaurant: {
+          ...cartData.restaurant,
+          id: healed,
+        },
+      }
+    }
+  }
+  return cartData
+}
+
 const getCartKey = (userId) =>
   userId ? `food_delivery_cart_${userId}` : GUEST_CART_KEY
 
 const loadCart = (userId) => {
   try {
     const raw = localStorage.getItem(getCartKey(userId))
-    return raw ? JSON.parse(raw) : EMPTY_CART
+    return raw ? healCartRestaurant(JSON.parse(raw)) : EMPTY_CART
   } catch {
     return EMPTY_CART
   }
@@ -55,12 +88,20 @@ export function CartProvider({ children, userId }) {
       (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
       'Quán Ăn'
 
-    const restaurantId =
+    const rawRestId =
       food.restaurantId ||
       food.restaurant?._id ||
       (typeof food.restaurant === 'string' && food.restaurant.length === 24
         ? food.restaurant
-        : `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`)
+        : null)
+
+    const restaurantId =
+      rawRestId && /^[0-9a-fA-F]{24}$/.test(rawRestId)
+        ? rawRestId
+        : resolveKnownRestaurantId(
+            restaurantName,
+            `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
+          )
 
     setCart((prev) => {
       const isDifferentRestaurant =
