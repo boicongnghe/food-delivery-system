@@ -21,7 +21,7 @@ export const cancelOrderBySystem = async (order, { reason, note, action, extraFi
   // findOneAndUpdate skips the model hook: write the legacy fields of the customer screens too
   const legacyUpdate = {
     ...legacyPaymentFromCanonical(
-      { method: order.payment?.method || 'cash', status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
+      { method: order.payment?.method || order.paymentMethod || 'cod', status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
       isPaid ? { status: 'pending', amount } : null,
     ),
     ...legacyCancellationFromCanonical(cancellation),
