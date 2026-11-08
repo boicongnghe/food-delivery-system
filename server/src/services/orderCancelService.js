@@ -14,20 +14,26 @@ import { refundRequestFields } from './orderPolicy.js';
 export const cancelOrderBySystem = async (order, { reason, note, action, extraFilter = {} }) => {
   const now = new Date();
   const amount = order.total || order.totalPrice || 0;
-  const isPaid = order.payment.status === 'paid';
+  const paymentStatus = order.payment?.status;
+  const isPaid = paymentStatus === 'paid';
   const cancellation = { by: 'system', reason, note, at: now };
   const paymentUpdate = isPaid ? refundRequestFields(amount, now) : { 'payment.status': 'cancelled' };
   // findOneAndUpdate skips the model hook: write the legacy fields of the customer screens too
   const legacyUpdate = {
     ...legacyPaymentFromCanonical(
-      { method: order.payment.method, status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
+      { method: order.payment?.method || 'cash', status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
       isPaid ? { status: 'pending', amount } : null,
     ),
     ...legacyCancellationFromCanonical(cancellation),
   };
 
+  const matchFilter = { _id: order._id, status: order.status, ...extraFilter };
+  if (paymentStatus) {
+    matchFilter['payment.status'] = paymentStatus;
+  }
+
   const cancelled = await Order.findOneAndUpdate(
-    { _id: order._id, status: order.status, 'payment.status': order.payment.status, ...extraFilter },
+    matchFilter,
     {
       $set: { status: 'cancelled', cancellation, ...paymentUpdate, ...legacyUpdate },
       $push: { statusHistory: { status: 'cancelled', at: now, byRole: 'system' } },
