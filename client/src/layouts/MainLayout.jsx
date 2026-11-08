@@ -1,25 +1,18 @@
-import { useState } from 'react'
 import { Outlet, Link } from 'react-router-dom'
-import { UtensilsCrossed, Phone, Mail, MapPin, ShieldCheck, Heart, ArrowUpRight, Sparkles } from 'lucide-react'
+import { UtensilsCrossed, Phone, Mail, MapPin, ShieldCheck, Heart, ArrowUpRight } from 'lucide-react'
 import Navbar from '../components/Navbar/Navbar.jsx'
-import CartDrawer from '../components/CartDrawer.jsx'
 import ChatBox from '../components/ChatBox/ChatBox.jsx'
 
 function MainLayout() {
-  const [isCartOpen, setIsCartOpen] = useState(false)
-
   return (
     <div className="min-h-screen flex flex-col bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Sticky Full-Width Glassmorphic Navbar */}
-      <Navbar onOpenCart={() => setIsCartOpen(true)} />
+      <Navbar />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full">
         <Outlet />
       </main>
-
-      {/* Slide-Over Cart Drawer */}
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
 
       {/* AI Assistant ChatBox Widget */}
       <ChatBox />

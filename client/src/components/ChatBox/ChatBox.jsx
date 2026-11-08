@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import {
   MessageSquareText,
   X,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import chatApi from '../../api/chatApi.js'
 import DishCardInChat from './DishCardInChat.jsx'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 
 const STORAGE_KEY = 'foodbot_chat_history'

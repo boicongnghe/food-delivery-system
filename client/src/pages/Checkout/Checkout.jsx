@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Ticket, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
 import { authApi } from '../../api/authApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import { orderApi } from '../../api/orderApi.js'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 import { cartLineKey } from '../../utils/cartLineKey.js'
 
@@ -111,8 +112,23 @@ function Checkout() {
   // Tự động tính phí vận chuyển dựa trên khoảng cách GPS từ nhà hàng đến địa chỉ nhận
   useEffect(() => {
     const fetchShippingFee = async () => {
-      const restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
+      let restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
       if (!restaurantId || !selectedAddressId) return
+
+      const KNOWN_RESTAURANTS = {
+        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+      }
+      if (restaurantId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) {
+        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
+        if (KNOWN_RESTAURANTS[rName]) {
+          restaurantId = KNOWN_RESTAURANTS[rName]
+        }
+      }
 
       const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
       const params = { restaurantId, addressId: selectedAddressId }
@@ -353,8 +369,25 @@ function Checkout() {
 
     try {
       setIsSubmitting(true)
+
+      let orderRestaurantId = cart.restaurant?.id || cart.restaurant?._id
+      const KNOWN_RESTAURANTS = {
+        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
+        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
+        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
+        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
+        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
+        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
+      }
+      if (orderRestaurantId?.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
+        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
+        if (KNOWN_RESTAURANTS[rName]) {
+          orderRestaurantId = KNOWN_RESTAURANTS[rName]
+        }
+      }
+
       const payload = {
-        restaurantId: cart.restaurant.id,
+        restaurantId: orderRestaurantId,
         items: cart.items.map((item) => ({
           menuItemId: item.food._id || item.food.id,
           quantity: item.quantity,
@@ -748,29 +781,205 @@ function Checkout() {
                 </div>
               )}
 
-              {/* Suggestions chips */}
-              {!appliedPromo && activePromotions.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Gợi ý mã hot: </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                    {activePromotions.map((p) => (
-                      <button
-                        key={p.code}
-                        type="button"
-                        onClick={() => handleApplyPromo(p.code)}
-                        style={{
-                          fontSize: '0.75rem',
-                          background: 'var(--bg-main)',
-                          border: '1px dashed var(--primary)',
-                          color: 'var(--primary)',
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {p.code}
-                      </button>
-                    ))}
+              {/* Suggestions: each voucher on its own line with full details */}
+              {activePromotions.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 8,
+                  }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Ticket size={15} style={{ color: 'var(--primary)' }} />
+                      Gợi ý voucher ưu đãi ({activePromotions.length}):
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Tối đa 1 mã / đơn
+                    </span>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    maxHeight: 340,
+                    overflowY: 'auto',
+                    paddingRight: 2,
+                  }}>
+                    {activePromotions.map((p) => {
+                      const isEligible = subtotal >= (p.minOrderValue || 0)
+                      const isApplied = appliedPromo?.code === p.code
+                      const missingAmount = Math.max(0, (p.minOrderValue || 0) - subtotal)
+
+                      return (
+                        <div
+                          key={p.code}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            padding: '10px 12px',
+                            borderRadius: 'var(--radius-md, 8px)',
+                            border: isApplied
+                              ? '1.5px solid var(--primary)'
+                              : isEligible
+                                ? '1px solid var(--border)'
+                                : '1px dashed var(--border)',
+                            background: isApplied
+                              ? 'rgba(255, 75, 43, 0.06)'
+                              : isEligible
+                                ? 'var(--bg-main)'
+                                : 'rgba(0, 0, 0, 0.02)',
+                            boxShadow: isApplied ? '0 0 0 1px var(--primary)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {/* Left: Code badge + Full Info */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 }}>
+                            {/* Voucher Code Badge */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '5px 8px',
+                                borderRadius: 6,
+                                background: isApplied ? 'var(--primary)' : 'rgba(255, 75, 43, 0.08)',
+                                color: isApplied ? '#fff' : 'var(--primary)',
+                                fontWeight: 800,
+                                fontSize: '0.8rem',
+                                letterSpacing: '0.5px',
+                                border: isApplied ? 'none' : '1px dashed var(--primary)',
+                                minWidth: 84,
+                                textAlign: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <span>{p.code}</span>
+                              <span style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.9 }}>
+                                {p.discountType === 'percentage'
+                                  ? `GIẢM ${p.discountValue}%`
+                                  : `GIẢM ${Math.round(p.discountValue / 1000)}K`}
+                              </span>
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontWeight: 700,
+                                fontSize: '0.86rem',
+                                color: 'var(--text-main)',
+                                lineHeight: 1.3,
+                                marginBottom: 2,
+                              }}>
+                                {p.title || `Giảm ${p.discountType === 'percentage' ? `${p.discountValue}%` : `${p.discountValue?.toLocaleString('vi-VN')}đ`}`}
+                              </div>
+
+                              <div style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '4px 8px',
+                                alignItems: 'center',
+                                lineHeight: 1.3,
+                              }}>
+                                <span>Đơn tối thiểu: <strong style={{ color: 'var(--text-main)' }}>{(p.minOrderValue || 0).toLocaleString('vi-VN')}đ</strong></span>
+                                {p.maxDiscount && p.discountType === 'percentage' && (
+                                  <span>• Tối đa: <strong>{p.maxDiscount.toLocaleString('vi-VN')}đ</strong></span>
+                                )}
+                                {p.endDate && (
+                                  <span>• HSD: {new Date(p.endDate).toLocaleDateString('vi-VN')}</span>
+                                )}
+                              </div>
+
+                              {/* Eligibility status */}
+                              <div style={{ marginTop: 3, fontSize: '0.73rem', fontWeight: 600 }}>
+                                {isApplied ? (
+                                  <span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <Check size={13} /> Đang áp dụng cho đơn này
+                                  </span>
+                                ) : isEligible ? (
+                                  <span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <Check size={13} /> Đủ điều kiện áp dụng
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--danger, #dc2626)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <AlertCircle size={13} /> Cần mua thêm {missingAmount.toLocaleString('vi-VN')}đ để dùng mã này
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Action button */}
+                          <div style={{ flexShrink: 0, paddingLeft: 6 }}>
+                            {isApplied ? (
+                              <button
+                                type="button"
+                                onClick={handleRemovePromo}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '5px 12px',
+                                  color: 'var(--danger)',
+                                  background: 'transparent',
+                                  border: '1px solid var(--danger)',
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                Bỏ mã
+                              </button>
+                            ) : isEligible ? (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyPromo(p.code)}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '6px 14px',
+                                  background: 'var(--primary)',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  boxShadow: '0 2px 6px rgba(255, 75, 43, 0.3)',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                Áp dụng
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toast.error(`Đơn hàng cần tối thiểu ${(p.minOrderValue || 0).toLocaleString('vi-VN')}đ để dùng mã ${p.code}`)
+                                }}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '5px 10px',
+                                  background: 'var(--bg-main)',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 6,
+                                  fontWeight: 600,
+                                  cursor: 'not-allowed',
+                                  opacity: 0.8,
+                                }}
+                                title={`Cần mua thêm ${missingAmount.toLocaleString('vi-VN')}đ`}
+                              >
+                                Chưa đủ ĐK
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

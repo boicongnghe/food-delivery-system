@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { CartProvider } from '../context/CartContext.jsx'
+import { useAuth } from '../hooks/useAuth.js'
 import MainLayout from '../layouts/MainLayout.jsx'
 import AdminLayout from '../layouts/AdminLayout.jsx'
 import RestaurantLayout from '../layouts/RestaurantLayout.jsx'
@@ -9,6 +10,7 @@ import MenuManagement from '../pages/MenuManagement/MenuManagement.jsx'
 import OrderBoard from '../pages/OrderBoard/OrderBoard.jsx'
 import RevenueReport from '../pages/RevenueReport/RevenueReport.jsx'
 import Home from '../pages/Home/Home.jsx'
+import CartPage from '../pages/Cart/CartPage.jsx'
 import Checkout from '../pages/Checkout/Checkout.jsx'
 import PaymentResult from '../pages/Payment/PaymentResult.jsx'
 import OrderTracking from '../pages/OrderTracking/OrderTracking.jsx'
@@ -35,10 +37,15 @@ import DebugShipperFlow from '../pages/DriverDashboard/DebugShipperFlow.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
 
+function CartProviderWithAuth({ children }) {
+  const { user } = useAuth()
+  return <CartProvider userId={user?._id}>{children}</CartProvider>
+}
+
 function AppRouter() {
   return (
     <BrowserRouter>
-      <CartProvider>
+      <CartProviderWithAuth>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -64,6 +71,11 @@ function AppRouter() {
 
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
+
+            {/* Cart — customer only */}
+            <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
+              <Route path="/cart" element={<CartPage />} />
+            </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
               <Route path="/checkout" element={<Checkout />} />
@@ -118,7 +130,7 @@ function AppRouter() {
             </Route>
           </Route>
         </Routes>
-      </CartProvider>
+      </CartProviderWithAuth>
     </BrowserRouter>
   )
 }
