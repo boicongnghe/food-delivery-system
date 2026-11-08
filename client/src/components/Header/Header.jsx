@@ -113,7 +113,12 @@ export default function Header({
                 <img
                   src={avatarSrc}
                   alt={displayName}
-                  className="w-9 h-9 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                  }}
+                  className="w-9 h-9 rounded-full object-cover ring-2 ring-primary/30"
                 />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-orange-400 text-white flex items-center justify-center font-bold text-sm shadow-sm">
@@ -139,7 +144,9 @@ export default function Header({
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
                         {accountName && <p className="text-xs text-slate-600 truncate">Chủ quán: {user.fullName}</p>}
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        {user.email && !user.email.startsWith('fb_') && (
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        )}
                       </div>
                     </div>
                   )}

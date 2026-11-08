@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   UtensilsCrossed,
-  Search,
   Home as HomeIcon,
   ChevronDown,
   LogOut,
@@ -30,7 +29,6 @@ export default function Navbar() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
 
   // Dark Mode state
   const [isDark, setIsDark] = useState(() => {
@@ -81,20 +79,6 @@ export default function Navbar() {
     navigate('/login')
   }
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault()
-    if (!searchQuery.trim()) return
-    if (location.pathname !== '/') {
-      navigate(`/?q=${encodeURIComponent(searchQuery.trim())}`)
-    } else {
-      const menuSection = document.getElementById('menu-section')
-      if (menuSection) {
-        menuSection.scrollIntoView({ behavior: 'smooth' })
-      }
-      navigate(`/?q=${encodeURIComponent(searchQuery.trim())}`, { replace: true })
-    }
-  }
-
   const scrollToSection = (id) => {
     if (location.pathname !== '/') {
       navigate(`/#${id}`)
@@ -108,10 +92,9 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#0F1014]/95 backdrop-blur-xl border-b border-orange-100/80 dark:border-slate-800/80 shadow-xs transition-colors duration-200">
-      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 h-20 min-h-[80px] flex items-center justify-between gap-4 sm:gap-8">
-        {/* Left Side: Brand Logo + Quick Search + Navigation Links */}
-        <div className="flex items-center gap-4 sm:gap-6 lg:gap-8 flex-1 min-w-0">
-          {/* FoodDelivery Brand Logo */}
+      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 h-20 min-h-[80px] flex items-center justify-between relative">
+        {/* Left Side: Brand Logo */}
+        <div className="flex items-center flex-shrink-0">
           <Link
             to="/"
             className="flex items-center gap-3 flex-shrink-0 group select-none"
@@ -129,56 +112,49 @@ export default function Navbar() {
               </span>
             </div>
           </Link>
-
-          {/* Quick Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center flex-1 max-w-md lg:max-w-lg xl:max-w-xl relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Tìm món ngon, thương hiệu quán ăn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-100 focus:bg-white dark:focus:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 rounded-2xl border border-transparent focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              >
-                ✕
-              </button>
-            )}
-          </form>
-
-          {/* Navigation Anchor Links - Hiển thị từ màn hình lg (1024px) trở lên */}
-          <nav className="hidden lg:flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => scrollToSection('restaurants-section')}
-              className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
-            >
-              <Store className="w-4 h-4 text-primary" />
-              <span>Nhà hàng</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('menu-section')}
-              className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
-            >
-              <UtensilsCrossed className="w-4 h-4 text-orange-500" />
-              <span>Thực đơn</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('deals-section')}
-              className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
-            >
-              <Flame className="w-4 h-4 text-red-500 animate-pulse" />
-              <span>Flash Deal</span>
-            </button>
-          </nav>
         </div>
+
+        {/* Center: Navigation Links - Căn giữa hoàn hảo */}
+        <nav className="hidden lg:flex items-center gap-2 xl:gap-3 absolute left-1/2 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={() => {
+              if (location.pathname !== '/') {
+                navigate('/')
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }
+            }}
+            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+          >
+            <HomeIcon className="w-4 h-4 text-orange-500" />
+            <span>Trang chủ</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('restaurants-section')}
+            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+          >
+            <Store className="w-4 h-4 text-primary" />
+            <span>Nhà hàng</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('menu-section')}
+            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+          >
+            <UtensilsCrossed className="w-4 h-4 text-orange-500" />
+            <span>Thực đơn</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('deals-section')}
+            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+          >
+            <Flame className="w-4 h-4 text-red-500 animate-pulse" />
+            <span>Flash Deal</span>
+          </button>
+        </nav>
 
         {/* Right Side: Dark Mode Toggle + Notifications + Cart Button + Auth State */}
         <div className="flex items-center gap-2.5 sm:gap-3.5 flex-shrink-0">
@@ -237,6 +213,11 @@ export default function Navbar() {
                       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
                     }
                     alt={user.fullName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                    }}
                     className="w-9 h-9 rounded-xl object-cover ring-2 ring-primary/30 shadow-xs"
                   />
                   <div className="hidden md:block text-left">
@@ -259,13 +240,20 @@ export default function Navbar() {
                           'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
                         }
                         alt={user.fullName}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                        }}
                         className="w-10 h-10 rounded-2xl object-cover ring-2 ring-primary/30 shrink-0"
                       />
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
                           {user.fullName}
                         </p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        {user.email && !user.email.startsWith('fb_') && (
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        )}
                       </div>
                     </div>
 
@@ -351,6 +339,11 @@ export default function Navbar() {
                         'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
                       }
                       alt={user.fullName}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
+                      }}
                       className="w-8 h-8 rounded-2xl object-cover ring-2 ring-primary/40"
                     />
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -398,6 +391,11 @@ export default function Navbar() {
                   <img
                     src={user.avatar || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'}
                     alt={user.fullName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80'
+                    }}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                   <span>Tài xế</span>

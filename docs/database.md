@@ -2,7 +2,7 @@
 
 > **TODO: nhóm chốt thiết kế.** Tài liệu này chỉ là bản gợi ý ban đầu. Chưa tạo Mongoose model. Sau khi nhóm thống nhất, cập nhật file này **trước** khi viết model.
 
-- Database: MongoDB, tên DB mặc định `food_delivery`.
+- Database: MongoDB, tên DB mặc định `food_delivery_db`.
 - Mọi collection bật `timestamps: true` (tự có `createdAt`, `updatedAt`).
 - Tham chiếu giữa collection dùng `ObjectId` + `ref`.
 - Tiền lưu dạng số nguyên (VND).
@@ -31,7 +31,7 @@ erDiagram
 | `phone` | String | |
 | `role` | String | enum: `customer`, `restaurant_owner`, `shipper`, `admin`; mặc định `customer` |
 | `avatar` | String | URL ảnh |
-| `addresses` | Array | danh sách địa chỉ giao hàng (customer) |
+| `addresses` | Virtual Array | danh sách địa chỉ giao hàng (customer), lưu tại collection riêng `addresses` |
 | `isActive` | Boolean | admin khóa/mở tài khoản |
 
 TODO: nhóm chốt thiết kế – thông tin riêng của shipper (biển số xe, trạng thái sẵn sàng) để chung hay tách collection?
@@ -217,7 +217,8 @@ Các trường dưới đây đã bị xóa khỏi model vì không còn code n�
 | `restaurants.image` | Chỉ là bản sao avatar chủ quán, chủ quán không sửa được | `coverImage` / `logo` |
 | `restaurants.isVerified` | Ghi theo trạng thái duyệt, không ai đọc | `status === 'approved'` |
 | `shippers.isOnline` | Đặt `true` lúc đăng ký và không bao giờ đổi | `driverdashboards.isOnline` (nút bật/tắt nhận đơn) |
-| `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | `users.addresses[]` (`isDefault`) |
+| `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | Collection riêng `addresses` |
+| `users.addresses` | Mảng nhúng trong User gây phình to khi auth, khó đánh index địa lý | Collection riêng `addresses` (`/api/addresses`) |
 | `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
 
 Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):
@@ -225,9 +226,10 @@ Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy mig
 ```bash
 cd server && npm run migrate:drop-unused-fields            # chỉ đếm, không ghi
 cd server && npm run migrate:drop-unused-fields -- --apply # $unset các trường
+cd server && npm run migrate:addresses -- --apply          # chuyển địa chỉ sang collection addresses
 ```
 
-Chưa xóa trong đợt này (còn đang được dùng hoặc cần cả nhóm thống nhất): collection `foods` (đợi chạy `migrate:foods-to-menu` trên Atlas), bộ trường cũ của `orders` (checkout và màn khách còn đọc), hai sổ địa chỉ (`users.addresses[]` và collection `addresses`), trạng thái đơn `confirmed`.
+Chưa xóa trong đợt này (còn đang được dùng hoặc cần cả nhóm thống nhất): collection `foods` (đợi chạy `migrate:foods-to-menu` trên Atlas), bộ trường cũ của `orders` (checkout và màn khách còn đọc), trạng thái đơn `confirmed`.
 
 ## Collection có thể cần thêm
 
