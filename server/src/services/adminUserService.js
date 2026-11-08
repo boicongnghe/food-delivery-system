@@ -5,6 +5,7 @@ import Restaurant from '../models/Restaurant.js';
 import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
+import Address from '../models/Address.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
@@ -62,7 +63,7 @@ export const getUserDetail = async (userId) => {
   }
 
   const violationFilter = { 'resolution.penalty.targetUser': user._id };
-  const [restaurant, shipperProfile, violationTotal, violations] = await Promise.all([
+  const [restaurant, shipperProfile, violationTotal, violations, savedAddresses] = await Promise.all([
     Restaurant.findOne({ owner: user._id }).select('name status rating ratingCount address phone createdAt').lean(),
     Shipper.findOne({ user: user._id }).select('status vehicleInfo rating createdAt').lean(),
     DeliveryIssue.countDocuments(violationFilter),
@@ -71,7 +72,9 @@ export const getUserDetail = async (userId) => {
       .sort({ 'resolution.at': -1 })
       .limit(10)
       .lean(),
+    Address.find({ user: user._id }).lean(),
   ]);
+  user.addresses = savedAddresses || [];
 
   // Orders placed (customer), received (restaurant owner) or delivered (shipper)
   const orderMatch = {

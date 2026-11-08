@@ -46,7 +46,7 @@ Chọn **một** trong hai cách.
 1. Tải **MongoDB Community Server** tại <https://www.mongodb.com/try/download/community>.
 2. Khi cài, tick **Install MongoDB as a Service** (tự chạy khi bật máy) và **Install MongoDB Compass** (giao diện xem dữ liệu).
 3. Mở Compass, kết nối tới `mongodb://localhost:27017` để kiểm tra.
-4. Trong `server/.env`: `MONGO_URI=mongodb://localhost:27017/food_delivery`.
+4. Trong `server/.env`: `MONGO_URI=mongodb://localhost:27017/food_delivery_db`.
 
 ### Cách B – MongoDB Atlas (cloud, miễn phí)
 
@@ -56,7 +56,7 @@ Chọn **một** trong hai cách.
 4. **Connect → Drivers**: copy connection string, điền vào `server/.env`:
 
    ```
-   MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/food_delivery
+   MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/food_delivery_db
    ```
 
 ## 5. Cấu hình Git
