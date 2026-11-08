@@ -155,8 +155,12 @@ export default function RestaurantProfile() {
     }
   }
 
+  // Same rule as the server: a suspended restaurant cannot change its profile (and must not upload images for it)
+  const isSuspended = restaurant?.status === 'suspended'
+
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (isSuspended) return
     setSaving(true)
     setErrors({})
 
@@ -210,6 +214,19 @@ export default function RestaurantProfile() {
               </span>
             )}
           </section>
+
+          {isSuspended && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
+            >
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Nhà hàng đang bị tạm ngưng hoạt động nên không thể thay đổi hồ sơ.
+                {restaurant.statusChange?.note && ` Lý do: ${restaurant.statusChange.note}.`} Vui lòng liên hệ quản trị viên.
+              </span>
+            </div>
+          )}
 
           {conflict && (
             <div
@@ -285,7 +302,7 @@ export default function RestaurantProfile() {
               </button>
               <button
                 type="submit"
-                disabled={!isDirty || saving}
+                disabled={!isDirty || saving || isSuspended}
                 className="inline-flex items-center gap-2 rounded-md bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-hover disabled:opacity-60"
               >
                 {saving ? (

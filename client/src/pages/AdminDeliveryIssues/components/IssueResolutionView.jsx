@@ -1,5 +1,9 @@
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
-import { PENALTY_ACTION_LABELS, PENALTY_TARGET_LABELS } from '../../../utils/deliveryIssueLabels.js'
+import {
+  ISSUE_ORDER_ACTION_LABELS,
+  PENALTY_ACTION_LABELS,
+  PENALTY_TARGET_LABELS,
+} from '../../../utils/deliveryIssueLabels.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 
@@ -20,6 +24,9 @@ export default function IssueResolutionView({ resolution }) {
         </p>
       ) : (
         <p className="text-xs text-slate-500">Không xử phạt.</p>
+      )}
+      {resolution.orderAction && resolution.orderAction !== 'none' && (
+        <p className="text-xs text-slate-500">Đơn hàng: {ISSUE_ORDER_ACTION_LABELS[resolution.orderAction]}</p>
       )}
       <p className="text-xs text-slate-500">
         {resolution.by?.fullName} · {formatDateTime(resolution.at)}
