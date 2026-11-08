@@ -1,10 +1,14 @@
 import { Plus, Check } from 'lucide-react'
 import { useState } from 'react'
-import { useCart } from '../../context/CartContext.jsx'
+import { useNavigate } from 'react-router-dom'
+import { useCart } from '../../context/useCart.js'
+import useAuth from '../../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 
 export default function DishCardInChat({ dish }) {
   const { addToCart } = useCart() || {}
+  const { isAuthenticated, user } = useAuth()
+  const navigate = useNavigate()
   const [added, setAdded] = useState(false)
 
   if (!dish) return null
@@ -16,18 +20,21 @@ export default function DishCardInChat({ dish }) {
 
   const handleAdd = (e) => {
     e.stopPropagation()
+    if (!isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để thêm vào giỏ hàng!', { icon: '🔒', duration: 3000 })
+      navigate('/login')
+      return
+    }
+    if (user?.role !== 'customer') {
+      toast.error('Chỉ tài khoản Khách hàng mới có thể đặt món!', { icon: '⚠️' })
+      return
+    }
     if (!addToCart) return
 
     addToCart(dish, 1)
     setAdded(true)
-    toast.success(`Đã thêm ${dish.name} vào giỏ!`, {
-      icon: '🛒',
-      duration: 2200,
-    })
-
-    setTimeout(() => {
-      setAdded(false)
-    }, 1800)
+    toast.success(`Đã thêm ${dish.name} vào giỏ!`, { icon: '🛒', duration: 2200 })
+    setTimeout(() => setAdded(false), 1800)
   }
 
   const restaurantName =

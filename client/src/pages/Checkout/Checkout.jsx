@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
 import { authApi } from '../../api/authApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import { orderApi } from '../../api/orderApi.js'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 
 function Checkout() {

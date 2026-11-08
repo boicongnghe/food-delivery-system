@@ -1,8 +1,8 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, Tag, Store, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useCart } from '../context/CartContext.jsx'
+import { useCart } from '../context/useCart.js'
 import useAuth from '../hooks/useAuth.js'
 
 function CartDrawer({ isOpen, onClose }) {

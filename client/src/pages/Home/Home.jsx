@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   Search,
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
-import { useCart } from '../../context/CartContext.jsx'
+import { useCart } from '../../context/useCart.js'
 import { CATEGORIES, DISHES } from '../../data/dishesData.js'
 import { foodApi } from '../../api/foodApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
