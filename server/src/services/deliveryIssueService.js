@@ -5,13 +5,18 @@ import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
+import { sendRealtimeNotification } from '../socket.js';
 import { getNextSequence } from './counterService.js';
 import {
   countByStatus,
   ensureOwnEvidence,
 } from './feedbackPolicy.js';
-
-const ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
+import {
+  NOT_PICKED_UP_STATUSES,
+  SHIPPER_ACTIVE_STATUSES as ACTIVE_STATUSES,
+  cancelAssignedOrder,
+  releaseOrderToPool,
+} from './orderAssignmentService.js';
 
 // SC-0001, SC-0002, ...
 const generateIssueCode = async () => `SC-${String(await getNextSequence('deliveryIssue')).padStart(4, '0')}`;
@@ -105,7 +110,7 @@ export const getDeliveryIssueDetail = async (issueId) => {
     .populate('shipper', 'fullName phone email isActive')
     .populate('customer', 'fullName phone email isActive')
     .populate('restaurant', 'name phone address status owner')
-    .populate('order', 'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory createdAt')
+    .populate('order', 'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory shipper createdAt')
     .populate('resolution.by', 'fullName')
     .lean();
   if (!issue) {
@@ -145,7 +150,82 @@ const applySuspension = async (adminId, issue, target) => {
   await User.updateOne({ _id: getPenaltyTargetUser(issue, target), role: { $ne: 'admin' } }, { isActive: false });
 };
 
-export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, penalty = null }) => {
+const ORDER_FIELDS_FOR_ACTION = 'orderCode orderNumber status shipper restaurant customer payment total totalPrice';
+
+// The order action must fit the order as it is now: still held by the reporting shipper, and not picked up for a release
+const assertOrderActionAllowed = (issue, order, orderAction) => {
+  if (orderAction === 'none') return;
+  const heldByReporter =
+    order && String(order.shipper) === String(issue.shipper) && ACTIVE_STATUSES.includes(order.status);
+  if (!heldByReporter) {
+    throw new ApiError(409, 'Đơn hàng không còn do shipper báo cáo giữ, không thể đổi trạng thái đơn từ báo cáo này', [
+      { field: 'orderAction', message: 'Chọn "Giữ nguyên đơn hàng"' },
+    ]);
+  }
+  if (orderAction === 'release' && !NOT_PICKED_UP_STATUSES.includes(order.status)) {
+    throw new ApiError(409, 'Shipper đã lấy hàng, không thể trả đơn về hàng chờ', [
+      { field: 'orderAction', message: 'Hãy hủy đơn hoặc giữ nguyên để shipper tiếp tục giao' },
+    ]);
+  }
+};
+
+// Locking a shipper who still holds an order would leave that order with nobody able to finish it
+const assertShipperCanBeLocked = async (issue, penaltyRecord, orderAction) => {
+  if (penaltyRecord?.target !== 'shipper' || penaltyRecord.action !== 'suspend') return;
+  const stillHeld = await Order.exists({
+    shipper: issue.shipper,
+    status: { $in: ACTIVE_STATUSES },
+    ...(orderAction !== 'none' && { _id: { $ne: issue.order } }),
+  });
+  if (stillHeld) {
+    throw new ApiError(409, 'Shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản', [
+      { field: 'orderAction', message: 'Chọn cách xử lý đơn hàng trước khi khóa shipper' },
+    ]);
+  }
+};
+
+const notifyIssueCancellation = async (issue, order, result, reasonNote) => {
+  const code = order.orderCode || order.orderNumber;
+  await sendRealtimeNotification(order.customer, {
+    title: 'Đơn hàng đã bị hủy',
+    message: `Đơn #${code} đã được hủy do sự cố giao hàng: ${reasonNote}.${result.isPaid ? ' Yêu cầu hoàn tiền đã được tạo.' : ''}`,
+    type: 'order',
+    orderId: order._id,
+    link: `/orders/${order._id}`,
+  });
+  if (issue.restaurant?.owner) {
+    await sendRealtimeNotification(issue.restaurant.owner, {
+      title: `Đơn #${code} đã bị hủy do sự cố giao hàng`,
+      message: reasonNote,
+      type: 'order',
+      orderId: order._id,
+      link: `/restaurant/orders?order=${order._id}`,
+    });
+  }
+};
+
+// Cancel / release the order. Runs before the report is closed and is conditional on the order just read,
+// so two admins handling the report at once never act on the order twice.
+const applyOrderAction = async (issue, order, orderAction, note) => {
+  if (orderAction === 'none') return;
+  const reasonNote = `Sự cố ${issue.code}: ${note}`;
+  const result =
+    orderAction === 'release'
+      ? await releaseOrderToPool(order, { note: reasonNote })
+      : await cancelAssignedOrder(order, {
+          reason: 'delivery_issue',
+          note: reasonNote,
+          action: 'Hủy đơn do sự cố giao hàng',
+        });
+  if (!result) {
+    throw new ApiError(409, 'Đơn hàng vừa thay đổi trạng thái, vui lòng tải lại báo cáo');
+  }
+  if (orderAction === 'cancel') {
+    await notifyIssueCancellation(issue, order, result, reasonNote);
+  }
+};
+
+export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, penalty = null, orderAction = 'none' }) => {
   const issue = await DeliveryIssue.findById(issueId).populate('restaurant', 'owner').lean();
   if (!issue) {
     throw new ApiError(404, 'Không tìm thấy báo cáo sự cố');
@@ -160,9 +240,15 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     action: penalty.action,
     fineAmount: penalty.action === 'fine' ? penalty.fineAmount : 0,
   };
+  const order = await Order.findById(issue.order).select(ORDER_FIELDS_FOR_ACTION).lean();
+  assertOrderActionAllowed(issue, order, orderAction);
+  await assertShipperCanBeLocked(issue, penaltyRecord, orderAction);
+
+  await applyOrderAction(issue, order, orderAction, note);
+
   const resolved = await DeliveryIssue.findOneAndUpdate(
     { _id: issueId, status: 'open' },
-    { $set: { status: decision, resolution: { note, penalty: penaltyRecord, by: adminId, at: new Date() } } },
+    { $set: { status: decision, resolution: { note, penalty: penaltyRecord, orderAction, by: adminId, at: new Date() } } },
     { returnDocument: 'after', runValidators: true },
   );
   if (!resolved) {
@@ -172,5 +258,10 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
   if (penaltyRecord?.action === 'suspend') {
     await applySuspension(adminId, issue, penaltyRecord.target);
   }
+  const hasOpenIssue = await DeliveryIssue.exists({ order: issue.order, status: 'open' });
+  await Order.updateOne(
+    { _id: issue.order },
+    { $set: { deliveryIssueFlagged: Boolean(hasOpenIssue) } },
+  );
   return getDeliveryIssueDetail(issueId);
 };

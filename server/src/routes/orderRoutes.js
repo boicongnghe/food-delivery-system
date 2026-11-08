@@ -30,6 +30,7 @@ router.get(
   '/available-for-pickup/:id',
   protect,
   authorize('shipper'),
+  requireApprovedShipper,
   validateId,
   shipperOrderController.getAvailableOrderDetail,
 );
@@ -43,6 +44,7 @@ router.patch(
   '/:id/shipper/accept',
   protect,
   authorize('shipper'),
+  requireApprovedShipper,
   validateId,
   shipperOrderController.acceptOrder,
 );

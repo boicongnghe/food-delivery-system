@@ -103,3 +103,15 @@ npm run dev        # http://localhost:5173
 | [docs/database.md](docs/database.md)                  | Thiết kế CSDL (khung)                             |
 | [docs/task-breakdown.md](docs/task-breakdown.md)      | Chia module và task cho nhóm                      |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                    | Quy trình đóng góp                                |
+
+## Kiểm tra nhanh luồng shipper (môi trường dev)
+
+Cả hai cách đều dùng tài khoản shipper đã được duyệt, nhận đơn cũ nhất trong danh sách chờ rồi lấy hàng và giao. Thao tác **ghi dữ liệu thật** vào database server đang kết nối; tạo đơn mẫu bằng `npm run seed:shipper-orders` (trong `server/`).
+
+- Script Node (chạy từ thư mục gốc, server đang chạy):
+
+  ```bash
+  API_URL=http://localhost:5000/api node client/src/utils/shipperFlowTest.js
+  ```
+
+- Trang `/shipper/debug` (chỉ có khi chạy `npm run dev` ở client): đăng nhập bằng tài khoản shipper, mở trang và bấm **Chạy luồng giao hàng**.

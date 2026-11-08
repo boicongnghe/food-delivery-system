@@ -3,14 +3,14 @@ export const REPORT_TABS = [
   { value: 'orders', label: 'Lịch sử đơn hàng' },
   { value: 'reviews', label: 'Đánh giá khách hàng' },
   { value: 'commission', label: 'Chi tiết hoa hồng' },
+  { value: 'wallet', label: 'Ví & rút tiền' },
 ]
 
 export const RANGE_PRESETS = [
+  { value: 'today', label: 'Hôm nay' },
   { value: '7d', label: '7 ngày' },
   { value: '30d', label: '30 ngày' },
-  { value: 'thisMonth', label: 'Tháng này' },
   { value: 'lastMonth', label: 'Tháng trước' },
-  { value: '90d', label: '90 ngày' },
   { value: 'custom', label: 'Tùy chọn' },
 ]
 
@@ -35,7 +35,7 @@ export const ORDER_TABS = [
 
 export const ORDER_STATUS_LABELS = {
   pending: 'Chờ nhận',
-  confirmed: 'Đã xác nhận',
+  confirmed: 'Đang tìm shipper',
   preparing: 'Bếp đang nấu',
   ready_for_pickup: 'Chờ shipper',
   delivering: 'Đang giao',
@@ -63,15 +63,38 @@ export const CANCEL_REASON_LABELS = {
   accept_timeout: 'Quán không nhận kịp',
   no_shipper: 'Không có shipper',
   admin_cancel: 'Admin hủy',
+  delivery_issue: 'Sự cố giao hàng',
 }
 
 export const PAYMENT_METHOD_LABELS = { cod: 'Tiền mặt', momo: 'MoMo', vnpay: 'VNPay', banking: 'Chuyển khoản' }
 
+// Money of a day enters the wallet after the end-of-day reconciliation (docs/restaurant-wallet.md)
 export const SETTLEMENT_STATUS = {
-  // From the payout calendar only: there is no real payout transaction yet (see docs/restaurant-report.md)
-  settled: { label: 'Đến hạn chuyển khoản', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  pending: { label: 'Chưa đến kỳ', className: 'bg-amber-50 text-amber-800 border-amber-200' },
+  settled: { label: 'Đã vào ví', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  pending: { label: 'Chờ đối soát', className: 'bg-amber-50 text-amber-800 border-amber-200' },
 }
+
+export const WITHDRAWAL_STATUS = {
+  processing: { label: 'Đang xử lý', className: 'bg-sky-50 text-sky-800 border-sky-200' },
+  succeeded: { label: 'Thành công', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  failed: { label: 'Thất bại – đã hoàn ví', className: 'bg-red-50 text-red-800 border-red-200' },
+}
+
+export const WITHDRAWAL_PAGE_SIZE = 10
+
+// Suggestions for the payout bank (free text is still allowed)
+export const BANK_OPTIONS = [
+  'Vietcombank',
+  'VietinBank',
+  'BIDV',
+  'Agribank',
+  'Techcombank',
+  'MB Bank',
+  'ACB',
+  'VPBank',
+  'Sacombank',
+  'TPBank',
+]
 
 export const REVIEW_PAGE_SIZE = 10
 export const ORDER_PAGE_SIZE = 10

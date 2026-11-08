@@ -20,6 +20,12 @@ const adminOrderApi = {
     return response.data
   },
 
+  // data: { note } -> updated order detail (shipper accepted but does not pick up: back to the pool)
+  releaseShipper: async (id, data) => {
+    const response = await axiosClient.patch(`/admin/orders/${id}/release-shipper`, data)
+    return response.data
+  },
+
   // data: { result: 'succeeded' | 'failed', reference, note } -> updated order detail
   resolveRefund: async (id, data) => {
     const response = await axiosClient.patch(`/admin/orders/${id}/refund`, data)

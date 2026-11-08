@@ -73,6 +73,9 @@ const SCENARIOS = [
   // MoMo not paid yet -> must NOT appear on the kitchen board nor for shippers
   { status: 'pending', createdMin: 1, name: 'Khách Chưa Trả', phone: '0909000111', type: 'standard', payment: 'momoUnpaid',
     note: '', picks: [[3, { quantity: 1 }]] },
+  // ----- Chờ shipper nhận (confirmed): accepted 3 minutes ago, the kitchen waits for a shipper
+  { status: 'confirmed', createdMin: 5, acceptedMin: 3, name: 'Bùi Lan Anh', phone: '0981234555', type: 'standard',
+    payment: 'cod', note: '', picks: [[4, { quantity: 2 }], [9, { quantity: 1 }]] },
   // ----- Đang chuẩn bị (preparing)
   { status: 'preparing', createdMin: 12, acceptedMin: 8.5, customer: 'regular', name: 'Trịnh Thu Trang', phone: '0971234654',
     type: 'standard', payment: 'momoPaid', expectedInMin: 25, note: 'Đóng 2 hộp riêng biệt, kèm 2 đôi đũa tre & ớt ngâm giấm.',
@@ -136,8 +139,13 @@ const buildOrder = async (scenario, { restaurant, customers, shipper, menuItems 
 
   if (scenario.acceptedMin) {
     order.acceptedAt = minutesAgo(scenario.acceptedMin);
-    order.kitchenDueAt = calculateKitchenDueAt(order.acceptedAt, SEED_PREP_MINUTES[scenario.type]);
-    history.push({ status: 'preparing', at: order.acceptedAt, byRole: 'restaurant' });
+    history.push({ status: 'confirmed', at: order.acceptedAt, byRole: 'restaurant' });
+  }
+  // The kitchen starts when a shipper takes the order: here one minute after the restaurant accepted
+  if (scenario.acceptedMin && scenario.status !== 'confirmed') {
+    const cookingAt = minutesAgo(scenario.acceptedMin - 1);
+    order.kitchenDueAt = calculateKitchenDueAt(cookingAt, SEED_PREP_MINUTES[scenario.type]);
+    history.push({ status: 'preparing', at: cookingAt, byRole: 'shipper' });
   }
   if (scenario.readyMin) {
     order.readyAt = minutesAgo(scenario.readyMin);
@@ -145,6 +153,7 @@ const buildOrder = async (scenario, { restaurant, customers, shipper, menuItems 
   }
   if (scenario.withShipper && shipper) {
     order.shipper = shipper._id;
+    order.shipperAcceptedAt = minutesAgo(scenario.acceptedMin - 1);
   }
   if (['delivering', 'delivered'].includes(scenario.status)) {
     history.push({ status: 'delivering', at: minutesAgo(scenario.readyMin - 3), byRole: 'shipper' });

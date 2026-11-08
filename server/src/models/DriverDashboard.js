@@ -25,7 +25,6 @@ const periodSchema = new Schema(
     totalEarnings: { type: Number, default: 0 },
     baseFare: { type: Number, default: 0 },
     bonus: { type: Number, default: 0 },
-    tips: { type: Number, default: 0 },
     completedTrips: { type: Number, default: 0 },
     tripGoal: { type: Number, default: 0 },
     walletBalance: { type: Number, default: 0 },
@@ -40,7 +39,6 @@ const periodSchema = new Schema(
       hour: { type: String, required: true },
       base: { type: Number, default: 0 },
       bonus: { type: Number, default: 0 },
-      tip: { type: Number, default: 0 },
       surge: { type: Boolean, default: false },
     }],
     forecast: [{
@@ -55,7 +53,6 @@ const periodSchema = new Schema(
       distance: { type: String, default: '' },
       baseFare: { type: Number, default: 0 },
       bonus: { type: Number, default: 0 },
-      tip: { type: Number, default: 0 },
       status: { type: String, default: '' },
       surge: { type: Boolean, default: false },
     }],
@@ -115,6 +112,7 @@ const driverDashboardSchema = new Schema(
     isOnline: { type: Boolean, default: false },
     activeOrderId: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
     isDemo: { type: Boolean, default: false },
+    walletBalance: { type: Number, min: 0 },
     periods: {
       today: { type: periodSchema },
       week: { type: periodSchema },

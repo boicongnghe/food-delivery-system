@@ -8,6 +8,7 @@ import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
+import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
 
 // confirmed: still written by the demo progress tool of the customer order screen
 const UNFINISHED_ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'];
@@ -109,7 +110,7 @@ const ensureRoleCanChange = async (user) => {
       throw new ApiError(409, `Tài khoản đang sở hữu nhà hàng "${restaurant.name}", không thể đổi vai trò`);
     }
   }
-  if (user.role === 'shipper' && (await Order.exists({ shipper: user._id, status: { $in: ['ready_for_pickup', 'delivering'] } }))) {
+  if (user.role === 'shipper' && (await Order.exists({ shipper: user._id, status: { $in: SHIPPER_ACTIVE_STATUSES } }))) {
     throw new ApiError(409, 'Shipper đang có đơn chưa giao xong, không thể đổi vai trò');
   }
   if (user.role === 'customer' && (await Order.exists({ customer: user._id, status: { $in: UNFINISHED_ORDER_STATUSES } }))) {
@@ -140,6 +141,14 @@ export const updateUserRole = async (adminId, userId, role) => {
 // A locked account can neither log in nor use an existing token (protect checks isActive)
 export const updateUserStatus = async (adminId, userId, isActive) => {
   ensureNotSelf(adminId, userId, 'Bạn không thể tự khóa hoặc mở khóa tài khoản của chính mình');
+
+  // A locked shipper can no longer finish the order it holds, and nobody else can take it over
+  if (!isActive && (await Order.exists({ shipper: userId, status: { $in: SHIPPER_ACTIVE_STATUSES } }))) {
+    throw new ApiError(
+      409,
+      'Shipper đang giữ đơn chưa giao xong. Hãy để shipper hoàn tất, hoặc trả đơn về hàng chờ / hủy đơn trước khi khóa',
+    );
+  }
 
   const updated = await User.findOneAndUpdate({ _id: userId, isActive: !isActive }, { $set: { isActive } });
   if (!updated) {

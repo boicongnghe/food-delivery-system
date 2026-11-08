@@ -12,9 +12,9 @@ Dùng **cùng quy tắc với báo cáo admin (UC44)** để hai bên luôn ra c
 | Đơn được tính | Bỏ qua đơn online chưa từng thanh toán, kể cả khi khách đã hủy ở trang thanh toán (quán chưa từng thấy đơn). Cùng bộ lọc `PLACED_ORDER_FILTER` với báo cáo admin nên số đơn và số đơn hủy hai bên khớp nhau |
 | Doanh thu gộp | `subtotal + packagingFee` của đơn **đã giao** (`delivered`). Không gồm phí giao hàng (thuộc shipper) |
 | Tiền món / Topping | Topping = tổng giá option × số lượng; tiền món = `subtotal` − topping |
-| Phí nền tảng | `round(subtotal × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói không tính hoa hồng |
+| Phí nền tảng | `round((subtotal − voucher quán) × tỉ lệ hoa hồng của ngày đó / 100)`, làm tròn **một lần mỗi ngày**. Phí đóng gói và phần quán tự giảm bằng voucher không tính hoa hồng |
 | Tỉ lệ hoa hồng | Quy tắc `CommissionRule` (target `restaurant`) đang hiệu lực ngày đặt đơn: quy tắc riêng của quán ưu tiên hơn quy tắc mặc định; không có quy tắc → 0% |
-| Voucher quán | Luôn 0đ: voucher hiện do nền tảng tài trợ (`PromotionRule` chưa có trường quán) nên quán nhận đủ tiền món |
+| Voucher quán | Tổng `orders.restaurantVoucher.discountAmount` của đơn hoàn thành: quán tự chịu ([restaurant-voucher.md](restaurant-voucher.md)). Mã của nền tảng do nền tảng chịu, không trừ vào quán |
 | Thực nhận | Doanh thu gộp − phí nền tảng − voucher quán |
 | Bồi thường khiếu nại | Nền tảng chi trả, chỉ hiển thị để tham khảo, **không** trừ vào tiền quyết toán |
 
@@ -29,17 +29,18 @@ Phí nền tảng hiển thị trên từng đơn (tab Lịch sử đơn hàng, 
 | Khách / hệ thống hủy | `cancelled`, không phải lỗi của quán (khách hủy, hệ thống hủy vì không có shipper, admin hủy thay khách) |
 | Quán từ chối / không nhận | `cancelled` và (`cancellation.by = restaurant` **hoặc** `cancellation.reason = accept_timeout`: quán để đơn tự hủy vì không nhận kịp, TO-03). Tính vào tỉ lệ từ chối của quán |
 
-## Quyết toán (mô phỏng, chưa có cổng thanh toán)
+## Quyết toán vào ví
 
-- Chu kỳ theo tuần **Thứ Hai – Chủ Nhật** (giờ Việt Nam), chuyển khoản vào **Thứ Hai tuần sau**.
-- Hôm nay ≥ ngày chuyển khoản dự kiến → **Đến hạn chuyển khoản**, ngược lại → **Chưa đến kỳ** (API giữ giá trị `settled` / `pending`).
-- Trạng thái này **chỉ tính theo lịch**, chưa phải xác nhận quán đã nhận tiền: hệ thống chưa có giao dịch chi trả (payout ledger). Số liệu được tính lại từ đơn, nên một kỳ đã "đến hạn" vẫn có thể thay đổi nếu đơn đổi trạng thái muộn (R10). Màn hình, file CSV và bản in đều ghi rõ là ước tính. Muốn có trạng thái "đã chuyển" thật cần làm tính năng chi trả riêng: lô chi trả, mã giao dịch, kỳ đã chốt không đổi, điều chỉnh bằng bút toán.
-- Ví dụ: đơn đặt 23:30 Chủ Nhật 25/10 thuộc chu kỳ 19/10–25/10, chuyển khoản 26/10; đơn đặt 00:30 Thứ Hai 26/10 thuộc chu kỳ 26/10–01/11.
-- Chu kỳ có một phần nằm ngoài khoảng ngày đang xem được đánh dấu "một phần" – tổng của nó trên màn hình không phải toàn bộ số tiền chuyển khoản.
+Tiền của quán đi qua **ví** (chi tiết: [restaurant-wallet.md](restaurant-wallet.md)); không còn cơ chế "chuyển khoản mỗi Thứ Hai".
+
+- Thực nhận của một ngày được cộng vào ví sau **đối soát cuối ngày**: ngày trước hôm nay → **Đã vào ví**, hôm nay → **Chờ đối soát** (API giữ giá trị `settled` / `pending`).
+- Tab Chi tiết hoa hồng là **sao kê**, nhóm theo tuần Thứ Hai – Chủ Nhật để dễ đọc. Quán rút tiền về ngân hàng ở tab **Ví & rút tiền**, tối đa 3 lần mỗi tuần.
+- Số liệu tính lại từ đơn bằng cùng công thức với số dư ví, nên ví và sao kê luôn khớp nhau.
+- Tuần có một phần nằm ngoài khoảng ngày đang xem được đánh dấu "một phần": tổng của nó trên màn hình chỉ là một phần của tuần.
 
 ## Tài khoản nhận tiền
 
-Chủ quán khai báo ở **Hồ sơ quán** (`payoutAccount`: `bankName`, `accountNumber` 6–20 chữ số, `accountHolder` viết hoa). Nhập đủ cả ba hoặc để trống cả ba. Gửi `PUT /api/restaurants/me` không kèm `payoutAccount` thì giữ nguyên tài khoản cũ. Báo cáo và bản in chỉ hiện số tài khoản đã che (`**** 4455`).
+Chủ quán khai báo ở **Thống kê → Ví & rút tiền → Tài khoản nhận tiền** (xem [restaurant-wallet.md](restaurant-wallet.md)), không còn ở Hồ sơ quán. `PUT /api/restaurants/me` bỏ qua `payoutAccount` nếu client cũ còn gửi. Báo cáo và bản in chỉ hiện số tài khoản đã che (`**** 4455`).
 
 ## Quyền riêng tư
 
@@ -53,7 +54,7 @@ Tất cả: `GET`, cần `Authorization: Bearer <jwt>` của `restaurant_owner`.
 
 | Endpoint | Tham số thêm | Trả về |
 | --- | --- | --- |
-| `/api/restaurants/me/reports/overview` | – | `summary`, `previous` (kỳ liền trước cùng độ dài), `range.series` (theo ngày; > 62 ngày thì theo tháng), `peakHours`, `topDishes`, `recentOrders`, `reviews`, `complaints`, `currentCycle`, `payoutAccount` |
+| `/api/restaurants/me/reports/overview` | – | `summary`, `previous` (kỳ liền trước cùng độ dài), `range.series` (theo ngày; > 62 ngày thì theo tháng), `peakHours`, `topDishes`, `recentOrders`, `reviews`, `complaints`, `currentCycle` (tuần hiện tại: `from`, `to`, `deliveredOrders`, `netRevenue`), `payoutAccount` |
 | `/api/restaurants/me/reports/orders` | `status` (`all`, `delivered`, `in_progress`, `cancelled`, `rejected`), `keyword` (mã đơn / tên khách), `page`, `limit` | `{ items, pagination, counts }` |
 | `/api/restaurants/me/reports/orders/export` | như trên, không phân trang | `{ items, truncated, limit }` (tối đa 5000 đơn) |
 | `/api/restaurants/me/reports/reviews` | `rating` (1–5), `page`, `limit` | `{ items, pagination, summary }` |

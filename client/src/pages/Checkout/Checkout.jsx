@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
 import { authApi } from '../../api/authApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
+import restaurantVoucherApi from '../../api/restaurantVoucherApi.js'
 import { orderApi } from '../../api/orderApi.js'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
@@ -38,6 +39,16 @@ function Checkout() {
   const [promoError, setPromoError] = useState('')
   const [activePromotions, setActivePromotions] = useState([])
 
+  // Restaurant vouchers (funded by the restaurant): 1 per order, applied before the platform code
+  const [restaurantVouchers, setRestaurantVouchers] = useState([])
+  const [appliedRestaurantVoucher, setAppliedRestaurantVoucher] = useState(null) // { code, title, discountAmount }
+  const [restaurantVoucherError, setRestaurantVoucherError] = useState('')
+  const restaurantDiscount = appliedRestaurantVoucher?.discountAmount || 0
+  // The server finds the restaurant from an id, a "res-..." slug or its name
+  const cartRestaurantKey = /^[0-9a-fA-F]{24}$/.test(cart?.restaurant?.id || cart?.restaurant?._id || '')
+    ? cart.restaurant.id || cart.restaurant._id
+    : cart?.restaurant?.name || ''
+
   // Payment Method (UC15) - Only Bank Transfer
   const paymentMethod = 'banking'
 
@@ -53,7 +64,16 @@ function Checkout() {
   const [shippingError, setShippingError] = useState('')
   const [loadingShipping, setLoadingShipping] = useState(false)
 
-  const totalPrice = Math.max(0, subtotal + shippingFee - discountAmount)
+  const totalPrice = Math.max(0, subtotal + shippingFee - restaurantDiscount - discountAmount)
+
+  // Running vouchers of the restaurant in the cart
+  useEffect(() => {
+    if (!cartRestaurantKey) return
+    restaurantVoucherApi
+      .getRunningVouchers(cartRestaurantKey)
+      .then((response) => setRestaurantVouchers(response.data || []))
+      .catch(() => setRestaurantVouchers([]))
+  }, [cartRestaurantKey])
 
   // Redirect if cart is empty (chỉ chuyển về trang chủ nếu chưa đặt đơn hàng)
   useEffect(() => {
@@ -308,13 +328,13 @@ function Checkout() {
     }
   }
 
-  // Handle Apply Promotion (UC14)
-  const handleApplyPromo = async (codeToApply = null) => {
+  // Handle Apply Promotion (UC14). The platform code is computed on what is left after the restaurant voucher.
+  const handleApplyPromo = async (codeToApply = null, restaurantDiscountValue = restaurantDiscount) => {
     const code = (codeToApply || promoCodeInput).trim().toUpperCase()
     if (!code) return
     setPromoError('')
     try {
-      const res = await promotionApi.applyPromotion({ code, subtotal })
+      const res = await promotionApi.applyPromotion({ code, subtotal: subtotal - restaurantDiscountValue })
       const data = res.data.data
       setDiscountAmount(data.discountAmount)
       setAppliedPromo(data.promotion)
@@ -324,6 +344,24 @@ function Checkout() {
       setAppliedPromo(null)
       setDiscountAmount(0)
     }
+  }
+
+  // Restaurant voucher: checked by the server with the customer's own usage, checked again on order creation
+  const handleApplyRestaurantVoucher = async (code) => {
+    setRestaurantVoucherError('')
+    try {
+      const response = await restaurantVoucherApi.applyVoucher({ restaurantId: cartRestaurantKey, code, subtotal })
+      setAppliedRestaurantVoucher(response.data)
+      if (appliedPromo) handleApplyPromo(appliedPromo.code, response.data.discountAmount)
+    } catch (err) {
+      setRestaurantVoucherError(err.response?.data?.message || 'Không áp dụng được mã của quán')
+    }
+  }
+
+  const handleRemoveRestaurantVoucher = () => {
+    setAppliedRestaurantVoucher(null)
+    setRestaurantVoucherError('')
+    if (appliedPromo) handleApplyPromo(appliedPromo.code, 0)
   }
 
   const handleRemovePromo = () => {
@@ -408,6 +446,7 @@ function Checkout() {
         deliveryAddress,
         paymentMethod,
         promotionCode: appliedPromo?.code || null,
+        restaurantVoucherCode: appliedRestaurantVoucher?.code || null,
       }
 
       const res = await orderApi.createOrder(payload)
@@ -730,12 +769,70 @@ function Checkout() {
             </div>
 
             {/* UC14: Promotion Code Input & Suggestion Chips */}
+            {restaurantVouchers.length > 0 && (
+              <div style={{ paddingTop: 16, borderTop: '1px dashed var(--border)', marginBottom: 16 }}>
+                <label className="form-label">🏪 Voucher của quán (tối đa 1 mã quán / đơn)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {restaurantVouchers.map((voucher) => {
+                    const isApplied = appliedRestaurantVoucher?.code === voucher.code
+                    const isEligible = subtotal >= voucher.minOrderValue
+                    return (
+                      <div
+                        key={voucher.code}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: isApplied ? '2px solid var(--secondary)' : '1px dashed var(--border)',
+                          background: isApplied ? 'var(--secondary-light)' : 'transparent',
+                          opacity: isEligible || isApplied ? 1 : 0.6,
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)' }}>{voucher.code}</span>
+                        <span style={{ flex: 1, fontSize: '0.85rem' }}>
+                          <strong>{voucher.title}</strong>
+                          <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                            {voucher.label}
+                            {!isEligible && ' · chưa đủ đơn tối thiểu'}
+                          </span>
+                        </span>
+                        {isApplied ? (
+                          <button type="button" className="btn btn-danger-outline btn-sm" onClick={handleRemoveRestaurantVoucher}>
+                            Bỏ mã
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={!isEligible}
+                            onClick={() => handleApplyRestaurantVoucher(voucher.code)}
+                          >
+                            Áp dụng
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {restaurantVoucherError && (
+                  <div style={{ color: 'var(--danger)', fontSize: '0.82rem', marginTop: 8 }}>{restaurantVoucherError}</div>
+                )}
+                {appliedRestaurantVoucher && (
+                  <div style={{ marginTop: 8, color: '#047857', fontSize: '0.88rem', fontWeight: 600 }}>
+                    ✓ Mã quán {appliedRestaurantVoucher.code}: giảm {restaurantDiscount.toLocaleString('vi-VN')}đ
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{
               paddingTop: 16,
               borderTop: '1px dashed var(--border)',
               marginBottom: 16,
             }}>
-              <label className="form-label">🎟️ Mã khuyến mãi (Voucher)</label>
+              <label className="form-label">🎟️ Mã khuyến mãi của nền tảng (Voucher)</label>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <input
                   type="text"
@@ -798,7 +895,7 @@ function Checkout() {
                       Gợi ý voucher ưu đãi ({activePromotions.length}):
                     </span>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                      Tối đa 1 mã / đơn
+                      Tối đa 1 mã nền tảng / đơn
                     </span>
                   </div>
 
@@ -1009,9 +1106,15 @@ function Checkout() {
                   {loadingShipping ? 'Đang tính...' : `${shippingFee.toLocaleString('vi-VN')}đ`}
                 </span>
               </div>
+              {restaurantDiscount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
+                  <span>Voucher quán ({appliedRestaurantVoucher.code}):</span>
+                  <span>-{restaurantDiscount.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
               {discountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
-                  <span>Giảm giá voucher:</span>
+                  <span>Voucher nền tảng:</span>
                   <span>-{discountAmount.toLocaleString('vi-VN')}đ</span>
                 </div>
               )}

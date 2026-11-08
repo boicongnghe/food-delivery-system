@@ -1,0 +1,747 @@
+// Food Delivery Management (WDP301) - MongoDB schema for https://dbdiagram.io
+// Source of truth: server/src/models/*.js (branch refactor/db-cleanup)
+// Conventions:
+// - Every table = one MongoDB collection (exact collection name), except GREY tables.
+// - GREY tables = embedded sub-documents stored INSIDE the parent document (not a collection).
+// - "a.b" = nested object field. Type "array" = array (element type in the note).
+// - createdAt / updatedAt come from Mongoose timestamps.
+
+Project food_delivery {
+  database_type: 'MongoDB'
+  Note: 'Food Delivery Management (WDP301) - MERN. Roles: customer, restaurant_owner, shipper, admin.'
+}
+
+// ===================== ENUMS =====================
+
+Enum user_role {
+  customer
+  restaurant_owner
+  shipper
+  admin
+}
+
+Enum auth_provider {
+  local
+  google
+  facebook
+}
+
+Enum partner_status {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+Enum menu_item_tag {
+  best_seller
+  signature
+  spicy
+  new
+}
+
+Enum order_status {
+  pending
+  confirmed [note: 'restaurant accepted, waiting for a shipper (kitchen not cooking yet)']
+  preparing
+  ready_for_pickup
+  delivering
+  delivered
+  cancelled
+}
+
+Enum payment_method {
+  cod
+  momo
+  vnpay
+  banking
+}
+
+Enum payment_status {
+  pending
+  unpaid
+  paid
+  failed
+  refunded
+  cancelled
+}
+
+Enum actor_role {
+  customer
+  restaurant
+  shipper
+  system
+}
+
+Enum refund_status {
+  none
+  pending
+  succeeded
+  failed
+}
+
+Enum legacy_refund_status {
+  not_applicable
+  pending
+  refunded
+  rejected
+}
+
+Enum delivery_type {
+  express
+  standard
+}
+
+Enum history_actor_role {
+  customer
+  restaurant
+  shipper
+  admin
+  system
+}
+
+Enum payment_txn_method {
+  banking
+  cod
+  momo
+}
+
+Enum payment_txn_status {
+  pending
+  success
+  failed
+  refunded
+}
+
+Enum review_hide_reason {
+  spam
+  offensive
+  irrelevant
+  personal_info
+  other
+}
+
+Enum notification_type {
+  order
+  delivery
+  promo
+  system
+  review
+  complaint
+}
+
+Enum complaint_category {
+  missing_item
+  wrong_item
+  food_quality
+  late_delivery
+  shipper_behavior
+  payment
+  other
+}
+
+Enum complaint_status {
+  open
+  resolved
+  rejected
+}
+
+Enum delivery_issue_type {
+  customer_unreachable
+  wrong_address
+  customer_refused
+  restaurant_delay
+  damaged_items
+  accident
+  other
+}
+
+Enum delivery_issue_status {
+  open
+  resolved
+  dismissed
+}
+
+Enum penalty_target {
+  shipper
+  restaurant
+  customer
+}
+
+Enum penalty_action {
+  warning
+  fine
+  suspend
+}
+
+Enum commission_target {
+  restaurant
+  shipper
+}
+
+Enum discount_type {
+  percentage
+  fixed
+}
+
+Enum mission_status {
+  active
+  completed
+}
+
+// ===================== ACCOUNTS =====================
+
+Table users [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  fullName string [not null]
+  email string [not null, unique, note: 'lowercase']
+  password string [note: 'bcrypt hash, select: false; required only when authProvider = local']
+  phone string [default: '']
+  authProvider auth_provider [default: 'local']
+  googleId string [default: null, note: 'sparse index']
+  facebookId string [default: null, note: 'sparse index']
+  role user_role [default: 'customer']
+  avatar string [note: 'image URL']
+  addresses array [note: 'embedded address book -> users_addresses']
+  isActive boolean [default: true, note: 'admin locks / unlocks the account']
+  isVerified boolean [default: false, note: 'email verified']
+  verificationToken string [default: null, note: 'select: false']
+  verificationTokenExpires date [default: null, note: 'select: false']
+  resetPasswordOtp string [default: null, note: 'select: false']
+  resetPasswordExpires date [default: null, note: 'select: false']
+  createdAt date
+  updatedAt date
+}
+
+Table users_addresses [headercolor: #95A5A6] {
+  _id ObjectId [pk]
+  title string [default: 'Nhà riêng']
+  receiverName string [default: '']
+  receiverPhone string [default: '']
+  street string [not null]
+  ward string [default: '']
+  district string [default: '']
+  city string [default: 'TP.HCM']
+  isDefault boolean [default: false]
+  "location.lat" number [default: null]
+  "location.lng" number [default: null]
+  createdAt date
+  updatedAt date
+  Note: 'EMBEDDED in users.addresses (profile address book, /api/users/addresses)'
+}
+
+Table addresses [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  user ObjectId [not null, ref: > users._id]
+  recipientName string [not null]
+  phone string [not null]
+  addressLine string [not null]
+  "location.lat" number [default: null]
+  "location.lng" number [default: null]
+  isDefault boolean [default: false]
+  note string [default: '']
+  createdAt date
+  updatedAt date
+  Note: 'Checkout address book (/api/addresses). Duplicates users.addresses - kept for now'
+}
+
+Table shippers [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  user ObjectId [not null, unique, ref: - users._id]
+  fullName string [default: '']
+  phone string [default: '']
+  dateOfBirth string [not null]
+  citizenId string [not null]
+  vehicleInfo string [not null]
+  "vehicleRegistration.fileName" string [default: '']
+  "vehicleRegistration.fileData" string [default: '']
+  "vehicleInsurance.hasInsurance" boolean [default: false]
+  "vehicleInsurance.submitLater" boolean [default: true]
+  "vehicleInsurance.insuranceInfo" string [default: '']
+  "vehicleInsurance.fileName" string [default: '']
+  "vehicleInsurance.fileData" string [default: '']
+  status partner_status [default: 'approved', note: 'registration always sets pending']
+  "statusChange.note" string [default: '', note: 'max 500, reason of the last admin decision']
+  "statusChange.by" ObjectId [default: null, ref: > users._id]
+  "statusChange.at" date [default: null]
+  rating number [default: 5]
+  createdAt date
+  updatedAt date
+}
+
+Table driverdashboards [headercolor: #3498DB] {
+  _id ObjectId [pk]
+  userId ObjectId [not null, unique, ref: - users._id]
+  "profile.name" string [not null]
+  "profile.driverCode" string [not null]
+  "profile.restaurant" string [default: '']
+  "profile.shiftStart" string [default: '']
+  "profile.vehicle" string [default: '']
+  "profile.licensePlate" string [default: '']
+  "profile.tier" string [default: '']
+  "profile.avatarUrl" string [default: '']
+  "profile.phone" string [default: '']
+  "profile.bankName" string [default: '']
+  "profile.bankAccountName" string [default: '']
+  "profile.bankAccountNumber" string [default: '']
+  isOnline boolean [default: false, note: 'driver toggle; required to take orders']
+  activeOrderId ObjectId [default: null, ref: > orders._id]
+  isDemo boolean [default: false]
+  "periods.today" object [note: 'period stats']
+  "periods.week" object [note: 'period stats']
+  "periods.month" object [note: 'period stats']
+  createdAt date
+  updatedAt date
+  Note: '''Shipper dashboard. Each period = { totalEarnings, baseFare, bonus, tips, completedTrips, tripGoal,
+walletBalance, pendingBalance, weeklyEarnings, rating, tier, ratingCount, consecutiveFiveStarTrips, payoutBank,
+earningsByHour[], forecast[], trips[], missions[], reviews[], badges[], hotspots[] }'''
+}
+
+// ===================== RESTAURANT & MENU =====================
+
+Table restaurants [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  owner ObjectId [not null, unique, ref: - users._id]
+  name string [not null, note: 'max 60']
+  description string [default: '', note: 'max 150']
+  address string [not null]
+  "location.lat" number [default: 21.0285]
+  "location.lng" number [default: 105.8542]
+  phone string [not null]
+  categories array [note: 'string[], max 5']
+  logo string [default: '', note: 'Cloudinary URL']
+  coverImage string [default: '', note: 'Cloudinary URL, storefront picture']
+  openingHours array [note: 'embedded -> restaurants_openingHours; empty = closed']
+  prepTime number [default: 15, note: 'minutes, 5-120']
+  isAcceptingOrders boolean [default: true, note: 'owner pause switch: false = no new orders']
+  acceptingOrdersChangedAt date [default: null]
+  ownerCitizenId string [default: '']
+  "businessLicense.fileName" string [default: '']
+  "businessLicense.fileSize" number [default: 0]
+  "businessLicense.fileType" string [default: '']
+  "businessLicense.fileData" string [default: '']
+  "businessLicense.uploadedAt" date
+  rating number [default: 0, note: '0-5, recomputed from visible reviews']
+  ratingCount number [default: 0]
+  status partner_status [default: 'pending']
+  "statusChange.note" string [default: '', note: 'max 500']
+  "statusChange.by" ObjectId [default: null, ref: > users._id]
+  "statusChange.at" date [default: null]
+  "payoutAccount.bankName" string [default: '']
+  "payoutAccount.accountNumber" string [default: '']
+  "payoutAccount.accountHolder" string [default: '']
+  createdAt date
+  updatedAt date
+}
+
+Table restaurants_openingHours [headercolor: #95A5A6] {
+  dayOfWeek number [not null, note: '0 = Sunday ... 6 = Saturday']
+  isOpen boolean [default: true]
+  shifts array [note: "[{ open: 'HH:mm', close: 'HH:mm' }], max 2, no overnight shift"]
+  Note: 'EMBEDDED in restaurants.openingHours (7 entries)'
+}
+
+Table menucategories [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  name string [not null, note: 'max 50']
+  sortOrder number [default: 0]
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (restaurant, name) [unique, name: 'restaurant_name_unique', note: 'case-insensitive (collation vi)']
+  }
+}
+
+Table menuitems [headercolor: #27AE60] {
+  _id ObjectId [pk]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  category ObjectId [not null, ref: > menucategories._id]
+  name string [not null, note: 'max 80']
+  sku string [default: '', note: 'uppercase']
+  description string [default: '', note: 'max 250']
+  image string [not null, note: 'Cloudinary URL']
+  imagePublicId string [default: '']
+  price number [not null, note: 'VND']
+  originalPrice number [default: null, note: 'must be > price']
+  tags array [note: 'menu_item_tag[]']
+  sortOrder number [default: 1]
+  isAvailable boolean [default: true, note: 'false = sold out']
+  isVisible boolean [default: true]
+  soldOutAt date [default: null]
+  optionGroups array [note: 'embedded -> menuitems_optionGroups']
+  isDeleted boolean [default: false, note: 'soft delete']
+  deletedAt date [default: null]
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (restaurant, sku) [unique, name: 'restaurant_sku_unique', note: 'partial: sku not empty and isDeleted = false']
+    (restaurant, category, sortOrder)
+  }
+}
+
+Table menuitems_optionGroups [headercolor: #95A5A6] {
+  name string [not null]
+  isRequired boolean [default: false]
+  maxSelect number [default: 1]
+  options array [note: '[{ name, price (extra VND, default 0) }]']
+  Note: 'EMBEDDED in menuitems.optionGroups (max 10 groups, 20 options each)'
+}
+
+Table foods [headercolor: #7F8C8D] {
+  _id ObjectId [pk]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  name string [not null]
+  description string [default: '']
+  price number [not null]
+  image string [default: '']
+  category string [default: 'Món chính']
+  isAvailable boolean [default: true]
+  createdAt date
+  updatedAt date
+  Note: 'LEGACY catalog. No feature reads it; kept for old orders.items.food and npm run migrate:foods-to-menu'
+}
+
+// ===================== ORDERS & PAYMENT =====================
+
+Table orders [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  orderCode string [note: 'GN-0001, indexed']
+  customer ObjectId [not null, ref: > users._id]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  shipper ObjectId [default: null, ref: > users._id]
+  items array [not null, note: 'embedded snapshot -> orders_items, at least 1']
+  subtotal number [not null]
+  packagingFee number [default: 0]
+  shippingFee number [default: 0]
+  distanceKm number [default: 0]
+  discount number [default: 0]
+  "promotion.code" string [default: null]
+  total number [default: 0]
+  "delivery.recipientName" string [default: '']
+  "delivery.phone" string [default: '']
+  "delivery.address" string [default: '']
+  "delivery.type" delivery_type [default: 'standard']
+  "delivery.expectedAt" date [default: null]
+  "delivery.location.lat" number [default: null]
+  "delivery.location.lng" number [default: null]
+  customerNote string [default: '']
+  "payment.method" payment_method [default: 'cod']
+  "payment.status" payment_status [default: 'unpaid']
+  "payment.paidAt" date [default: null]
+  "payment.refundedAt" date [default: null]
+  "payment.refundAmount" number [default: 0]
+  status order_status [default: 'pending']
+  statusHistory array [note: 'embedded -> orders_statusHistory']
+  acceptedAt date [default: null]
+  readyAt date [default: null]
+  kitchenTicketNo number [default: null]
+  kitchenDueAt date [default: null, note: 'shipper accepted (cooking start) + restaurant prepTime']
+  shipperAcceptedAt date [default: null]
+  customerWaitStartedAt date [default: null]
+  unansweredCallsAt array [note: 'date[]']
+  deliveryIssueFlagged boolean [default: false]
+  payoutCreditedAt date [default: null, note: 'guards against double payout']
+  "cancellation.by" actor_role [default: null]
+  "cancellation.reason" string [default: '', note: 'e.g. accept_timeout, no_shipper, admin_cancel']
+  "cancellation.note" string [default: '']
+  "cancellation.at" date [default: null]
+  "timeouts.acceptRemindedAt" date [default: null, note: 'TO-02']
+  "timeouts.prepWarnedAt" date [default: null, note: 'TO-04']
+  "timeouts.prepEscalatedAt" date [default: null, note: 'TO-05']
+  "timeouts.shipperAlertedAt" date [default: null, note: 'TO-06']
+  "timeouts.pickupAlertedAt" date [default: null, note: 'shipper accepted but not picked up']
+  "timeouts.releasedAt" date [default: null, note: 'given back to the pool: TO-06/07 restart']
+  "refund.status" refund_status [default: 'none']
+  "refund.amount" number [default: 0]
+  "refund.requestedAt" date [default: null]
+  "refund.completedAt" date [default: null]
+  "refund.reference" string [default: '']
+  "refund.note" string [default: '']
+  "refund.by" ObjectId [default: null, ref: > users._id]
+  orderNumber string [note: 'LEGACY = orderCode (checkout: ORD-...)']
+  totalPrice number [default: 0, note: 'LEGACY = total']
+  "promotion.discountAmount" number [default: 0, note: 'LEGACY = discount']
+  "deliveryAddress.recipientName" string [default: '', note: 'LEGACY = delivery.*']
+  "deliveryAddress.phone" string [default: '', note: 'LEGACY']
+  "deliveryAddress.addressLine" string [default: '', note: 'LEGACY']
+  "deliveryAddress.note" string [default: '', note: 'LEGACY']
+  "deliveryAddress.location.lat" number [default: null, note: 'LEGACY']
+  "deliveryAddress.location.lng" number [default: null, note: 'LEGACY']
+  paymentMethod payment_method [default: 'banking', note: 'LEGACY = payment.method']
+  paymentStatus payment_status [default: 'pending', note: 'LEGACY = payment.status']
+  cancelReason string [default: null, note: 'LEGACY = cancellation.reason']
+  cancelledBy actor_role [default: null, note: 'LEGACY = cancellation.by']
+  refundStatus legacy_refund_status [default: 'not_applicable', note: 'LEGACY']
+  refundAmount number [default: 0, note: 'LEGACY = payment.refundAmount']
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (restaurant, status, createdAt)
+    (status, shipper, readyAt)
+    (status, createdAt) [note: 'timeout job']
+    (status, kitchenDueAt) [note: 'timeout job']
+  }
+
+  Note: 'LEGACY fields (checkout) are kept in sync with the nested ones by the pre-validate hook (utils/orderFieldSync.js)'
+}
+
+Table orders_items [headercolor: #95A5A6] {
+  _id ObjectId [pk]
+  menuItem ObjectId [ref: > menuitems._id]
+  food ObjectId [ref: > foods._id, note: 'LEGACY, old orders only']
+  name string [not null]
+  image string [default: '']
+  unitPrice number [default: 0]
+  price number [default: 0, note: 'LEGACY = unitPrice']
+  quantity number [not null, note: 'min 1']
+  options array [note: '[{ groupName, name, price }]']
+  note string [default: '']
+  lineTotal number [default: 0]
+  Note: 'EMBEDDED in orders.items - snapshot at order time, menu changes never affect old orders'
+}
+
+Table orders_statusHistory [headercolor: #95A5A6] {
+  status order_status [not null]
+  at date [not null]
+  byRole actor_role [not null]
+  Note: 'EMBEDDED in orders.statusHistory (timeline shown in the kitchen / tracking)'
+}
+
+Table order_status_history [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  order ObjectId [not null, ref: > orders._id]
+  fromStatus string [default: null]
+  toStatus string [not null]
+  action string [default: '']
+  note string [default: '']
+  changedByRole history_actor_role [default: 'system']
+  createdAt date
+  updatedAt date
+  Note: 'Audit log of every status change (written together with orders.statusHistory)'
+}
+
+Table payments [headercolor: #E67E22] {
+  _id ObjectId [pk]
+  order ObjectId [not null, ref: > orders._id]
+  customer ObjectId [not null, ref: > users._id]
+  amount number [not null]
+  paymentMethod payment_txn_method [not null, default: 'banking']
+  transactionCode string [not null, unique]
+  status payment_txn_status [default: 'pending']
+  failureReason string [default: null]
+  retryCount number [default: 0]
+  paidAt date [default: null]
+  createdAt date
+  updatedAt date
+}
+
+// ===================== POST-DELIVERY =====================
+
+Table reviews [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  order ObjectId [not null, unique, ref: - orders._id]
+  orderCode string [not null]
+  customer ObjectId [not null, ref: > users._id]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  shipper ObjectId [default: null, ref: > users._id]
+  restaurantRating number [not null, note: '1-5']
+  comment string [default: '', note: 'max 500']
+  shipperRating number [default: null, note: '1-5']
+  shipperComment string [default: '', note: 'max 300']
+  isHidden boolean [default: false, note: 'hidden reviews do not count in ratings']
+  "moderation.reason" review_hide_reason [default: null]
+  "moderation.note" string [default: '']
+  "moderation.by" ObjectId [default: null, ref: > users._id]
+  "moderation.at" date [default: null]
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (restaurant, isHidden)
+    (shipper, isHidden)
+    (customer, createdAt)
+    (isHidden, createdAt)
+  }
+}
+
+Table complaints [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  code string [not null, unique, note: 'KN-0001']
+  order ObjectId [not null, unique, ref: - orders._id]
+  orderCode string [not null]
+  customer ObjectId [not null, ref: > users._id]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  shipper ObjectId [default: null, ref: > users._id]
+  category complaint_category [not null]
+  description string [not null, note: 'max 1000']
+  images array [note: 'string[] (Cloudinary URLs)']
+  status complaint_status [default: 'open']
+  "resolution.note" string [default: '']
+  "resolution.refundAmount" number [default: 0]
+  "resolution.by" ObjectId [default: null, ref: > users._id]
+  "resolution.at" date [default: null]
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (status, createdAt)
+    (customer, createdAt)
+  }
+}
+
+Table deliveryissues [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  code string [not null, unique, note: 'SC-0001']
+  order ObjectId [not null, ref: > orders._id, note: 'max 1 open report per order (partial unique index)']
+  orderCode string [not null]
+  shipper ObjectId [not null, ref: > users._id]
+  restaurant ObjectId [not null, ref: > restaurants._id]
+  customer ObjectId [not null, ref: > users._id]
+  type delivery_issue_type [not null]
+  description string [default: '', note: 'max 1000']
+  waitedMinutes number [default: 0]
+  unansweredCalls number [default: 0]
+  images array [note: 'string[]']
+  status delivery_issue_status [default: 'open']
+  "resolution.note" string [default: '']
+  "resolution.penalty.target" penalty_target [note: 'penalty is null when none']
+  "resolution.penalty.targetUser" ObjectId [ref: > users._id, note: 'indexed: violation history']
+  "resolution.penalty.action" penalty_action
+  "resolution.penalty.fineAmount" number [default: 0]
+  "resolution.by" ObjectId [default: null, ref: > users._id]
+  "resolution.at" date [default: null]
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (status, createdAt)
+  }
+}
+
+Table notifications [headercolor: #9B59B6] {
+  _id ObjectId [pk]
+  recipient ObjectId [not null, ref: > users._id, note: 'indexed']
+  title string [not null]
+  message string [not null]
+  type notification_type [default: 'order']
+  order ObjectId [default: null, ref: > orders._id]
+  link string [default: '']
+  isRead boolean [default: false, note: 'indexed']
+  createdAt date
+  updatedAt date
+}
+
+// ===================== PLATFORM (ADMIN) =====================
+
+Table commissionrules [headercolor: #C0392B] {
+  _id ObjectId [pk]
+  name string [not null, note: 'max 80']
+  target commission_target [not null, note: 'restaurant: % of subtotal, shipper: % of shipping fee']
+  restaurant ObjectId [default: null, ref: > restaurants._id, note: 'null = default for every restaurant']
+  rate number [not null, note: 'percent 0-100']
+  effectiveFrom string [not null, note: 'YYYY-MM-DD (Vietnam day)']
+  effectiveTo string [default: null, note: 'null = no end date']
+  note string [default: '', note: 'max 200']
+  createdAt date
+  updatedAt date
+
+  indexes {
+    (target, restaurant, effectiveFrom)
+  }
+}
+
+Table promotion_rules [headercolor: #C0392B] {
+  _id ObjectId [pk]
+  code string [not null, unique, note: 'uppercase']
+  title string [not null]
+  description string [default: '']
+  discountType discount_type [not null, default: 'fixed']
+  discountValue number [not null]
+  minOrderValue number [default: 0]
+  maxDiscount number [default: null]
+  startDate date [note: 'default now']
+  endDate date [not null]
+  usageLimit number [default: 100]
+  usedCount number [default: 0]
+  isActive boolean [default: true]
+  createdAt date
+  updatedAt date
+}
+
+Table platform_settings [headercolor: #C0392B] {
+  _id string [pk, note: "single document 'order-timeouts'"]
+  payTimeout number [default: 15, note: 'TO-01 (payment module, not applied yet)']
+  acceptRemind number [default: 2, note: 'TO-02']
+  acceptTimeout number [default: 5, note: 'TO-03']
+  defaultPrepTime number [default: 15, note: 'TO-04']
+  prepGrace number [default: 15, note: 'TO-05']
+  shipperRemind number [default: 10, note: 'TO-06']
+  shipperTimeout number [default: 20, note: 'TO-07']
+  pickupWait number [default: 30, note: 'TO-08 (shipper module, not applied yet)']
+  closingCutoff number [default: 30, note: 'TO-10']
+  reconInterval number [default: 15, note: 'TO-16 (payment module, not applied yet)']
+  refundSlaHours number [default: 24, note: 'hours, TO-11..TO-14']
+  updatedBy ObjectId [default: null, ref: > users._id]
+  createdAt date
+  updatedAt date
+  Note: 'All values in minutes except refundSlaHours. See docs/order-timeouts.md'
+}
+
+Table counters [headercolor: #C0392B] {
+  _id string [pk, note: "sequence name, e.g. 'order'"]
+  seq number [default: 0]
+  Note: 'Named sequences: { _id: order, seq: 42 } -> order code GN-0042'
+}
+
+// ===================== EMBEDDED LINKS (visual only) =====================
+
+Ref: users.addresses < users_addresses._id
+Ref: restaurants.openingHours < restaurants_openingHours.dayOfWeek
+Ref: menuitems.optionGroups < menuitems_optionGroups.name
+Ref: orders.items < orders_items._id
+Ref: orders.statusHistory < orders_statusHistory.status
+
+// ===================== GROUPS =====================
+
+TableGroup accounts {
+  users
+  users_addresses
+  addresses
+  shippers
+  driverdashboards
+}
+
+TableGroup restaurant_menu {
+  restaurants
+  restaurants_openingHours
+  menucategories
+  menuitems
+  menuitems_optionGroups
+  foods
+}
+
+TableGroup orders_payment {
+  orders
+  orders_items
+  orders_statusHistory
+  order_status_history
+  payments
+}
+
+TableGroup post_delivery {
+  reviews
+  complaints
+  deliveryissues
+  notifications
+}
+
+TableGroup platform {
+  commissionrules
+  promotion_rules
+  platform_settings
+  counters
+}

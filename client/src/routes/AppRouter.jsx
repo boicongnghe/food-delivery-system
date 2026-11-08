@@ -9,6 +9,7 @@ import RestaurantProfile from '../pages/RestaurantProfile/RestaurantProfile.jsx'
 import MenuManagement from '../pages/MenuManagement/MenuManagement.jsx'
 import OrderBoard from '../pages/OrderBoard/OrderBoard.jsx'
 import RevenueReport from '../pages/RevenueReport/RevenueReport.jsx'
+import RestaurantVouchers from '../pages/RestaurantVouchers/RestaurantVouchers.jsx'
 import Home from '../pages/Home/Home.jsx'
 import CartPage from '../pages/Cart/CartPage.jsx'
 import WalletPage from '../pages/Wallet/WalletPage.jsx'
@@ -35,6 +36,7 @@ import AdminShippers from '../pages/AdminShippers/AdminShippers.jsx'
 import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
+import DebugShipperFlow from '../pages/DriverDashboard/DebugShipperFlow.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
 
@@ -66,6 +68,8 @@ function AppRouter() {
           <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
             <Route path="/shipper" element={<DriverDashboard />} />
             <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
+            {/* Dev-only tool: changes real orders, never part of a production build */}
+            {import.meta.env.DEV && <Route path="/shipper/debug" element={<DebugShipperFlow />} />}
           </Route>
 
           <Route element={<MainLayout />}>
@@ -108,6 +112,7 @@ function AppRouter() {
               <Route path="/restaurant/menu" element={<MenuManagement />} />
               <Route path="/restaurant/orders" element={<OrderBoard />} />
               <Route path="/restaurant/revenue" element={<RevenueReport />} />
+              <Route path="/restaurant/vouchers" element={<RestaurantVouchers />} />
               <Route path="/restaurant/*" element={<NotFound />} />
             </Route>
           </Route>

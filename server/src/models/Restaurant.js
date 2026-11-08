@@ -57,6 +57,9 @@ const restaurantSchema = new mongoose.Schema(
     openingHours: { type: [openingHourSchema], default: [] },
     // Average minutes the kitchen needs (TO-04): sets the shipper handover time of every accepted order
     prepTime: { type: Number, min: 5, max: 120, default: 15 },
+    // Owner's manual switch (no cook on duty, too many orders): false = no new orders, even inside opening hours
+    isAcceptingOrders: { type: Boolean, default: true },
+    acceptingOrdersChangedAt: { type: Date, default: null },
     ownerCitizenId: { type: String, default: '', trim: true },
     businessLicense: {
       fileName: { type: String, default: '' },
@@ -79,6 +82,7 @@ const restaurantSchema = new mongoose.Schema(
       at: { type: Date, default: null },
     },
     // Bank account that receives the weekly settlement (shown masked in reports)
+    payoutAccountChangedAt: { type: Date, default: null }, // last change from the wallet (audit)
     payoutAccount: {
       bankName: { type: String, trim: true, default: '' },
       accountNumber: { type: String, trim: true, default: '' },

@@ -14,6 +14,7 @@ export const SYSTEM_CANCEL_REASONS = {
   accept_timeout: 'Quán không xác nhận đơn kịp thời (tự hủy)',
   no_shipper: 'Không tìm được shipper (tự hủy)',
   admin_cancel: 'Quản trị viên hủy thay khách',
+  delivery_issue: 'Hủy do sự cố giao hàng',
 }
 
 // Same values as REJECT_REASONS on the server
@@ -37,6 +38,7 @@ export const DELIVERY_TYPE_LABELS = { express: 'Giao nhanh 15p', standard: 'Tiê
 
 export const ORDER_STATUS_LABELS = {
   pending: 'Chờ nhận',
+  confirmed: 'Đang tìm shipper',
   preparing: 'Bếp đang nấu',
   ready_for_pickup: 'Sẵn sàng lấy hàng',
   delivering: 'Đang giao',
@@ -47,7 +49,8 @@ export const ORDER_STATUS_LABELS = {
 // Timeline text for each status change
 export const HISTORY_LABELS = {
   pending: 'Đặt đơn thành công',
-  preparing: 'Quán đã nhận đơn – bếp bắt đầu nấu',
+  confirmed: 'Quán đã nhận đơn – đang tìm shipper',
+  preparing: 'Shipper đã nhận đơn – bếp bắt đầu nấu',
   ready_for_pickup: 'Bếp hoàn tất – sẵn sàng lấy hàng',
   delivering: 'Shipper đã lấy hàng',
   delivered: 'Giao hàng thành công',

@@ -1,9 +1,65 @@
+import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
+import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
+import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
+import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
 
 const VALID_PERIODS = new Set(['today', 'week', 'month']);
+
+const getWithdrawalLimits = async (shipperId) => {
+  const day = vietnamDateString();
+  const [result] = await ShipperWithdrawal.aggregate([
+    {
+      $match: {
+        shipper: new mongoose.Types.ObjectId(shipperId),
+        createdAt: { $gte: startOfVietnamDay(day), $lt: startOfVietnamDay(addDays(day, 1)) },
+      },
+    },
+    { $group: { _id: null, amount: { $sum: '$amount' } } },
+  ]);
+  const dailyUsed = result?.amount || 0;
+  return {
+    minimum: SHIPPER_WITHDRAWAL_LIMITS.minimum,
+    perWithdrawal: SHIPPER_WITHDRAWAL_LIMITS.perWithdrawal,
+    daily: SHIPPER_WITHDRAWAL_LIMITS.daily,
+    dailyUsed,
+    dailyRemaining: Math.max(0, SHIPPER_WITHDRAWAL_LIMITS.daily - dailyUsed),
+  };
+};
+
+const emptyDashboardPeriod = () => ({
+  totalEarnings: 0,
+  baseFare: 0,
+  bonus: 0,
+  completedTrips: 0,
+  tripGoal: 0,
+  walletBalance: 0,
+  pendingBalance: 0,
+  weeklyEarnings: 0,
+  rating: 0,
+  tier: '',
+  ratingCount: 0,
+  consecutiveFiveStarTrips: 0,
+  payoutBank: '',
+  earningsByHour: [],
+  forecast: [],
+  trips: [],
+  missions: [],
+  reviews: [],
+  badges: [],
+  hotspots: [],
+});
+
+const withoutEarningAddOns = (entries = []) => entries.map((entry) => {
+  const result = { ...entry };
+  delete result.tip;
+  delete result.tips;
+  return result;
+});
 
 const validatePeriod = (period) => {
   if (!VALID_PERIODS.has(period)) {
@@ -30,6 +86,7 @@ const getOrCreateDashboard = async (userId) => {
           driverCode: `TX-${userId.toString().slice(-6).toUpperCase()}`,
           avatarUrl: user.avatar,
         },
+        walletBalance: 0,
         periods: { today: {}, week: {}, month: {} },
       },
     },
@@ -40,16 +97,34 @@ const getOrCreateDashboard = async (userId) => {
 const getDashboard = async (userId, period) => {
   validatePeriod(period);
 
-  const [dashboard, user, shipper] = await Promise.all([
+  const [dashboard, user, shipper, ratingCount, withdrawalLimits] = await Promise.all([
     getOrCreateDashboard(userId),
     User.findById(userId).select('fullName phone avatar').lean(),
-    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status').lean(),
+    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status rating').lean(),
+    Review.countDocuments({ shipper: userId, isHidden: false, shipperRating: { $ne: null } }),
+    getWithdrawalLimits(userId),
   ]);
   if (!dashboard.periods?.[period]) {
     throw new ApiError(404, 'Driver dashboard data was not found');
   }
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
+  const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
+  periodData.totalEarnings = (periodData.baseFare || 0) + (periodData.bonus || 0);
+  periodData.weeklyEarnings = dashboard.isDemo
+    ? 0
+    : (dashboard.periods.week?.baseFare || 0) + (dashboard.periods.week?.bonus || 0);
+  periodData.earningsByHour = withoutEarningAddOns(periodData.earningsByHour);
+  periodData.trips = withoutEarningAddOns(periodData.trips);
+  if (dashboard.walletBalance == null || (dashboard.isDemo && dashboard.walletBalance !== 0)) {
+    dashboard.walletBalance = dashboard.isDemo
+      ? 0
+      : Number(dashboard.periods.today?.walletBalance || 0);
+    await DriverDashboard.updateOne(
+      { userId, ...(dashboard.isDemo ? {} : { walletBalance: null }) },
+      { $set: { walletBalance: dashboard.walletBalance } },
+    );
+  }
 
   return {
     profile: {
@@ -57,18 +132,24 @@ const getDashboard = async (userId, period) => {
       name: user.fullName,
       phone: user.phone,
       avatarUrl: user.avatar,
+      ...(dashboard.isDemo && { tier: '' }),
       ...(shipper && {
         vehicle: shipper.vehicleInfo,
         licensePlate: '',
       }),
     },
     isOnline: dashboard.isOnline,
-    isDemo: dashboard.isDemo,
     updatedAt: dashboard.updatedAt,
-    ...dashboard.periods[period],
+    ...periodData,
+    walletBalance: dashboard.walletBalance,
+    withdrawalLimits,
+    ...(shipper && {
+      rating: shipper.rating,
+      ratingCount,
+    }),
     payoutBank: dashboard.profile.bankName
       ? `${dashboard.profile.bankName} · ****${(bankAccountNumber || '').slice(-4)}`
-      : dashboard.periods[period].payoutBank,
+      : periodData.payoutBank,
   };
 };
 
@@ -183,6 +264,13 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
 };
 
 const updateOnlineStatus = async (userId, isOnline) => {
+  if (isOnline) {
+    const shipper = await Shipper.findOne({ user: userId }).select('status').lean();
+    if (shipper?.status !== 'approved') {
+      throw new ApiError(403, 'Hồ sơ tài xế cần được duyệt trước khi bật trạng thái trực tuyến');
+    }
+  }
+
   await getOrCreateDashboard(userId);
   const updatedDashboard = await DriverDashboard.findOneAndUpdate(
     { userId },

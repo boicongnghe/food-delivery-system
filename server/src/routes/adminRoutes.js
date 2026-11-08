@@ -12,7 +12,12 @@ import * as reviewController from '../controllers/reviewController.js';
 import * as settingController from '../controllers/settingController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import validate from '../middlewares/validate.js';
-import { adminCancelOrderSchema, adminOrderQuerySchema, refundResolutionSchema } from '../validations/adminOrderValidation.js';
+import {
+  adminCancelOrderSchema,
+  adminOrderQuerySchema,
+  adminReleaseShipperSchema,
+  refundResolutionSchema,
+} from '../validations/adminOrderValidation.js';
 import { adminUserQuerySchema, updateUserRoleSchema, updateUserStatusSchema } from '../validations/adminUserValidation.js';
 import { partnerQuerySchema, partnerStatusSchema } from '../validations/adminValidation.js';
 import { analyticsQuerySchema } from '../validations/analyticsValidation.js';
@@ -48,6 +53,12 @@ router.get('/orders', validate(adminOrderQuerySchema, 'query'), adminOrderContro
 router.get('/orders/:id', validateId, adminOrderController.getOrderDetail);
 router.patch('/orders/:id/refund', validateId, validate(refundResolutionSchema), adminOrderController.resolveRefund);
 router.patch('/orders/:id/cancel', validateId, validate(adminCancelOrderSchema), adminOrderController.cancelOrder);
+router.patch(
+  '/orders/:id/release-shipper',
+  validateId,
+  validate(adminReleaseShipperSchema),
+  adminOrderController.releaseShipper,
+);
 
 // Order timeout rules (docs/order-timeouts.md)
 router.get('/settings/order-timeouts', settingController.getOrderTimeouts);

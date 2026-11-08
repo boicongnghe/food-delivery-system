@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
 
+// Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
 const STATUS_STEPS = [
-  { key: 'pending', label: 'Chờ xác nhận', icon: '📝' },
-  { key: 'confirmed', label: 'Quán xác nhận', icon: '👨‍🍳' },
-  { key: 'preparing', label: 'Đang chuẩn bị', icon: '🍳' },
+  { key: 'pending', label: 'Chờ quán xác nhận', icon: '📝' },
+  { key: 'confirmed', label: 'Quán nhận · tìm shipper', icon: '🔎' },
+  { key: 'preparing', label: 'Có shipper · đang nấu', icon: '🍳' },
+  { key: 'ready_for_pickup', label: 'Món xong · chờ lấy', icon: '🥡' },
   { key: 'delivering', label: 'Đang giao hàng', icon: '🛵' },
   { key: 'delivered', label: 'Đã nhận hàng', icon: '🎉' },
 ]
@@ -125,7 +127,7 @@ function OrderTracking() {
             </span>
           ) : (
             <span className="badge badge-preparing" style={{ fontSize: '0.9rem', padding: '8px 14px' }}>
-              Đang thực hiện ({order.status})
+              {STATUS_STEPS.find((step) => step.key === order.status)?.label || 'Đang thực hiện'}
             </span>
           )}
         </div>

@@ -95,6 +95,7 @@ export default function OrderHistoryTab({ range, filters, onFiltersChange }) {
               <th className="px-4 py-2.5">Món</th>
               <th className="px-4 py-2.5">Thanh toán</th>
               <th className="px-4 py-2.5 text-right">Doanh thu gộp</th>
+              <th className="px-4 py-2.5 text-right">Voucher quán</th>
               <th className="px-4 py-2.5 text-right">Phí nền tảng</th>
               <th className="px-4 py-2.5 text-right">Thực nhận</th>
               <th className="px-4 py-2.5">Trạng thái</th>
@@ -121,6 +122,9 @@ export default function OrderHistoryTab({ range, filters, onFiltersChange }) {
                 <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{PAYMENT_METHOD_LABELS[order.payment.method] || '–'}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-slate-800">
                   {formatCurrency(order.grossRevenue)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-slate-600">
+                  {order.status === 'delivered' && order.restaurantVoucher > 0 ? `−${formatCurrency(order.restaurantVoucher)}` : '–'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-slate-600">
                   {order.status === 'delivered' ? `−${formatCurrency(order.platformFee)}` : '–'}

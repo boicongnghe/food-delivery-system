@@ -1,7 +1,18 @@
 import Joi from 'joi';
-import { cloudinaryImageUrl } from './commonValidation.js';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Any image URL here: the form always sends back the current logo / cover, and older profiles (seed data,
+// images set before uploads existed) may hold a non-Cloudinary URL. A NEW image is checked in
+// restaurantService (assertOwnUpload): it must be a Cloudinary upload of this owner.
+const profileImageUrl = (label) =>
+  Joi.string()
+    .trim()
+    .uri({ scheme: ['https', 'http'] })
+    .max(500)
+    .allow('')
+    .default('')
+    .messages({ 'string.uri': `${label} không hợp lệ`, 'string.uriCustomScheme': `${label} không hợp lệ` });
 const PHONE_PATTERN = /^(0|\+84)\d{9,10}$/;
 
 const timeField = Joi.string().pattern(TIME_PATTERN).required().messages({
@@ -68,9 +79,9 @@ export const updateRestaurantProfileSchema = Joi.object({
   categories: Joi.array().items(Joi.string().trim().max(30)).max(5).unique().default([]).messages({
     'array.max': 'Chọn tối đa 5 phân loại',
   }),
-  // Image URLs returned by POST /api/uploads/images (our Cloudinary account only)
-  logo: cloudinaryImageUrl('Logo').allow('').default(''),
-  coverImage: cloudinaryImageUrl('Ảnh bìa').allow('').default(''),
+  // Unchanged images are kept as they are; new ones must come from POST /api/uploads/images (see above)
+  logo: profileImageUrl('Logo'),
+  coverImage: profileImageUrl('Ảnh bìa'),
   // TO-04: average minutes the kitchen needs; optional so an older client never resets it
   prepTime: Joi.number().integer().min(5).max(120).messages({
     'number.base': 'Thời gian chuẩn bị phải là số phút',
@@ -82,19 +93,14 @@ export const updateRestaurantProfileSchema = Joi.object({
     'array.length': 'Giờ mở cửa phải đủ 7 ngày trong tuần',
     'array.unique': 'Mỗi ngày chỉ được khai báo một lần',
   }),
-  // Optional and without default: an old client that does not send it never wipes the saved account
-  payoutAccount: Joi.object({
-    bankName: Joi.string().trim().max(60).allow('').default(''),
-    accountNumber: Joi.string().trim().pattern(/^\d{6,20}$/).allow('').default('').messages({
-      'string.pattern.base': 'Số tài khoản gồm 6–20 chữ số',
-    }),
-    accountHolder: Joi.string().trim().uppercase().max(100).allow('').default(''),
-  })
-    .custom((account, helpers) => {
-      const filled = [account.bankName, account.accountNumber, account.accountHolder].filter(Boolean).length;
-      // All three or none: a half-filled account cannot receive money
-      return filled === 0 || filled === 3
-        ? account
-        : helpers.message('Nhập đủ ngân hàng, số tài khoản và tên chủ tài khoản (hoặc để trống cả ba)');
-    }),
+  // The payout bank account is set in the wallet (PUT /api/restaurants/me/wallet/payout-account), not here:
+  // a payoutAccount sent with the profile is stripped by the validation
+});
+
+// PATCH /api/restaurants/me/accepting-orders - pause / resume new orders
+export const acceptingOrdersSchema = Joi.object({
+  isAcceptingOrders: Joi.boolean().required().messages({
+    'boolean.base': 'Trạng thái nhận đơn không hợp lệ',
+    'any.required': 'Thiếu trạng thái nhận đơn',
+  }),
 });

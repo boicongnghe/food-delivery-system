@@ -2,11 +2,13 @@ import Joi from 'joi';
 import { PAYMENT_METHODS } from '../models/Order.js';
 import { dateString, keywordQuery, pageQueryKeys } from './commonValidation.js';
 
-// Tabs of the platform order list; "preparing" also holds the legacy "confirmed" status.
+// Tabs of the platform order list ("confirmed" = accepted by the restaurant, waiting for a shipper).
 // "refund_pending": cancelled paid orders whose refund is still owed (any status).
-// "attention": orders a timeout rule handed to the admin (kitchen overdue TO-05, no shipper TO-06)
+// "attention": orders a timeout rule handed to the admin (kitchen overdue TO-05, no shipper TO-06,
+// shipper accepted but not picked up after pickupWait)
 export const ADMIN_ORDER_TABS = [
   'pending',
+  'confirmed',
   'preparing',
   'ready_for_pickup',
   'delivering',
@@ -40,6 +42,16 @@ export const adminCancelOrderSchema = Joi.object({
     'string.min': 'Lý do hủy tối thiểu 5 ký tự',
     'string.max': 'Lý do hủy tối đa 300 ký tự',
     'any.required': 'Ghi lý do hủy đơn',
+  }),
+});
+
+// PATCH /api/admin/orders/:id/release-shipper - the shipper accepted but does not pick up: find another one
+export const adminReleaseShipperSchema = Joi.object({
+  note: Joi.string().trim().min(5).max(300).required().messages({
+    'string.empty': 'Ghi lý do đổi shipper',
+    'string.min': 'Lý do đổi shipper tối thiểu 5 ký tự',
+    'string.max': 'Lý do đổi shipper tối đa 300 ký tự',
+    'any.required': 'Ghi lý do đổi shipper',
   }),
 });
 
