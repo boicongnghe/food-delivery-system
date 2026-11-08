@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
+import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
 import { recordStatusChange } from './orderHistoryService.js';
@@ -14,6 +15,11 @@ const AVAILABLE_FILTER = {
 };
 const ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
+
+export const getShipperStatus = async (shipperId) => {
+  const shipper = await Shipper.findOne({ user: shipperId }).select('status').lean();
+  return shipper?.status ?? null;
+};
 
 const getDriverDashboard = async (shipperId) => {
   await driverDashboardService.getDashboard(shipperId, 'today');
