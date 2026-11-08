@@ -2,6 +2,7 @@ import Joi from 'joi';
 import {
   DELIVERY_ISSUE_STATUSES,
   DELIVERY_ISSUE_TYPES,
+  ISSUE_ORDER_ACTIONS,
   PENALTY_ACTIONS,
   PENALTY_TARGETS,
 } from '../models/DeliveryIssue.js';
@@ -62,4 +63,9 @@ export const resolveDeliveryIssueSchema = Joi.object({
     then: penaltySchema.allow(null).default(null),
     otherwise: Joi.any().strip(),
   }),
+  // Also allowed when the report is dismissed: the order may still need a new shipper or a cancellation
+  orderAction: Joi.string()
+    .valid(...ISSUE_ORDER_ACTIONS)
+    .default('none')
+    .messages({ 'any.only': 'Cách xử lý đơn hàng không hợp lệ' }),
 });

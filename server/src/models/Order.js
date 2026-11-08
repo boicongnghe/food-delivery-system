@@ -209,6 +209,8 @@ const orderSchema = new mongoose.Schema(
       prepWarnedAt: { type: Date, default: null }, // TO-04 kitchen past its declared prepTime
       prepEscalatedAt: { type: Date, default: null }, // TO-05 handed to the admin
       shipperAlertedAt: { type: Date, default: null }, // TO-06 admin told: no shipper yet
+      pickupAlertedAt: { type: Date, default: null }, // admin told: the shipper accepted but has not picked up
+      releasedAt: { type: Date, default: null }, // admin gave the order back to the pool: TO-06/07 count from here
     },
     // Refund owed after a paid order is cancelled. "pending" until an admin confirms the transfer with its
     // reference; only then payment.status becomes "refunded" (no gateway refund API yet)

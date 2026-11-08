@@ -164,15 +164,16 @@ const changePartnerStatus = async (config, adminId, id, { status, note }) => {
     throw new ApiError(409, `Không thể ${ACTION_LABELS[status]} hồ sơ đang ở trạng thái "${STATUS_LABELS[partner.status]}"`);
   }
 
-  // Reopening a suspended partner does not re-check the profile it was approved with
-  if (status === 'approved' && partner.status !== 'suspended') {
+  // Approving and reopening a suspended partner both check the profile as it is now: it may have changed
+  // since the first approval
+  if (status === 'approved') {
     const missing = config
       .getChecks(partner, partner[config.accountField])
       .filter((check) => check.required && !check.ok);
     if (missing.length > 0) {
       throw new ApiError(
         409,
-        'Hồ sơ đăng ký chưa đủ điều kiện để duyệt',
+        partner.status === 'suspended' ? 'Hồ sơ hiện chưa đủ điều kiện để mở lại' : 'Hồ sơ đăng ký chưa đủ điều kiện để duyệt',
         missing.map((check) => ({ field: check.key, message: `Thiếu hoặc chưa hợp lệ: ${check.label}` })),
       );
     }
