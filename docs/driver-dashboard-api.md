@@ -2,7 +2,9 @@
 
 The driver dashboard reads a MongoDB dashboard snapshot for the authenticated
 shipper. It does not fabricate fallback data or derive earnings from orders;
-earnings and performance metrics must be supplied in that snapshot.
+earnings and performance metrics must be supplied in that snapshot. For
+non-demo accounts, the displayed shipper rating and rating count come from the
+current visible customer reviews rather than the dashboard snapshot.
 
 Both `/shipper` and `/shipper/dashboard` use the API-backed earnings dashboard.
 The profile header supports avatar uploads through the authenticated Cloudinary
@@ -17,7 +19,8 @@ upload endpoint.
 - `GET /api/drivers/me/settings`
 - `PATCH /api/drivers/me/settings`
 - `PATCH /api/drivers/me/password`
-- `PATCH /api/drivers/me/status` with `{ "isOnline": true }`
+- `PATCH /api/drivers/me/status` with `{ "isOnline": true }` (only approved
+  shipper profiles can go online; admin status changes set them offline)
 - `GET /api/orders/available-for-pickup?page=1&limit=10`
 - `GET /api/orders/available-for-pickup/:id`
 - `GET /api/orders/shipper/active`

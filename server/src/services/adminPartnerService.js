@@ -1,4 +1,5 @@
 import DeliveryIssue from '../models/DeliveryIssue.js';
+import DriverDashboard from '../models/DriverDashboard.js';
 import Restaurant, { PARTNER_STATUSES } from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
@@ -184,6 +185,9 @@ const changePartnerStatus = async (config, adminId, id, { status, note }) => {
   );
   if (!updated) {
     throw new ApiError(409, 'Hồ sơ vừa được người khác cập nhật, vui lòng tải lại');
+  }
+  if (config === PARTNERS.shipper) {
+    await DriverDashboard.updateOne({ userId: partner.user._id }, { $set: { isOnline: false } });
   }
   return getPartnerDetail(config, id);
 };
