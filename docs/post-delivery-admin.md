@@ -56,6 +56,9 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 | GET | `/pending-approvals`, `/stats` | Trang tổng quan (không kèm file) |
 | GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Đơn toàn sàn, chỉ xem. `status`: `all` | `pending` | `preparing` (gồm `confirmed`) | `ready_for_pickup` | `delivering` | `delivered` | `cancelled`. `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
 | GET | `/orders/:id` | Chi tiết đơn + `related: { complaint, review, deliveryIssues }` |
+| PATCH | `/orders/:id/cancel` | `{ note }`. Hủy thay khách khi đơn chưa được lấy hàng, kể cả khi shipper đã nhận ([order-timeouts.md](order-timeouts.md)) |
+| PATCH | `/orders/:id/release-shipper` | `{ note }`. Shipper đã nhận nhưng chưa lấy hàng: trả đơn về hàng chờ cho shipper khác |
+| PATCH | `/orders/:id/refund` | `{ result: 'succeeded' \| 'failed', reference?, note? }`. Ghi kết quả chuyển trả tiền (R06) |
 | GET, POST | `/commission-rules` | UC40. GET trả `{ today, items, currentDefaults }` |
 | PUT, DELETE | `/commission-rules/:id` | UC40 |
 | GET, POST | `/promotion-rules` | UC41. Lọc `status`: `active` \| `scheduled` \| `expired` \| `disabled` \| `exhausted` |
@@ -69,7 +72,7 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 | GET | `/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD` | UC44. Tối đa 366 ngày, trên 62 ngày thì gộp theo tháng |
 | GET | `/delivery-issues?status&type&keyword` | UC45. Mặc định `status=open` |
 | GET | `/delivery-issues/:id` | UC45. Kèm `violationCounts` của shipper, khách, nhà hàng |
-| PATCH | `/delivery-issues/:id/resolution` | UC45. `{ decision: 'resolved' \| 'dismissed', note, penalty: { target, action, fineAmount? } \| null }` |
+| PATCH | `/delivery-issues/:id/resolution` | UC45. `{ decision: 'resolved' \| 'dismissed', note, penalty: { target, action, fineAmount? } \| null, orderAction: 'none' \| 'release' \| 'cancel' }` |
 
 Ảnh minh chứng: upload qua `POST /api/uploads/images?folder=complaints` (khách hàng) hoặc `folder=delivery-issues` (shipper). Server chỉ nhận ảnh do chính người gửi tải lên.
 
@@ -78,16 +81,22 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 - **Đánh giá (UC17):** chỉ đơn `delivered`, trong 7 ngày kể từ lúc giao, mỗi đơn một lần. Đơn có shipper thì bắt buộc chấm sao shipper.
 - **Kiểm duyệt (UC43):** ẩn đánh giá phải chọn lý do (`spam`, `offensive`, `irrelevant`, `personal_info`, `other` kèm ghi chú). Ẩn hoặc hiện lại đều tính lại điểm nhà hàng và shipper. Khách vẫn thấy đánh giá của mình kèm lý do bị ẩn.
 - **Khiếu nại (UC18 → UC42):** đơn `delivered` hoặc `cancelled`, trong 7 ngày, mỗi đơn một lần, tối đa 3 ảnh. Không khiếu nại được đơn online chưa từng thanh toán (khách hủy ở trang thanh toán). Admin chấp nhận (có thể hoàn tiền) hoặc từ chối, luôn kèm phản hồi cho khách. Số tiền hoàn ≤ số khách đã trả (`payment.status` là `paid`/`refunded`) trừ phần đã hoàn khi hủy. Hoàn tiền hiện là **mô phỏng**.
-- **Sự cố (UC34 → UC45):** shipper báo cáo khi đơn ở `ready_for_pickup`/`delivering`, hoặc trong 24 giờ sau khi đơn kết thúc. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Khi xác nhận, admin có thể xử phạt một bên:
+- **Sự cố (UC34 → UC45):** shipper chỉ báo cáo được khi đơn mình đang giữ ở `ready_for_pickup`/`delivering`; đơn đã kết thúc thì không báo được nữa. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Khi xác nhận, admin có thể xử phạt một bên:
   - `warning`, `fine` (10.000–5.000.000đ, mô phỏng): chỉ ghi nhận vào lịch sử vi phạm.
   - `suspend`: nhà hàng chuyển `suspended` (không nhận đơn mới, vẫn hoàn tất được đơn đang có); shipper hoặc khách bị **khóa tài khoản**, mở lại ở UC37.
+  - **Xử lý đơn hàng** (`orderAction`, dùng được cả khi xác nhận lẫn bác bỏ), chỉ khi shipper báo cáo vẫn đang giữ đơn:
+    - `none`: shipper tiếp tục giao.
+    - `release`: trả đơn về hàng chờ cho shipper khác, chỉ khi shipper **chưa lấy hàng**.
+    - `cancel`: hủy đơn (`cancellation.by = system`, `reason = delivery_issue`, không tính lỗi cho quán). Đơn đã trả tiền có yêu cầu hoàn tiền (tab "Chờ hoàn tiền").
+    - `release` và `cancel` đều giải phóng shipper để nhận đơn mới. Lệnh đổi đơn có điều kiện theo trạng thái và shipper vừa đọc, và chạy trước khi đóng báo cáo.
+  - Khóa shipper (`suspend`) khi shipper còn giữ đơn sẽ bị từ chối (409): phải hủy hoặc trả đơn về hàng chờ trong cùng lần xử lý.
 - **Duyệt nhà hàng / shipper:**
   - Chuyển trạng thái: duyệt `pending`/`rejected` → `approved`; từ chối `pending` → `rejected`; đình chỉ `approved` → `suspended`; mở lại `suspended` → `approved`. Từ chối và đình chỉ bắt buộc nhập lý do (≥ 5 ký tự), lưu ở `statusChange`.
-  - Chỉ duyệt được khi đủ các mục bắt buộc của form đăng ký (server kiểm tra, cùng danh sách hiển thị trong hồ sơ): email đã xác thực; nhà hàng có tên, địa chỉ thật, mặt hàng kinh doanh, CCCD 9–12 số, file giấy phép; tài xế đủ 18 tuổi, CCCD 9–12 số, thông tin xe. Bảo hiểm xe không bắt buộc (form cho bổ sung sau). Mở lại không kiểm tra lại hồ sơ.
-  - Hiệu lực: nhà hàng chưa `approved` không nhận được đơn mới; nhà hàng `suspended` không sửa được thực đơn. Tài xế chưa `approved` không xem được `GET /api/orders/available-for-pickup` (403). Khóa tài khoản (UC37) là việc riêng: chặn đăng nhập.
+  - Chỉ duyệt được khi đủ các mục bắt buộc của form đăng ký (server kiểm tra, cùng danh sách hiển thị trong hồ sơ): email đã xác thực; nhà hàng có tên, địa chỉ thật, mặt hàng kinh doanh, CCCD 9–12 số, file giấy phép; tài xế đủ 18 tuổi, CCCD 9–12 số, thông tin xe. Bảo hiểm xe không bắt buộc (form cho bổ sung sau). **Mở lại** đối tác bị đình chỉ cũng kiểm tra lại các mục này theo hồ sơ hiện tại.
+  - Hiệu lực: nhà hàng chưa `approved` không nhận được đơn mới; nhà hàng `suspended` không sửa được thực đơn lẫn hồ sơ quán (403), để admin mở lại đúng hồ sơ đã bị đình chỉ. Tài xế chưa `approved` không xem được `GET /api/orders/available-for-pickup` (403). Khóa tài khoản (UC37) là việc riêng: chặn đăng nhập.
   - Trang tổng quan chỉ liệt kê hồ sơ chờ duyệt và dẫn sang trang nhà hàng / tài xế; không còn duyệt nhanh khi chưa xem hồ sơ.
-- **Đơn hàng toàn sàn:** admin chỉ xem, không đổi trạng thái hay hoàn tiền. Không liệt kê đơn chuyển khoản khách bỏ dở (`PLACED_ORDER_FILTER`), giống thống kê UC44.
-- **Tài khoản (UC37):** admin không tự đổi vai trò hay tự khóa mình được. Không đổi vai trò khi chủ quán còn sở hữu nhà hàng, shipper còn đơn đang giao, hoặc khách còn đơn chưa hoàn tất. Tài khoản bị khóa không đăng nhập được và token cũ trả 403.
+- **Đơn hàng toàn sàn:** admin không tự chuyển bước cho đơn. Admin chỉ được: hủy thay khách khi đơn chưa được lấy hàng, đổi shipper khi shipper đã nhận nhưng chưa lấy hàng, và ghi kết quả hoàn tiền. Đơn đã lấy hàng (`delivering`) xử lý qua báo cáo sự cố. Không liệt kê đơn chuyển khoản khách bỏ dở (`PLACED_ORDER_FILTER`), giống thống kê UC44.
+- **Tài khoản (UC37):** admin không tự đổi vai trò hay tự khóa mình được. Không đổi vai trò khi chủ quán còn sở hữu nhà hàng, shipper còn đơn đang giao, hoặc khách còn đơn chưa hoàn tất. Không khóa được shipper đang giữ đơn (`ready_for_pickup`/`delivering`), vì shipper bị khóa không giao tiếp được mà cũng không ai nhận thay. Tài khoản bị khóa không đăng nhập được và token cũ trả 403.
 - **Hoa hồng (UC40):** quy tắc riêng của một nhà hàng ưu tiên hơn quy tắc mặc định. Các quy tắc cùng phạm vi không được trùng thời gian. Quy tắc **đã bắt đầu áp dụng** chỉ được sửa tên, ghi chú, ngày kết thúc (không sớm hơn hôm nay) và không xóa được, để giữ đúng số liệu báo cáo; muốn đổi tỷ lệ thì kết thúc quy tắc cũ và tạo quy tắc mới.
 - **Khuyến mãi (UC41):**
   - Mã đã được dùng (`usedCount > 0`) thì không đổi mã, không xóa được (chỉ tắt), và `usageLimit` không được nhỏ hơn `usedCount`. `usageLimit = null` nghĩa là không giới hạn.
