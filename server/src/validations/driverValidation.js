@@ -1,4 +1,9 @@
 import Joi from 'joi';
+import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
+
+export const requestWithdrawalSchema = Joi.object({
+  amount: Joi.number().integer().min(SHIPPER_WITHDRAWAL_LIMITS.minimum).required(),
+});
 
 export const updateDriverSettingsSchema = Joi.object({
   fullName: Joi.string().trim().min(2).max(100),

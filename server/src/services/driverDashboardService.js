@@ -1,10 +1,34 @@
 import DriverDashboard from '../models/DriverDashboard.js';
 import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
+import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
+import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
 
 const VALID_PERIODS = new Set(['today', 'week', 'month']);
+
+const getWithdrawalLimits = async (shipperId) => {
+  const day = vietnamDateString();
+  const [result] = await ShipperWithdrawal.aggregate([
+    {
+      $match: {
+        shipper: shipperId,
+        createdAt: { $gte: startOfVietnamDay(day), $lt: startOfVietnamDay(addDays(day, 1)) },
+      },
+    },
+    { $group: { _id: null, amount: { $sum: '$amount' } } },
+  ]);
+  const dailyUsed = result?.amount || 0;
+  return {
+    minimum: SHIPPER_WITHDRAWAL_LIMITS.minimum,
+    perWithdrawal: SHIPPER_WITHDRAWAL_LIMITS.perWithdrawal,
+    daily: SHIPPER_WITHDRAWAL_LIMITS.daily,
+    dailyUsed,
+    dailyRemaining: Math.max(0, SHIPPER_WITHDRAWAL_LIMITS.daily - dailyUsed),
+  };
+};
 
 const emptyDashboardPeriod = () => ({
   totalEarnings: 0,
@@ -55,6 +79,7 @@ const getOrCreateDashboard = async (userId) => {
           driverCode: `TX-${userId.toString().slice(-6).toUpperCase()}`,
           avatarUrl: user.avatar,
         },
+        walletBalance: 0,
         periods: { today: {}, week: {}, month: {} },
       },
     },
@@ -65,11 +90,12 @@ const getOrCreateDashboard = async (userId) => {
 const getDashboard = async (userId, period) => {
   validatePeriod(period);
 
-  const [dashboard, user, shipper, ratingCount] = await Promise.all([
+  const [dashboard, user, shipper, ratingCount, withdrawalLimits] = await Promise.all([
     getOrCreateDashboard(userId),
     User.findById(userId).select('fullName phone avatar').lean(),
     Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status rating').lean(),
     Review.countDocuments({ shipper: userId, isHidden: false, shipperRating: { $ne: null } }),
+    getWithdrawalLimits(userId),
   ]);
   if (!dashboard.periods?.[period]) {
     throw new ApiError(404, 'Driver dashboard data was not found');
@@ -77,6 +103,13 @@ const getDashboard = async (userId, period) => {
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
   const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
+  if (dashboard.walletBalance == null) {
+    dashboard.walletBalance = Number(dashboard.periods.today?.walletBalance || 0);
+    await DriverDashboard.updateOne(
+      { userId, walletBalance: null },
+      { $set: { walletBalance: dashboard.walletBalance } },
+    );
+  }
 
   return {
     profile: {
@@ -93,6 +126,8 @@ const getDashboard = async (userId, period) => {
     isOnline: dashboard.isOnline,
     updatedAt: dashboard.updatedAt,
     ...periodData,
+    walletBalance: dashboard.walletBalance,
+    withdrawalLimits,
     ...(shipper && {
       rating: shipper.rating,
       ratingCount,

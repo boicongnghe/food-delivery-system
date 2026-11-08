@@ -28,12 +28,18 @@ const changePassword = async (passwords) => {
   return response.data.data
 }
 
+const requestWithdrawal = async (amount) => {
+  const response = await axiosClient.post('/drivers/me/withdrawals', { amount })
+  return response.data
+}
+
 const driverApi = {
   getDashboard,
   getSettings,
   updateOnlineStatus,
   updateSettings,
   changePassword,
-}
+  requestWithdrawal,
+};
 
 export default driverApi

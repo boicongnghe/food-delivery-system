@@ -115,6 +115,7 @@ const driverDashboardSchema = new Schema(
     isOnline: { type: Boolean, default: false },
     activeOrderId: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
     isDemo: { type: Boolean, default: false },
+    walletBalance: { type: Number, min: 0 },
     periods: {
       today: { type: periodSchema },
       week: { type: periodSchema },
