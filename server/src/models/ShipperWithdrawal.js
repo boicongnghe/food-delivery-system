@@ -10,6 +10,12 @@ const shipperWithdrawalSchema = new mongoose.Schema(
     },
     amount: { type: Number, required: true, min: 1 },
     transactionCode: { type: String, required: true, unique: true },
+    // Copy of the shipper's default payout account at request time (a later change never rewrites history)
+    bankAccount: {
+      bankName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      accountHolder: { type: String, default: '' },
+    },
     status: { type: String, enum: ['requested'], default: 'requested' },
   },
   { timestamps: true },

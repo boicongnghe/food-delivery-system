@@ -10,9 +10,6 @@ const EMPTY_SETTINGS = {
   citizenIdMasked: '',
   vehicleInfo: '',
   shipperStatus: '',
-  bankName: '',
-  bankAccountName: '',
-  bankAccountNumber: '',
 }
 
 function getErrorMessage(error) {
@@ -23,6 +20,7 @@ function DriverSettings({
   onProfileUpdated,
   mobilePreview,
   onMobilePreviewChange,
+  onOpenWallet,
 }) {
   const [settings, setSettings] = useState(EMPTY_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
@@ -79,22 +77,8 @@ function DriverSettings({
     setProfileSuccess('')
 
     try {
-      const {
-        fullName,
-        phone,
-        avatarUrl,
-        bankName,
-        bankAccountName,
-        bankAccountNumber,
-      } = settings
-      const updated = await driverApi.updateSettings({
-        fullName,
-        phone,
-        avatarUrl,
-        bankName,
-        bankAccountName,
-        bankAccountNumber,
-      })
+      const { fullName, phone, avatarUrl } = settings
+      const updated = await driverApi.updateSettings({ fullName, phone, avatarUrl })
       onProfileUpdated(updated)
       setProfileSuccess('Đã lưu thông tin tài xế.')
     } catch (error) {
@@ -133,9 +117,6 @@ function DriverSettings({
     }
   }
 
-  const bankFields = ['bankName', 'bankAccountName', 'bankAccountNumber']
-  const isBankDetailsIncomplete = bankFields.some(field => settings[field])
-    && !bankFields.every(field => settings[field])
 
   if (isLoading) {
     return <div className="dashboard-message" role="status">Đang tải cài đặt tài khoản…</div>
@@ -252,54 +233,19 @@ function DriverSettings({
           </div>
           <div className="settings-section-heading">
             <h2>Tài khoản nhận tiền</h2>
-            <p>Thông tin chỉ được lưu để tham khảo; ứng dụng chưa hỗ trợ chuyển khoản.</p>
-          </div>
-          <div className="settings-fields-grid">
-            <label className="settings-field">
-              <span>Tên ngân hàng</span>
-              <input
-                autoComplete="off"
-                maxLength="100"
-                name="bankName"
-                onChange={updateSetting}
-                placeholder="Ví dụ: Vietcombank"
-                value={settings.bankName}
-              />
-            </label>
-            <label className="settings-field">
-              <span>Chủ tài khoản</span>
-              <input
-                autoComplete="off"
-                maxLength="100"
-                name="bankAccountName"
-                onChange={updateSetting}
-                value={settings.bankAccountName}
-              />
-            </label>
-            <label className="settings-field">
-              <span>Số tài khoản</span>
-              <input
-                autoComplete="off"
-                inputMode="numeric"
-                maxLength="20"
-                name="bankAccountNumber"
-                onChange={updateSetting}
-                pattern="[0-9]{6,20}"
-                value={settings.bankAccountNumber}
-              />
-            </label>
-          </div>
-
-          {isBankDetailsIncomplete && (
-            <p className="settings-error" role="alert">
-              Vui lòng điền đủ tên ngân hàng, chủ tài khoản và số tài khoản.
+            <p>
+              Tài khoản ngân hàng được quản lý trong tab Ví: lưu nhiều tài khoản và chọn tài khoản mặc định để rút tiền.
             </p>
-          )}
+          </div>
+          <button className="cta-btn" onClick={onOpenWallet} type="button">
+            Quản lý tài khoản trong Ví
+          </button>
+
           {profileError && <p className="settings-error" role="alert">{profileError}</p>}
           {profileSuccess && <p className="settings-success" role="status">{profileSuccess}</p>}
 
           <div className="settings-actions">
-            <button className="cta-btn" disabled={isSavingProfile || isBankDetailsIncomplete} type="submit">
+            <button className="cta-btn" disabled={isSavingProfile} type="submit">
               {isSavingProfile ? 'Đang lưu…' : 'Lưu thông tin'}
             </button>
           </div>

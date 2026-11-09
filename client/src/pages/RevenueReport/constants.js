@@ -82,19 +82,6 @@ export const WITHDRAWAL_STATUS = {
 
 export const WITHDRAWAL_PAGE_SIZE = 10
 
-// Suggestions for the payout bank (free text is still allowed)
-export const BANK_OPTIONS = [
-  'Vietcombank',
-  'VietinBank',
-  'BIDV',
-  'Agribank',
-  'Techcombank',
-  'MB Bank',
-  'ACB',
-  'VPBank',
-  'Sacombank',
-  'TPBank',
-]
 
 export const REVIEW_PAGE_SIZE = 10
 export const ORDER_PAGE_SIZE = 10

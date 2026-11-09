@@ -14,6 +14,21 @@ import { sendRealtimeNotification } from '../socket.js';
 import { getNextSequence } from './counterService.js';
 import { createTransfer, getPayoutMode } from './payoutGateway.js';
 import { getWalletEarnings, toPayoutAccountView } from './restaurantReportService.js';
+import {
+  MAX_PAYOUT_ACCOUNTS,
+  accountFields,
+  findAccount,
+  getUserDefaultAccount,
+  hasPayoutAccount,
+  listUserPayoutAccounts,
+  markDefault,
+  maskAccountNumber,
+  notifyDefaultChange,
+  pullAccount,
+  pushAccount,
+  saveAccountsDoc,
+  toAccountsView,
+} from './payoutAccountService.js';
 
 /* ==========================================================================
    CUSTOMER VIRTUAL WALLET (Hoàn tiền đơn hàng & Rút tiền ví ảo)
@@ -75,25 +90,34 @@ export const getMyWallet = async (userId) => {
       .lean(),
   ]);
 
+  const { accounts, maxAccounts } = await listUserPayoutAccounts(userId);
   return {
     balance: user.walletBalance || 0,
     transactions,
     withdrawals,
+    minWithdrawal: CUSTOMER_MIN_WITHDRAWAL,
+    payoutAccounts: accounts, // default first: withdrawals go to it
+    maxPayoutAccounts: maxAccounts,
   };
 };
 
+const CUSTOMER_MIN_WITHDRAWAL = 10000;
+
 /**
- * Khách hàng tạo yêu cầu rút tiền từ ví ảo về tài khoản ngân hàng
+ * Khách hàng tạo yêu cầu rút tiền từ ví ảo về tài khoản ngân hàng MẶC ĐỊNH đã lưu trong ví
+ * (bản sao tài khoản được lưu vào yêu cầu: đổi mặc định sau đó không làm sai lịch sử)
  */
-export const requestCustomerWithdrawal = async (userId, { amount, bankName, accountNumber, accountHolder }) => {
+export const requestCustomerWithdrawal = async (userId, { amount }) => {
   const withdrawAmount = Number(amount);
-  if (!withdrawAmount || withdrawAmount < 10000) {
+  if (!withdrawAmount || withdrawAmount < CUSTOMER_MIN_WITHDRAWAL) {
     throw new ApiError(400, 'Số tiền rút tối thiểu là 10.000đ');
   }
 
-  if (!bankName?.trim() || !accountNumber?.trim() || !accountHolder?.trim()) {
-    throw new ApiError(400, 'Vui lòng điền đầy đủ thông tin ngân hàng nhận tiền');
+  const bankAccount = await getUserDefaultAccount(userId);
+  if (!bankAccount) {
+    throw new ApiError(400, 'Hãy thêm tài khoản ngân hàng nhận tiền trong ví trước khi rút');
   }
+  const { bankName, accountNumber, accountHolder } = bankAccount;
 
   // Trừ tiền ngay lập tức khi tạo yêu cầu
   const user = await User.findOneAndUpdate(
@@ -109,11 +133,7 @@ export const requestCustomerWithdrawal = async (userId, { amount, bankName, acco
   const withdrawal = await WithdrawalRequest.create({
     user: userId,
     amount: withdrawAmount,
-    bankInfo: {
-      bankName: bankName.trim(),
-      accountNumber: accountNumber.trim(),
-      accountHolder: accountHolder.trim().toUpperCase(),
-    },
+    bankInfo: { bankName, accountNumber, accountHolder },
     status: 'pending',
   });
 
@@ -124,7 +144,7 @@ export const requestCustomerWithdrawal = async (userId, { amount, bankName, acco
     balanceAfter: user.walletBalance,
     withdrawalRequest: withdrawal._id,
     status: 'pending',
-    description: `Yêu cầu rút tiền về ${bankName} (${accountNumber})`,
+    description: `Yêu cầu rút tiền về ${bankName} (${maskAccountNumber(accountNumber)})`,
   });
 
   return withdrawal;
@@ -289,7 +309,6 @@ const weekOf = (today) => {
 
 const usedInWeek = (wallet, week) => (wallet.weekStart === week.from ? wallet.weekCount : 0);
 
-const hasPayoutAccount = (account = {}) => Boolean(account.bankName && account.accountNumber && account.accountHolder);
 
 const getOrCreateWallet = async (restaurantId) => {
   try {
@@ -316,7 +335,22 @@ const getBlockedReason = (restaurant, available, used, week) => {
   return '';
 };
 
-const maskAccountNumber = (accountNumber = '') => (accountNumber ? `**** ${accountNumber.slice(-4)}` : '');
+
+/**
+ * Account list of a restaurant. A restaurant from before the list existed has its single account moved into
+ * it once, as the default entry (conditional on the list still being empty, so it happens only once).
+ */
+const ensureAccountList = async (restaurant) => {
+  if (restaurant.payoutAccounts?.length) return restaurant.payoutAccounts;
+  if (!hasPayoutAccount(restaurant.payoutAccount)) return [];
+  await Restaurant.updateOne(
+    { _id: restaurant._id, payoutAccounts: { $size: 0 } },
+    { $push: { payoutAccounts: { ...accountFields(restaurant.payoutAccount), isDefault: true } } },
+    { timestamps: false },
+  );
+  const fresh = await Restaurant.findById(restaurant._id).select('payoutAccounts').lean();
+  return fresh?.payoutAccounts || [];
+};
 
 const toWithdrawalView = (withdrawal) => ({
   _id: withdrawal._id,
@@ -374,36 +408,78 @@ export const getWallet = async (restaurant) => {
       weekTo: week.to,
       resetsOn: week.resetsOn,
     },
-    payoutAccount: toPayoutAccountView(restaurant.payoutAccount),
+    payoutAccount: toPayoutAccountView(restaurant.payoutAccount), // the default one: withdrawals go there
+    payoutAccounts: toPayoutAccountsView({ payoutAccounts: await ensureAccountList(restaurant) }),
+    maxPayoutAccounts: MAX_PAYOUT_ACCOUNTS,
     mode: getPayoutMode(),
     canWithdraw: !blockedReason,
     blockedReason,
   };
 };
 
-/**
- * Set or change the bank account that receives the withdrawals. Withdrawals already sent keep their own copy.
- * updatedAt of the restaurant is left alone, so an open profile form never gets a false 409.
- * The owner is notified: a changed payout account is the first thing to check after an account takeover.
- */
-export const updatePayoutAccount = async (restaurant, ownerId, account) => {
-  if (restaurant.status === 'suspended') {
-    throw new ApiError(403, 'Quán đang bị tạm ngưng hoạt động nên không thể đổi tài khoản nhận tiền');
-  }
-  const isChange = hasPayoutAccount(restaurant.payoutAccount);
-  const updated = await Restaurant.findOneAndUpdate(
-    { _id: restaurant._id },
-    { $set: { payoutAccount: account, payoutAccountChangedAt: new Date() } },
-    { returnDocument: 'after', runValidators: true, timestamps: false },
-  ).select('-businessLicense.fileData');
+// ---------- Restaurant bank accounts (rules shared with customers / shippers: payoutAccountService)
 
-  await sendRealtimeNotification(ownerId, {
-    title: isChange ? 'Tài khoản nhận tiền đã được thay đổi' : 'Đã thêm tài khoản nhận tiền',
-    message: `Tiền rút từ ví sẽ chuyển về ${account.bankName} ${maskAccountNumber(account.accountNumber)} – ${account.accountHolder}. Nếu không phải bạn thực hiện, hãy đổi mật khẩu và liên hệ quản trị viên ngay.`,
-    type: 'system',
-    link: WALLET_LINK,
-  });
-  return updated;
+export const toPayoutAccountsView = (restaurant) => toAccountsView(restaurant.payoutAccounts);
+
+/**
+ * The restaurant document to change, with its account list ready (a restaurant from before the list has its
+ * single account turned into the default entry). A suspended restaurant cannot change where its money goes.
+ */
+const loadAccountsForChange = async (restaurantId) => {
+  const restaurant = await Restaurant.findById(restaurantId).select('status payoutAccount payoutAccounts payoutAccountChangedAt');
+  if (!restaurant) {
+    throw new ApiError(404, 'Bạn chưa có hồ sơ nhà hàng');
+  }
+  if (restaurant.status === 'suspended') {
+    throw new ApiError(403, 'Quán đang bị tạm ngưng hoạt động nên không thể thay đổi tài khoản nhận tiền');
+  }
+  if (restaurant.payoutAccounts.length === 0 && hasPayoutAccount(restaurant.payoutAccount)) {
+    restaurant.payoutAccounts.push({ ...accountFields(restaurant.payoutAccount), isDefault: true });
+  }
+  return restaurant;
+};
+
+// Keep payoutAccount (read by reports and withdrawals) equal to the default entry, then save
+const saveAccounts = async (restaurant) => {
+  const defaultAccount = restaurant.payoutAccounts.find((account) => account.isDefault);
+  restaurant.payoutAccount = defaultAccount ? accountFields(defaultAccount) : { bankName: '', accountNumber: '', accountHolder: '' };
+  restaurant.payoutAccountChangedAt = new Date();
+  await saveAccountsDoc(restaurant);
+  return defaultAccount;
+};
+
+/** Add a bank account (max 5). The first one, or one added with makeDefault, becomes the default. */
+export const addPayoutAccount = async (restaurantId, ownerId, { makeDefault, ...fields }) => {
+  const restaurant = await loadAccountsForChange(restaurantId);
+  const { account, becameDefault } = pushAccount(restaurant, fields, makeDefault);
+  await saveAccounts(restaurant);
+  await notifyDefaultChange(
+    ownerId,
+    account,
+    becameDefault ? 'Tài khoản nhận tiền mặc định đã thay đổi' : 'Đã thêm tài khoản ngân hàng',
+    WALLET_LINK,
+  );
+  return toPayoutAccountsView(restaurant);
+};
+
+/** Choose which account receives the withdrawals from now on (withdrawals already sent keep their own copy). */
+export const setDefaultPayoutAccount = async (restaurantId, ownerId, accountId) => {
+  const restaurant = await loadAccountsForChange(restaurantId);
+  const account = findAccount(restaurant, accountId);
+  if (!account.isDefault) {
+    markDefault(restaurant, account);
+    await saveAccounts(restaurant);
+    await notifyDefaultChange(ownerId, account, 'Tài khoản nhận tiền mặc định đã thay đổi', WALLET_LINK);
+  }
+  return toPayoutAccountsView(restaurant);
+};
+
+/** Remove an account; the default one only when it is the last one. */
+export const removePayoutAccount = async (restaurantId, accountId) => {
+  const restaurant = await loadAccountsForChange(restaurantId);
+  pullAccount(restaurant, accountId);
+  await saveAccounts(restaurant);
+  return toPayoutAccountsView(restaurant);
 };
 
 export const listWithdrawals = async (restaurant, { page, limit }) => {
