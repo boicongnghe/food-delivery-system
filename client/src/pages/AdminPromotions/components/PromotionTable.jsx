@@ -3,7 +3,7 @@ import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import { ADMIN_TABLE_CELL, ADMIN_TABLE_HEAD } from '../../../utils/adminClassNames.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
-import { PROMOTION_STATUSES } from '../constants.js'
+import { PROMOTION_STATUSES, canDeletePromotion } from '../constants.js'
 
 const describeDiscount = (promotion) =>
   promotion.discountType === 'percentage'
@@ -31,6 +31,7 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
         <tbody className="divide-y divide-slate-100 dark:divide-crave-border">
           {promotions.map((promotion) => {
             const status = PROMOTION_STATUSES[promotion.status]
+            const canDelete = canDeletePromotion(promotion)
             const usedPercent = promotion.usageLimit
               ? Math.min(100, (promotion.usedCount / promotion.usageLimit) * 100)
               : 0
@@ -72,9 +73,9 @@ export default function PromotionTable({ promotions, onEdit, onDelete }) {
                   <button
                     type="button"
                     onClick={() => onDelete(promotion)}
-                    disabled={promotion.usedCount > 0}
+                    disabled={!canDelete}
                     aria-label={`Xóa ${promotion.code}`}
-                    title={promotion.usedCount > 0 ? 'Mã đã được dùng: hãy tắt mã thay vì xóa' : 'Xóa mã'}
+                    title={canDelete ? 'Xóa mã' : 'Mã đã được dùng: hãy tắt mã trước khi xóa'}
                     className="rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <Trash2 className="h-4 w-4" />
