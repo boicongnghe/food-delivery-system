@@ -14,6 +14,8 @@ import {
   Sun,
   Flame,
   Wallet,
+  Menu,
+  X,
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/useCart.js'
@@ -30,6 +32,7 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Dark Mode state
   const [localIsDark, setLocalIsDark] = useState(() => {
@@ -64,6 +67,11 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
     }
   }, [isDark])
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -94,30 +102,30 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#0F1014]/95 backdrop-blur-xl border-b border-orange-100/80 dark:border-slate-800/80 shadow-xs transition-colors duration-200">
-      <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 h-20 min-h-[80px] flex items-center justify-between relative">
+      <div className="w-full px-3 sm:px-6 lg:px-6 xl:px-10 2xl:px-16 h-18 sm:h-20 min-h-[72px] sm:min-h-[80px] flex items-center justify-between gap-2 lg:gap-4 relative">
         {/* Left Side: Brand Logo */}
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center shrink-0">
           <Link
             to="/"
-            className="flex items-center gap-3 flex-shrink-0 group select-none"
+            className="flex items-center gap-2.5 sm:gap-3 shrink-0 group select-none"
             title="FoodDelivery"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-lg shadow-orange-500/25 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
-              <UtensilsCrossed className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover:rotate-12" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 xl:w-12 xl:h-12 rounded-2xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-lg shadow-orange-500/25 group-hover:scale-105 group-hover:rotate-6 transition-all duration-300">
+              <UtensilsCrossed className="w-5 h-5 sm:w-5 sm:h-5 xl:w-6 xl:h-6 transition-transform duration-300 group-hover:rotate-12" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
+              <span className="text-lg sm:text-xl xl:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
                 Food<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] to-[#FF416C]">Delivery</span>
               </span>
-              <span className="text-[10px] font-bold text-orange-600 dark:text-amber-400 tracking-wider uppercase mt-0.5">
+              <span className="text-[9px] sm:text-[10px] font-bold text-orange-600 dark:text-amber-400 tracking-wider uppercase mt-0.5">
                 Giao Nhanh 20p
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Center: Navigation Links - Căn giữa hoàn hảo */}
-        <nav className="hidden lg:flex items-center gap-2 xl:gap-3 absolute left-1/2 -translate-x-1/2">
+        {/* Center: Navigation Links - Căn giữa tự nhiên, không bao giờ đè lên nút bên phải */}
+        <nav className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 2xl:gap-3 flex-1 min-w-0 mx-2 xl:mx-4">
           <button
             type="button"
             onClick={() => {
@@ -127,39 +135,39 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }
             }}
-            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1.5 xl:px-3.5 xl:py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <HomeIcon className="w-4 h-4 text-orange-500" />
+            <HomeIcon className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-orange-500 shrink-0" />
             <span>Trang chủ</span>
           </button>
           <button
             type="button"
             onClick={() => scrollToSection('restaurants-section')}
-            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1.5 xl:px-3.5 xl:py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <Store className="w-4 h-4 text-primary" />
+            <Store className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-primary shrink-0" />
             <span>Nhà hàng</span>
           </button>
           <button
             type="button"
             onClick={() => scrollToSection('menu-section')}
-            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1.5 xl:px-3.5 xl:py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <UtensilsCrossed className="w-4 h-4 text-orange-500" />
+            <UtensilsCrossed className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-orange-500 shrink-0" />
             <span>Thực đơn</span>
           </button>
           <button
             type="button"
             onClick={() => scrollToSection('deals-section')}
-            className="px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1.5 xl:px-3.5 xl:py-2 rounded-xl text-xs xl:text-sm font-bold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-orange-50/60 dark:hover:bg-slate-800/60 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
           >
-            <Flame className="w-4 h-4 text-red-500 animate-pulse" />
+            <Flame className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-red-500 animate-pulse shrink-0" />
             <span>Flash Deal</span>
           </button>
         </nav>
 
-        {/* Right Side: Dark Mode Toggle + Notifications + Cart Button + Auth State */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5 flex-shrink-0">
+        {/* Right Side: Dark Mode Toggle + Notifications + Cart Button + Auth State + Mobile Menu Toggle */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 xl:gap-3 shrink-0">
           {/* Dark / Light Mode Toggle */}
           <button
             type="button"
@@ -171,7 +179,7 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                 setLocalIsDark(nextTheme === 'dark')
               }
             }}
-            className="w-10 h-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-amber-400 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs"
+            className="w-8 h-8 sm:w-9 sm:h-9 xl:w-10 xl:h-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-amber-400 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs shrink-0"
             title={isDark ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
             aria-label="Toggle theme"
           >
@@ -182,11 +190,11 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
           {isAuthenticated && user?.role === 'customer' && (
             <Link
               to="/wallet"
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-bold transition-all shadow-xs"
+              className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 sm:py-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-bold transition-all shadow-xs shrink-0"
               title="Ví ảo FoodDelivery"
             >
-              <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="truncate max-w-[90px] sm:max-w-none">
+              <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate max-w-[70px] sm:max-w-[85px] xl:max-w-none">
                 {(user.walletBalance || 0).toLocaleString('vi-VN')}đ
               </span>
             </Link>
@@ -198,15 +206,15 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
               type="button"
               id="navbar-cart-btn"
               onClick={() => navigate('/cart')}
-              className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:from-[#e03e20] hover:to-[#e03358] text-white text-xs sm:text-sm font-bold shadow-md shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:from-[#e03e20] hover:to-[#e03358] text-white text-xs sm:text-sm font-bold shadow-md shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
                 cartAnimate ? 'animate-cart-bounce' : ''
               }`}
               title="Giỏ hàng"
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span className="hidden sm:inline">Giỏ hàng</span>
+              <ShoppingBag className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline">Giỏ hàng</span>
               {itemCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-white text-primary text-xs font-black shadow-xs">
+                <span className="px-1.5 xl:px-2 py-0.5 rounded-full bg-white text-primary text-[10px] sm:text-xs font-black shadow-xs">
                   {itemCount}
                 </span>
               )}
@@ -227,7 +235,7 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                   type="button"
                   id="customer-avatar-dropdown-btn"
                   onClick={() => setDropdownOpen((prev) => !prev)}
-                  className="flex items-center gap-2.5 p-1.5 pr-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 hover:bg-orange-50/80 dark:hover:bg-slate-800 hover:border-orange-200 dark:hover:border-slate-700 transition-all focus:outline-none shadow-2xs"
+                  className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 xl:pr-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 hover:bg-orange-50/80 dark:hover:bg-slate-800 hover:border-orange-200 dark:hover:border-slate-700 transition-all focus:outline-none shadow-2xs shrink-0"
                   aria-expanded={dropdownOpen}
                 >
                   <img
@@ -241,13 +249,13 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                       e.currentTarget.onerror = null
                       e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
                     }}
-                    className="w-9 h-9 rounded-xl object-cover ring-2 ring-primary/30 shadow-xs"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover ring-2 ring-primary/30 shadow-xs shrink-0"
                   />
-                  <div className="hidden md:block text-left">
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white leading-tight truncate max-w-[130px] xl:max-w-[170px]">
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white leading-tight truncate max-w-[80px] md:max-w-[110px] xl:max-w-[160px]">
                       {user.fullName}
                     </p>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-block mt-0.5 bg-orange-100 dark:bg-orange-950/60 text-primary border border-orange-200 dark:border-orange-800">
+                    <span className="hidden xl:inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 bg-orange-100 dark:bg-orange-950/60 text-primary border border-orange-200 dark:border-orange-800">
                       Khách hàng
                     </span>
                   </div>
@@ -482,8 +490,98 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
               </Link>
             </div>
           )}
+          {/* Nút Menu di động / Tablet (< lg) */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-primary hover:border-orange-200 transition-all flex items-center justify-center shrink-0"
+            aria-label="Toggle mobile menu"
+            title="Menu điều hướng"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5 text-primary" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer / Dropdown */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-orange-100 dark:border-slate-800 bg-white/98 dark:bg-[#0F1014]/98 backdrop-blur-xl px-4 py-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                if (location.pathname !== '/') {
+                  navigate('/')
+                } else {
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary transition-all text-left"
+            >
+              <HomeIcon className="w-4 h-4 text-orange-500 shrink-0" />
+              <span>Trang chủ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                scrollToSection('restaurants-section')
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary transition-all text-left"
+            >
+              <Store className="w-4 h-4 text-primary shrink-0" />
+              <span>Nhà hàng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                scrollToSection('menu-section')
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary transition-all text-left"
+            >
+              <UtensilsCrossed className="w-4 h-4 text-orange-500 shrink-0" />
+              <span>Thực đơn</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                scrollToSection('deals-section')
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary transition-all text-left"
+            >
+              <Flame className="w-4 h-4 text-red-500 animate-pulse shrink-0" />
+              <span>Flash Deal</span>
+            </button>
+          </div>
+
+          {/* Quick customer shortcuts on mobile */}
+          {isAuthenticated && user?.role === 'customer' && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs px-1">
+              <Link
+                to="/wallet"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Ví: {(user.walletBalance || 0).toLocaleString('vi-VN')}đ</span>
+              </Link>
+              <Link
+                to="/orders"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-slate-600 dark:text-slate-300 font-medium hover:text-primary hover:underline"
+              >
+                Đơn hàng của tôi
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Profile Modal */}
       <ProfileModal
