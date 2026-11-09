@@ -22,7 +22,12 @@ const toToppings = (optionGroups = []) => {
   return optionGroups
     .flatMap((group) => group.options)
     .filter((option) => !seen.has(option.name) && seen.add(option.name))
-    .map((option) => ({ _key: createKey(), name: option.name, price: option.price || 0 }))
+    .map((option) => ({
+      _key: createKey(),
+      name: option.name,
+      price: option.price || 0,
+      stock: option.stock !== undefined ? option.stock : 50,
+    }))
 }
 
 // One optional group: the customer picks any number of toppings, none is required
@@ -33,8 +38,12 @@ const toOptionGroups = (toppings) =>
         {
           name: TOPPING_GROUP_NAME,
           isRequired: false,
-          maxSelect: toppings.length,
-          options: toppings.map(({ name, price }) => ({ name: name.trim(), price })),
+          maxSelect: Math.max(toppings.length * 5, 20),
+          options: toppings.map(({ name, price, stock }) => ({
+            name: name.trim(),
+            price,
+            stock: stock !== undefined ? Number(stock) : 50,
+          })),
         },
       ]
 

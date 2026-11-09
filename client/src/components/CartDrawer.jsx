@@ -98,6 +98,11 @@ function CartDrawer({ isOpen, onClose }) {
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
                         {item.food.name}
                       </h4>
+                      {item.food?.selectedToppings?.length > 0 && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                          Topping: {item.food.selectedToppings.map((t) => `${t.name}${t.quantity > 1 ? ` x${t.quantity}` : ''}`).join(', ')}
+                        </p>
+                      )}
                       <p className="text-primary font-black text-sm mt-0.5">
                         {(item.food.price * item.quantity).toLocaleString('vi-VN')} đ
                       </p>

@@ -1,6 +1,7 @@
 import Restaurant from '../models/Restaurant.js';
 import ApiError from '../utils/ApiError.js';
 import { assertOwnUpload, deleteImageIfUnused } from './uploadService.js';
+import { resolveLocationFromAddress } from '../utils/distance.js';
 
 // The owner's screens never need the Base64 business license: leaving it out keeps every request light
 // (loadOwnerRestaurant runs on each menu / order / report request)
@@ -36,6 +37,10 @@ export const upsertRestaurantByOwner = async (ownerId, { expectedUpdatedAt, ...p
     if (profileData[field] && profileData[field] !== current?.[field]) {
       assertOwnUpload(profileData[field], ownerId, ['restaurants'], field);
     }
+  }
+
+  if (profileData.address && profileData.address !== current?.address) {
+    profileData.location = await resolveLocationFromAddress(profileData.address);
   }
 
   const update = { $set: { ...profileData, ...(current?.status === 'rejected' && { status: 'pending' }) } };

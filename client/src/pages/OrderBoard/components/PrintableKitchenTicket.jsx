@@ -20,9 +20,9 @@ export default function PrintableKitchenTicket({ order, restaurantName, printedA
           <p style={{ fontSize: 16, fontWeight: 800 }}>
             {item.quantity} x {item.name}
           </p>
-          {item.options.map((option) => (
-            <p key={`${option.groupName}-${option.name}`} style={{ paddingLeft: 12 }}>
-              + {option.name}
+          {item.options.map((option, oIdx) => (
+            <p key={`${option.groupName}-${option.name}-${oIdx}`} style={{ paddingLeft: 12 }}>
+              + {option.name}{option.quantity > 1 ? ` x${option.quantity}` : ''}
             </p>
           ))}
           {item.note && <p style={{ paddingLeft: 12, fontWeight: 700 }}>! {item.note}</p>}
