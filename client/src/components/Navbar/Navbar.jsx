@@ -20,7 +20,7 @@ import { useCart } from '../../context/useCart.js'
 import ProfileModal from '../ProfileModal/ProfileModal.jsx'
 import NotificationBell from '../NotificationBell/NotificationBell.jsx'
 
-export default function Navbar() {
+export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
   const cartContext = useCart()
   const itemCount = cartContext?.itemCount || 0
   const { user, isAuthenticated, logout } = useAuth()
@@ -32,12 +32,13 @@ export default function Navbar() {
   const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   // Dark Mode state
-  const [isDark, setIsDark] = useState(() => {
+  const [localIsDark, setLocalIsDark] = useState(() => {
     return (
       localStorage.getItem('theme') === 'dark' ||
       document.documentElement.classList.contains('dark')
     )
   })
+  const isDark = controlledTheme ? controlledTheme === 'dark' : localIsDark
 
   // Cart animation trigger on count change
   const [cartAnimate, setCartAnimate] = useState(false)
@@ -162,7 +163,14 @@ export default function Navbar() {
           {/* Dark / Light Mode Toggle */}
           <button
             type="button"
-            onClick={() => setIsDark((prev) => !prev)}
+            onClick={() => {
+              const nextTheme = isDark ? 'light' : 'dark'
+              if (onThemeChange) {
+                onThemeChange(nextTheme)
+              } else {
+                setLocalIsDark(nextTheme === 'dark')
+              }
+            }}
             className="w-10 h-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-amber-400 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs"
             title={isDark ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
             aria-label="Toggle theme"

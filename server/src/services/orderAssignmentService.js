@@ -1,6 +1,6 @@
 import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
-import { sendRealtimeNotification } from '../socket.js';
+import { broadcastRealtimeNotification, sendRealtimeNotification } from '../socket.js';
 import { cancelOrderBySystem } from './orderCancelService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 
@@ -65,6 +65,10 @@ export const releaseOrderToPool = async (order, { note }) => {
     type: 'delivery',
     orderId: order._id,
     link: '/shipper/dashboard',
+  });
+  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+    orderId: released._id,
+    orderCode: codeOf(released),
   });
   return released;
 };

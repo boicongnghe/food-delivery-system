@@ -9,7 +9,16 @@ const SOCKET_SERVER_URL = import.meta.env.VITE_API_URL
 export const connectSocket = (token) => {
   if (!token) return null;
 
-  if (socket && socket.connected) {
+  if (socket) {
+    if (socket.auth?.token !== token) {
+      socket.auth = { token };
+      socket.disconnect();
+    }
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
     return socket;
   }
 
