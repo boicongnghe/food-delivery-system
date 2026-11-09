@@ -8,3 +8,7 @@ export const PROMOTION_STATUSES = {
   expired: { label: 'Đã hết hạn', tone: 'slate' },
   disabled: { label: 'Đã tắt', tone: 'red' },
 }
+
+// Same rule as the server: an unused code, or one checkout can no longer apply
+export const canDeletePromotion = (promotion) =>
+  promotion.usedCount === 0 || ['expired', 'disabled'].includes(promotion.status)

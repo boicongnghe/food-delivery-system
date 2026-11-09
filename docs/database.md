@@ -222,6 +222,7 @@ Các trường dưới đây đã bị xóa khỏi model vì không còn code n�
 | `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | Collection riêng `addresses` |
 | `users.addresses` | Mảng nhúng trong User gây phình to khi auth, khó đánh index địa lý | Collection riêng `addresses` (`/api/addresses`) |
 | `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
+| `platform_settings.reconInterval`, `refundSlaHours` | Lưu trên màn Cấu hình vận hành nhưng không code nào đọc | (không cần) |
 
 Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):
 

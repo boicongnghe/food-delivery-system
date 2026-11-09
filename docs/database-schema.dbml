@@ -681,14 +681,12 @@ Table platform_settings [headercolor: #C0392B] {
   prepGrace number [default: 15, note: 'TO-05']
   shipperRemind number [default: 10, note: 'TO-06']
   shipperTimeout number [default: 20, note: 'TO-07']
-  pickupWait number [default: 30, note: 'TO-08 (shipper module, not applied yet)']
+  pickupWait number [default: 30, note: 'TO-08b']
   closingCutoff number [default: 30, note: 'TO-10']
-  reconInterval number [default: 15, note: 'TO-16 (payment module, not applied yet)']
-  refundSlaHours number [default: 24, note: 'hours, TO-11..TO-14']
   updatedBy ObjectId [default: null, ref: > users._id]
   createdAt date
   updatedAt date
-  Note: 'All values in minutes except refundSlaHours. See docs/order-timeouts.md'
+  Note: 'All values in minutes. See docs/order-timeouts.md'
 }
 
 Table counters [headercolor: #C0392B] {

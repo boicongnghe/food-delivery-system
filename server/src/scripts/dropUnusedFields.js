@@ -17,6 +17,8 @@ const DROPPED_FIELDS = [
   { collection: 'shippers', field: 'isOnline', reason: 'online state lives in driverdashboards.isOnline' },
   { collection: 'users', field: 'deliveryAddress', reason: 'never read; addresses[] is the address book' },
   { collection: 'orders', field: 'delivery.distanceKm', reason: 'duplicate of orders.distanceKm' },
+  { collection: 'platform_settings', field: 'reconInterval', reason: 'no reconciliation job reads it' },
+  { collection: 'platform_settings', field: 'refundSlaHours', reason: 'refunds go to the virtual wallet at once' },
 ];
 
 const run = async () => {

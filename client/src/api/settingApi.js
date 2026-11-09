@@ -8,7 +8,7 @@ const settingApi = {
     return response.data
   },
 
-  // values: every field of the form (minutes, refundSlaHours in hours)
+  // values: every field of the form, in minutes
   updateOrderTimeouts: async (values) => {
     const response = await axiosClient.put('/admin/settings/order-timeouts', values)
     return response.data

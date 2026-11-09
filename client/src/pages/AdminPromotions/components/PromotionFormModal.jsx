@@ -258,7 +258,7 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             value={form.startDate}
             onChange={(event) => update({ startDate: event.target.value })}
             disabled={isTermsLocked}
-            className={`${ADMIN_INPUT} dark:[color-scheme:dark]`}
+            className={`${ADMIN_INPUT}`}
           />
           <AdminFieldError message={errors.startDate} />
         </div>
@@ -273,7 +273,7 @@ export default function PromotionFormModal({ promotion, onClose, onSaved }) {
             min={form.startDate}
             value={form.endDate}
             onChange={(event) => update({ endDate: event.target.value })}
-            className={`${ADMIN_INPUT} dark:[color-scheme:dark]`}
+            className={`${ADMIN_INPUT}`}
           />
           <AdminFieldError message={errors.endDate} />
         </div>
