@@ -24,7 +24,7 @@ Tài liệu nghiệp vụ cho nhóm. Màn hình: **Thống kê → Ví & rút ti
 | Số tiền tối đa | Không vượt số dư khả dụng |
 | Số lần | Tối đa **3 lần mỗi tuần** (Thứ Hai – Chủ Nhật, giờ Việt Nam), làm mới vào Thứ Hai (`MAX_WITHDRAWALS_PER_WEEK`) |
 | Lệnh thất bại | Hoàn tiền vào ví và **không tính lượt** |
-| Tài khoản nhận | Khai báo trong ví, mục "Tài khoản nhận tiền": đủ ngân hàng, số tài khoản 6–20 chữ số, tên chủ tài khoản viết hoa không dấu. Đổi tài khoản phải xác nhận lại, chủ quán nhận thông báo, ghi `payoutAccountChangedAt`. Lệnh rút lưu bản sao tài khoản tại thời điểm rút |
+| Tài khoản nhận | Lưu được **tối đa 5 tài khoản ngân hàng** trong ví, mục "Tài khoản nhận tiền" (đủ ngân hàng, số tài khoản 6–20 chữ số, tên chủ tài khoản viết hoa không dấu; không trùng ngân hàng + số tài khoản). **Tiền rút chuyển về tài khoản mặc định.** Tài khoản đầu tiên tự là mặc định; đổi mặc định phải xác nhận lại và chủ quán nhận thông báo. Tài khoản mặc định chỉ xóa được khi là tài khoản cuối cùng (chọn mặc định khác trước). Lệnh rút lưu bản sao tài khoản tại thời điểm rút |
 | Quán bị tạm ngưng (`suspended`) | Ví tạm khóa, liên hệ quản trị viên |
 
 ## 3. Luồng một lệnh rút
@@ -85,19 +85,25 @@ Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/webhooks/payouts -
 | Method | Endpoint | Ghi chú |
 | --- | --- | --- |
 | GET | `/api/restaurants/me/wallet` | `balance`, `limits` (`usedThisWeek`, `remainingThisWeek`, `resetsOn`...), `payoutAccount` (đã che), `mode`, `canWithdraw`, `blockedReason` |
-| PUT | `/api/restaurants/me/wallet/payout-account` | `{ bankName, accountNumber, accountHolder }` (bắt buộc cả ba). Trả về hồ sơ quán đã cập nhật; không đổi `updatedAt` nên form hồ sơ đang mở không bị 409. Quán `suspended` → 403 |
+| POST | `/api/restaurants/me/wallet/payout-accounts` | `{ bankName, accountNumber, accountHolder, makeDefault }` → danh sách tài khoản (đã che số). Quá 5 hoặc trùng → 409 |
+| PATCH | `/api/restaurants/me/wallet/payout-accounts/:id/default` | Đặt làm tài khoản nhận tiền mặc định |
+| DELETE | `/api/restaurants/me/wallet/payout-accounts/:id` | Xóa; tài khoản mặc định còn tài khoản khác → 409. Quán `suspended` → 403 cho cả 3 API |
 | GET | `/api/restaurants/me/wallet/withdrawals?page&limit` | Lịch sử rút, mới nhất trước |
 | POST | `/api/restaurants/me/wallet/withdrawals` | `{ amount, idempotencyKey }` → 201 kèm lệnh rút (`succeeded` ngay khi demo) |
 | POST | `/api/webhooks/payouts` | Kết quả chuyển tiền từ cổng chi hộ (có chữ ký) |
 
-## 7. Collection
+## 7. Ví của customer và shipper
+
+Cùng thẻ "Tài khoản nhận tiền" (component `components/PayoutAccountsCard`) và cùng quy tắc tài khoản (`services/payoutAccountService.js`): tối đa 5 tài khoản, một mặc định, tiền rút chuyển về tài khoản mặc định. Tài khoản lưu ở `users.payoutAccounts`, API `GET/POST /api/wallet/payout-accounts`, `PATCH /api/wallet/payout-accounts/:id/default`, `DELETE /api/wallet/payout-accounts/:id`. Hạn mức rút của customer (tối thiểu 10.000đ, admin duyệt) và shipper (theo ngày) giữ nguyên như trước.
+
+## 8. Collection
 
 | Collection | Model | Ghi chú |
 | --- | --- | --- |
 | `restaurant_wallets` | `RestaurantWallet.js` | Mỗi quán một document: `withdrawnTotal`, `weekStart`/`weekCount`, `version` |
 | `restaurant_withdrawals` | `RestaurantWithdrawal.js` | `code` (`RT-0001`), `amount`, `bankAccount` (bản sao), `status`, `provider`, `providerRef`, `failureReason`, `completedAt`, `idempotencyKey` (unique theo quán) |
 
-## 8. Chưa làm (đề xuất bước sau)
+## 9. Chưa làm (đề xuất bước sau)
 
 - Màn admin xem và đối soát lệnh rút của các quán, xử lý lệnh treo `processing` quá lâu.
 - Trừ tiền bồi thường khiếu nại vào ví (hiện nền tảng chi trả).

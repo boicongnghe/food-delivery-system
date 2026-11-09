@@ -39,17 +39,19 @@ Authentication endpoints return a JWT. Driver endpoints require
 contain an ObjectId `id` and `role: "shipper"`. A driver's token can only read
 or update the dashboard record whose `userId` matches that token.
 
-Settings let a shipper update their name, phone, avatar URL, and bank account
-details, and change their password after confirming the current password.
+Settings let a shipper update their name, phone and avatar URL, and change
+their password after confirming the current password. Bank accounts are managed
+in the wallet tab (`/api/wallet/payout-accounts`, shared with customers): up to
+5 accounts, one default; a withdrawal goes to the default account and keeps a
+copy of it (`shipperwithdrawals.bankAccount`). A bank entered in the old
+settings form is moved into that list once, as the default account.
 Verified identity and vehicle information are read-only after registration; the
 settings endpoint returns only a masked citizen ID and the submitted vehicle
 details. Completed delivery fees are credited to the shipper's virtual wallet.
 Withdrawal requests must be at least 10,000 VND, at most 2,000,000 VND each,
 and at most 5,000,000 VND per Vietnam calendar day. A request deducts the
 virtual balance and is stored in MongoDB; it does not transfer money to a bank.
-Full bank account
-numbers are returned only from the authenticated settings endpoint and are not
-included in dashboard responses.
+Dashboard and wallet responses only show masked account numbers.
 
 ## MongoDB document
 
