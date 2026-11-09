@@ -298,6 +298,7 @@ function DriverDashboard() {
                       reviews={summary.reviews || []}
                       badges={summary.badges || []}
                       rating={summary.rating}
+                      ratingCount={summary.ratingCount}
                     />
                   </div>
                 </div>
@@ -353,6 +354,7 @@ function DriverDashboard() {
                 reviews={summary.reviews || []}
                 badges={summary.badges || []}
                 rating={summary.rating}
+                ratingCount={summary.ratingCount}
               />
             )}
 
