@@ -5,10 +5,16 @@ import walletApi from '../../../api/walletApi.js'
 import { useKeyedRequest } from '../../../hooks/useKeyedRequest.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { WITHDRAWAL_PAGE_SIZE } from '../constants.js'
-import PayoutAccountCard from './PayoutAccountCard.jsx'
+import PayoutAccountsCard from '../../../components/PayoutAccountsCard/PayoutAccountsCard.jsx'
 import ReportLoadError from './ReportLoadError.jsx'
 import WithdrawalHistory from './WithdrawalHistory.jsx'
 import WithdrawForm from './WithdrawForm.jsx'
+
+const RESTAURANT_ACCOUNT_API = {
+  add: walletApi.addPayoutAccount,
+  setDefault: walletApi.setDefaultPayoutAccount,
+  remove: walletApi.removePayoutAccount,
+}
 
 const Figure = ({ label, value, hint, tone = 'text-slate-900' }) => (
   <div className="rounded-lg border border-slate-100 bg-white/70 px-3 py-2.5">
@@ -20,7 +26,7 @@ const Figure = ({ label, value, hint, tone = 'text-slate-900' }) => (
 
 // "Ví & rút tiền" tab: balance credited from delivered orders, withdrawal form and history (not tied to the date filter)
 export default function WalletTab() {
-  const { restaurant, setRestaurant } = useOutletContext()
+  const { restaurant } = useOutletContext()
   const [version, setVersion] = useState(0) // bumped after a withdrawal: reloads balance and history
   const [page, setPage] = useState(1)
 
@@ -78,16 +84,13 @@ export default function WalletTab() {
         </section>
 
         <div className="space-y-6 lg:col-span-2">
-          <PayoutAccountCard
-            // Remount after a save so the form starts from the saved account
-            key={`${wallet.payoutAccount.bankName}_${wallet.payoutAccount.accountNumber}_${wallet.payoutAccount.accountHolder}`}
-            account={restaurant.payoutAccount}
-            maskedAccount={wallet.payoutAccount}
+          <PayoutAccountsCard
+            accounts={wallet.payoutAccounts || []}
+            maxAccounts={wallet.maxPayoutAccounts}
+            api={RESTAURANT_ACCOUNT_API}
             locked={restaurant.status === 'suspended'}
-            onSaved={(updated) => {
-              setRestaurant(updated)
-              setVersion((value) => value + 1)
-            }}
+            lockedMessage="Quán đang bị tạm ngưng nên không thể thay đổi tài khoản nhận tiền."
+            onChanged={() => setVersion((value) => value + 1)}
           />
           <WithdrawForm wallet={wallet} onDone={reload} />
         </div>

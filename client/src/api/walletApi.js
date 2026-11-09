@@ -10,7 +10,28 @@ const walletApi = {
     return response.data
   },
 
-  // Tạo yêu cầu rút tiền về ngân hàng (Customer)
+  // Bank accounts of the signed-in customer / shipper (several, one default). Each call returns the masked list.
+  getMyPayoutAccounts: async () => {
+    const response = await axiosClient.get('/wallet/payout-accounts')
+    return response.data
+  },
+
+  addMyPayoutAccount: async (payload) => {
+    const response = await axiosClient.post('/wallet/payout-accounts', payload)
+    return response.data
+  },
+
+  setMyDefaultPayoutAccount: async (accountId) => {
+    const response = await axiosClient.patch(`/wallet/payout-accounts/${accountId}/default`)
+    return response.data
+  },
+
+  removeMyPayoutAccount: async (accountId) => {
+    const response = await axiosClient.delete(`/wallet/payout-accounts/${accountId}`)
+    return response.data
+  },
+
+  // Tạo yêu cầu rút tiền (Customer): { amount } -> chuyển về tài khoản mặc định đã lưu
   requestWithdrawal: async (data) => {
     const response = await axiosClient.post('/wallet/withdraw', data)
     return response.data
@@ -41,9 +62,20 @@ const walletApi = {
     return response.data
   },
 
-  // payload: { bankName, accountNumber, accountHolder } -> the updated restaurant
-  updatePayoutAccount: async (payload) => {
-    const response = await axiosClient.put(`${WALLET_URL}/payout-account`, payload)
+  // Bank accounts receiving the withdrawals (one default). Each call returns the account list, masked.
+  // payload: { bankName, accountNumber, accountHolder, makeDefault }
+  addPayoutAccount: async (payload) => {
+    const response = await axiosClient.post(`${WALLET_URL}/payout-accounts`, payload)
+    return response.data
+  },
+
+  setDefaultPayoutAccount: async (accountId) => {
+    const response = await axiosClient.patch(`${WALLET_URL}/payout-accounts/${accountId}/default`)
+    return response.data
+  },
+
+  removePayoutAccount: async (accountId) => {
+    const response = await axiosClient.delete(`${WALLET_URL}/payout-accounts/${accountId}`)
     return response.data
   },
 

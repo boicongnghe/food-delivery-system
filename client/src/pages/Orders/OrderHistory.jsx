@@ -24,95 +24,86 @@ function OrderHistory() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'delivered':
-        return <span className="badge badge-delivered">Đã nhận hàng</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700">Đã nhận hàng</span>
       case 'cancelled':
-        return <span className="badge badge-cancelled">Đã hủy</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-red-50 text-red-700">Đã hủy</span>
       case 'delivering':
-        return <span className="badge badge-delivering">Đang giao</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-sky-100 text-sky-700">Đang giao</span>
       case 'preparing':
-        return <span className="badge badge-preparing">Đang nấu</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-fuchsia-50 text-fuchsia-700">Đang nấu</span>
       case 'ready_for_pickup':
-        return <span className="badge badge-preparing">Chờ shipper lấy</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-fuchsia-50 text-fuchsia-700">Chờ shipper lấy</span>
       case 'confirmed':
-        return <span className="badge badge-confirmed">Đang tìm shipper</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700">Đang tìm shipper</span>
       default:
-        return <span className="badge badge-pending">Chờ xác nhận</span>
+        return <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700">Chờ xác nhận</span>
     }
   }
 
   return (
-    <div className="container animate-fade-in" style={{ maxWidth: 860 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+    <div className="mx-auto w-full px-5 animate-fade-in max-w-[860px]">
+      <div className="flex items-center justify-between mb-7">
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800 }}>
+          <h1 className="text-3xl font-extrabold m-0">
             Đơn hàng của tôi
           </h1>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
+          <p className="text-slate-500 mt-1 mb-0 mx-0">
             Theo dõi trạng thái và lịch sử tất cả các đơn hàng đã đặt
           </p>
         </div>
-        <Link to="/" className="btn btn-primary btn-sm">
+        <Link to="/" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500">
           + Đặt món mới
         </Link>
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+        <div className="text-center text-slate-500 py-[60px] px-0">
           <p>Đang tải lịch sử đơn hàng...</p>
         </div>
       )}
 
       {!loading && orders.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>📦</div>
-          <h3 style={{ margin: '0 0 8px', fontSize: '1.2rem' }}>Bạn chưa có đơn hàng nào</h3>
-          <p style={{ margin: '0 0 20px', color: 'var(--text-muted)' }}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md text-center py-[60px] px-5">
+          <div className="text-5xl mb-3">📦</div>
+          <h3 className="text-xl mt-0 mb-2 mx-0">Bạn chưa có đơn hàng nào</h3>
+          <p className="text-slate-500 mt-0 mb-5 mx-0">
             Hãy khám phá các món ăn thơm ngon và đặt ngay một bữa nhé!
           </p>
-          <Link to="/" className="btn btn-primary">
+          <Link to="/" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-5 py-2.5 text-[0.95rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500">
             Xem thực đơn ngay
           </Link>
         </div>
       )}
 
       {!loading && orders.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="flex flex-col gap-4">
           {orders.map((ord) => (
-            <div key={ord._id} className="card" style={{ padding: '20px' }}>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                borderBottom: '1px solid var(--border)',
-                paddingBottom: 14,
-                marginBottom: 14,
-              }}>
+            <div key={ord._id} className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 mb-3.5 pb-3.5">
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>
+                  <div className="font-extrabold text-base">
                     #{ord.orderNumber}
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <div className="text-sm text-slate-500">
                     {new Date(ord.createdAt).toLocaleString('vi-VN')} • Quán: <strong>{ord.restaurant?.name || 'Nhà hàng'}</strong>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="flex items-center gap-2.5">
                   {getStatusBadge(ord.status)}
-                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  <span className="text-lg font-extrabold text-orange-500">
                     {ord.totalPrice?.toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               </div>
 
               {/* Items preview */}
-              <div style={{ marginBottom: 16, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              <div className="text-sm text-slate-500 mb-4">
                 {ord.items?.map((it) => `${it.quantity}x ${it.name}`).join(', ')}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <Link to={`/orders/${ord._id}`} className="btn btn-secondary btn-sm">
+              <div className="flex justify-end gap-2.5">
+                <Link to={`/orders/${ord._id}`} className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50">
                   Chi tiết & Theo dõi tiến trình ➔
                 </Link>
               </div>

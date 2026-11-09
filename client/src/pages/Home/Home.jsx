@@ -1418,10 +1418,21 @@ export default function Home() {
                 selectedToppings: orderData.selectedToppings,
               }
 
-              if (!(await addToCart(customizedFood, orderData.quantity, orderData.note))) return
-              toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
-                icon: '🛒',
-              })
+              const isBuyNow = Boolean(orderData.isBuyNow)
+              if (!(await addToCart(customizedFood, orderData.quantity, orderData.note, { isBuyNow }))) return
+
+              if (orderData.isBuyNow) {
+                toast.success('Đang chuyển đến trang thanh toán...', {
+                  icon: '⚡',
+                  duration: 2000,
+                })
+                navigate('/checkout')
+              } else {
+                toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
+                  icon: '🛒',
+                  duration: 2500,
+                })
+              }
             }}
           />
         )

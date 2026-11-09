@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Camera, ChevronRight, Sparkles } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { CircleAlert, Headphones, Landmark, ReceiptText, Settings, Wallet, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
+import walletApi from '../../api/walletApi.js'
+import PayoutAccountsCard from '../../components/PayoutAccountsCard/PayoutAccountsCard.jsx'
 import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
-import Navbar from '../../components/Navbar/Navbar.jsx'
-import DriverTopNav from './components/DriverTopNav'
+import Footer from '../../components/Footer/Footer.jsx'
+import Header from '../../components/Header/Header.jsx'
+import ShipperHeaderBar from './components/ShipperHeaderBar.jsx'
+import SectionCard from './components/SectionCard.jsx'
 import StatCards from './components/StatCards'
 import EarningsChart from './components/EarningsChart'
 import TripLedger from './components/TripLedger'
@@ -14,7 +18,30 @@ import CustomerPraise from './components/CustomerPraise'
 import HotspotMap from './components/HotspotMap'
 import DriverSettings from './components/DriverSettings'
 import DeliveryOrders from './components/DeliveryOrders'
-import './DriverDashboard.css'
+
+// Bank accounts of the shipper (same card and rules as the restaurant / customer wallets)
+const USER_ACCOUNT_API = {
+  add: walletApi.addMyPayoutAccount,
+  setDefault: walletApi.setMyDefaultPayoutAccount,
+  remove: walletApi.removeMyPayoutAccount,
+}
+
+// Sections of the shipper portal: one URL each (/shipper/<id>), same pattern as the restaurant portal
+const SHIPPER_NAV_ITEMS = [
+  { to: '/shipper/dashboard', label: 'Tổng Quan' },
+  { to: '/shipper/orders', label: 'Đơn Giao' },
+  { to: '/shipper/history', label: 'Lịch Sử Chuyến' },
+  { to: '/shipper/wallet', label: 'Ví & Rút Tiền' },
+  { to: '/shipper/ranking', label: 'Xếp Hạng' },
+]
+// Less used pages go to the account menu (keeps the header on one line)
+const SHIPPER_MENU_ITEMS = [
+  { to: '/shipper/wallet', label: 'Ví & rút tiền', icon: Wallet },
+  { to: '/shipper/support', label: 'Hỗ trợ', icon: Headphones },
+  { to: '/shipper/settings', label: 'Cài đặt tài khoản', icon: Settings },
+]
+const SHIPPER_TABS = ['dashboard', 'orders', 'history', 'wallet', 'ranking', 'support', 'settings']
+const PERIOD_TABS = ['dashboard', 'history', 'ranking'] // screens filtered by Hôm nay / Tuần / Tháng
 
 const DATE_TABS = [
   { id: 'today', label: 'Hôm nay' },
@@ -43,42 +70,30 @@ const SUPPORT_TOPICS = [
 
 function SupportCenter() {
   return (
-    <section className="section-card support-center">
-      <div className="section-card-header">
-        <h1 className="section-card-title">
-          <span className="section-card-title-icon" aria-hidden="true">🎧</span>
-          Trung tâm hỗ trợ
-        </h1>
-        <span className="section-card-badge">Câu hỏi thường gặp</span>
+    <SectionCard title="Trung tâm hỗ trợ" icon={Headphones} badge="Câu hỏi thường gặp" as="h1" className="mx-auto max-w-3xl">
+      <p className="text-sm text-slate-600">Tìm câu trả lời nhanh cho các vấn đề về thu nhập, số dư và tài khoản.</p>
+      <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-brand-soft/70">
+        {SUPPORT_TOPICS.map(topic => (
+          <details className="group px-4 py-3" key={topic.question}>
+            <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900 marker:hidden">
+              <span className="mr-2 inline-block text-brand transition-transform group-open:rotate-90">›</span>
+              {topic.question}
+            </summary>
+            <p className="mt-2 pl-4 text-sm text-slate-600">{topic.answer}</p>
+          </details>
+        ))}
       </div>
-      <div className="section-card-body">
-        <p className="support-intro">
-          Tìm câu trả lời nhanh cho các vấn đề về thu nhập, số dư và tài khoản.
-        </p>
-        <div className="support-faq-list">
-          {SUPPORT_TOPICS.map(topic => (
-            <details className="support-faq-item" key={topic.question}>
-              <summary>{topic.question}</summary>
-              <p>{topic.answer}</p>
-            </details>
-          ))}
-        </div>
-        <p className="support-contact-note">
-          Chưa có kênh chat hoặc gửi yêu cầu hỗ trợ được cấu hình cho dự án.
-        </p>
-      </div>
-    </section>
+      <p className="mt-4 text-xs text-slate-500">Chưa có kênh chat hoặc gửi yêu cầu hỗ trợ được cấu hình cho dự án.</p>
+    </SectionCard>
   )
 }
 
 function DriverDashboard() {
-  const [activeTab, setActiveTab] = useState('dashboard')
-  const [theme, setTheme] = useState(() => (
-    window.localStorage.getItem('theme') === 'dark' ||
-    window.localStorage.getItem('shipper-dashboard-theme') === 'dark'
-      ? 'dark'
-      : 'light'
-  ))
+  // The open section comes from the URL (/shipper/orders): survives F5, Back works, header links highlight it
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  const activeTab = SHIPPER_TABS.includes(tab) ? tab : 'dashboard'
+  const setActiveTab = (nextTab) => navigate(`/shipper/${nextTab}`)
   const [mobilePreview, setMobilePreview] = useState(false)
   const [period, setPeriod] = useState('today')
   const [dashboard, setDashboard] = useState(null)
@@ -91,6 +106,15 @@ function DriverDashboard() {
   const [withdrawalAmount, setWithdrawalAmount] = useState('')
   const [withdrawalError, setWithdrawalError] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
+  const [payoutAccounts, setPayoutAccounts] = useState(null) // { accounts, maxAccounts } once loaded
+
+  const loadPayoutAccounts = useCallback(() => {
+    walletApi
+      .getMyPayoutAccounts()
+      .then(response => setPayoutAccounts(response.data))
+      .catch(() => setPayoutAccounts(current => current || { accounts: [], maxAccounts: 5 }))
+  }, [])
+  const defaultPayoutAccount = payoutAccounts?.accounts?.find(account => account.isDefault) || null
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   useEffect(() => {
@@ -121,11 +145,6 @@ function DriverDashboard() {
     return () => window.clearInterval(refreshTimer)
   }, [])
 
-  useEffect(() => {
-    window.localStorage.setItem('shipper-dashboard-theme', theme)
-    window.localStorage.setItem('theme', theme)
-  }, [theme])
-
   const handleOnlineToggle = async (isOnline) => {
     setStatusUpdating(true)
     setActionError('')
@@ -147,6 +166,7 @@ function DriverDashboard() {
   }
 
   const openWithdrawalDialog = () => {
+    loadPayoutAccounts() // the dialog shows where the money goes
     setWithdrawalAmount('')
     setWithdrawalError('')
     setShowPayoutNotice(true)
@@ -169,6 +189,10 @@ function DriverDashboard() {
     }
   }
 
+  useEffect(() => {
+    if (activeTab === 'wallet') loadPayoutAccounts()
+  }, [activeTab, reloadCount, loadPayoutAccounts])
+
   const periodLabel = DATE_TABS.find(tab => tab.id === period)?.label || DATE_TABS[0].label
   const profile = dashboard?.profile
   const summary = dashboard || {}
@@ -178,125 +202,58 @@ function DriverDashboard() {
 
   return (
     <div
-      className="driver-shell"
-      data-theme={theme}
-      data-mobile-preview={mobilePreview ? 'true' : 'false'}
+      className={`flex min-h-screen flex-col bg-cream ${
+        mobilePreview ? 'mx-auto max-w-[430px] border-x border-brand-soft shadow-2xl' : ''
+      }`}
     >
       {mobilePreview && (
-        <div className="mobile-preview-toolbar">
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-2 bg-slate-900 px-4 py-2 text-xs font-semibold text-white">
           <span>Đang xem trước giao diện mobile</span>
-          <button type="button" onClick={() => setMobilePreview(false)}>Thoát xem trước</button>
+          <button type="button" onClick={() => setMobilePreview(false)} className="rounded bg-white/15 px-2 py-1 hover:bg-white/25">
+            Thoát xem trước
+          </button>
         </div>
       )}
-      <Navbar theme={theme} onThemeChange={setTheme} />
-      <div className="driver-home-banner">
-        <div className="driver-home-banner-inner">
-          <span className="driver-home-banner-message">
-            <Sparkles size={18} aria-hidden="true" />
-            <span>
-              Bạn đang ở <strong>Bảng Quản Lý</strong> với tài khoản{' '}
-              <strong className="driver-home-banner-role">Tài Xế Giao Hàng</strong>
-            </span>
-          </span>
-          <Link to="/" className="driver-home-banner-link">
-            Xem Trang Chủ Khách Hàng <ChevronRight size={17} aria-hidden="true" />
-          </Link>
-        </div>
-      </div>
-      <DriverTopNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+      <Header
+        subtitle="Kênh Tài Xế"
+        navItems={SHIPPER_NAV_ITEMS}
+        status={dashboard ? { label: dashboard.isOnline ? 'Đang trực' : 'Ngoại tuyến', isOpen: Boolean(dashboard.isOnline) } : null}
+        accountImage={profile?.avatarUrl}
+        accountName={profile?.name}
+        accountCaption={profile ? `Tài xế${profile.driverCode ? ` · ${profile.driverCode}` : ''}` : ''}
+        menuItems={SHIPPER_MENU_ITEMS}
+      />
+      <ShipperHeaderBar
+        profile={profile}
         isOnline={Boolean(dashboard?.isOnline)}
-        onToggleOnline={handleOnlineToggle}
         statusUpdating={statusUpdating || isLoading || !dashboard}
+        onToggleOnline={handleOnlineToggle}
+        onEditAvatar={() => setAvatarModalOpen(true)}
+        periods={DATE_TABS}
+        period={period}
+        onPeriodChange={PERIOD_TABS.includes(activeTab) ? (nextPeriod) => {
+          if (nextPeriod !== period) {
+            setIsLoading(true)
+            setLoadError('')
+            setPeriod(nextPeriod)
+          }
+        } : null}
+        lastUpdate={latestUpdate}
       />
 
-      {profile && (
-        <div className="driver-profile-strip">
-          <div className="profile-strip-inner">
-            <button
-              type="button"
-              className="profile-avatar-edit"
-              onClick={() => setAvatarModalOpen(true)}
-              aria-label="Đổi ảnh đại diện tài xế"
-              title="Đổi ảnh đại diện"
-            >
-              <img
-                src={profile.avatarUrl}
-                alt={profile.name}
-                className="profile-avatar-lg"
-                onError={event => { event.currentTarget.style.display = 'none' }}
-              />
-              <span className="profile-avatar-edit-icon" aria-hidden="true">
-                <Camera size={15} />
-              </span>
-            </button>
-            <div className="profile-info">
-              <div className="profile-badge-row">
-                <span className="profile-badge-label">🏍️ {profile.tier || 'Đối tác tài xế'}</span>
-                {profile.restaurant && (
-                  <span style={{ fontSize: 10, color: '#8a8a8a' }}>{profile.restaurant}</span>
-                )}
-              </div>
-              <div className="profile-name">
-                Xin chào, {profile.name}
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#8a8a8a' }}>
-                  {' '}({profile.driverCode})
-                </span>
-              </div>
-              <div className="profile-meta">
-                {profile.shiftStart && (
-                  <span className="profile-meta-item">🕐 Ca bắt đầu: {profile.shiftStart}</span>
-                )}
-                {profile.vehicle && (
-                  <span className="profile-meta-item">
-                    🏍️ {profile.vehicle}{profile.licensePlate ? ` · ${profile.licensePlate}` : ''}
-                  </span>
-                )}
-                {profile.phone && <span className="profile-meta-item">☎ {profile.phone}</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="driver-content">
-        {['dashboard', 'history', 'ranking'].includes(activeTab) && (
-          <div className="date-filter-row" role="tablist" aria-label="Date range filter">
-            {DATE_TABS.map(tab => (
-              <button
-                key={tab.id}
-                id={`date-tab-${tab.id}`}
-                role="tab"
-                aria-selected={period === tab.id}
-                className={`date-tab ${period === tab.id ? 'active' : ''}`}
-                onClick={() => {
-                  if (tab.id !== period) {
-                    setIsLoading(true)
-                    setLoadError('')
-                    setPeriod(tab.id)
-                  }
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <span className="date-filter-note">
-              {latestUpdate ? `Cập nhật lần cuối: ${latestUpdate}` : 'Dữ liệu từ máy chủ'}
-            </span>
-          </div>
-        )}
-
-        {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 lg:px-8">
+        {actionError && <p className="rounded-md bg-red-50 px-4 py-2.5 text-sm text-red-700" role="alert">{actionError}</p>}
 
         {isLoading && (
-          <div className="dashboard-message" role="status">Đang tải dữ liệu bảng điều khiển…</div>
+          <div className="flex justify-center py-24" role="status" aria-label="Đang tải dữ liệu bảng điều khiển">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+          </div>
         )}
 
         {!isLoading && loadError && (
-          <div className="dashboard-message dashboard-message-error" role="alert">
-            <p>{loadError}</p>
-            <button className="date-tab" type="button" onClick={() => {
+          <div className="rounded-xl border border-red-200 bg-white px-6 py-12 text-center" role="alert">
+            <p className="text-sm text-red-700">{loadError}</p>
+            <button className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover" type="button" onClick={() => {
               setIsLoading(true)
               setLoadError('')
               setReloadCount(count => count + 1)
@@ -314,19 +271,17 @@ function DriverDashboard() {
                   summary={{ ...summary, tier: profile?.tier }}
                   onWithdraw={openWithdrawalDialog}
                 />
-                <div className="receipt-banner">
-                  <div className="receipt-banner-left">
-                    <span className="receipt-banner-icon" aria-hidden="true">🧾</span>
-                    <div>
-                      <p className="receipt-banner-label">Phiếu thu nhập · {periodLabel}</p>
-                      <p className="receipt-banner-date">
-                        {summary.completedTrips} chuyến hoàn tất · {Number(summary.totalEarnings || 0).toLocaleString('vi-VN')}đ
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3 rounded-xl border border-brand-soft/70 bg-brand-light/60 px-4 py-3">
+                  <ReceiptText className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Phiếu thu nhập · {periodLabel}</p>
+                    <p className="text-sm text-slate-600">
+                      {summary.completedTrips} chuyến hoàn tất · {Number(summary.totalEarnings || 0).toLocaleString('vi-VN')}đ
+                    </p>
                   </div>
                 </div>
-                <div className="dashboard-columns">
-                  <div className="dashboard-main">
+                <div className="grid items-start gap-6 xl:grid-cols-3">
+                  <div className="space-y-6 xl:col-span-2">
                     <EarningsChart
                       earningsByHour={summary.earningsByHour || []}
                       forecast={summary.forecast || []}
@@ -334,7 +289,7 @@ function DriverDashboard() {
                     />
                     <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
                   </div>
-                  <div className="dashboard-sidebar">
+                  <div className="space-y-6">
                     <DailyMissions missions={summary.missions || []} />
                     <CustomerPraise
                       reviews={summary.reviews || []}
@@ -352,54 +307,53 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'wallet' && (
-              <section className="section-card wallet-overview">
-                <div className="section-card-header">
-                  <h1 className="section-card-title">
-                    <span className="section-card-title-icon" aria-hidden="true">💳</span>
-                    Ví tài xế
-                  </h1>
-                  <span className="section-card-badge">Số dư khả dụng</span>
+              <div className="grid items-start gap-5 lg:grid-cols-2">
+              <SectionCard title="Ví tài xế" icon={Wallet} badge="Số dư khả dụng" as="h1">
+                <p className="text-4xl font-extrabold tabular-nums text-slate-900">
+                  {Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ
+                </p>
+                <div className="mt-4 divide-y divide-slate-100 text-sm">
+                  <div className="flex justify-between gap-3 py-2">
+                    <span className="text-slate-500">Hạn mức rút còn hôm nay</span>
+                    <strong className="tabular-nums text-slate-900">{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>
+                  </div>
+                  <div className="flex justify-between gap-3 py-2">
+                    <span className="text-slate-500">Thu nhập tuần này</span>
+                    <strong className="tabular-nums text-slate-900">{Number(summary.weeklyEarnings || 0).toLocaleString('vi-VN')}đ</strong>
+                  </div>
+                  <div className="flex justify-between gap-3 py-2">
+                    <span className="text-slate-500">Tài khoản nhận tiền (mặc định)</span>
+                    <strong className="text-right text-slate-900">{summary.payoutBank || 'Chưa thiết lập'}</strong>
+                  </div>
                 </div>
-                <div className="section-card-body">
-                  <p className="wallet-overview-balance">
-                    {Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ
-                  </p>
-                  <div className="wallet-overview-row">
-                    <span>Hạn mức rút còn hôm nay</span>
-                    <strong>{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>
-                  </div>
-                  <div className="wallet-overview-row">
-                    <span>Thu nhập tuần này</span>
-                    <strong>{Number(summary.weeklyEarnings || 0).toLocaleString('vi-VN')}đ</strong>
-                  </div>
-                  <div className="wallet-overview-row">
-                    <span>Tài khoản nhận tiền</span>
-                    <strong>{summary.payoutBank || 'Chưa thiết lập'}</strong>
-                  </div>
-                  <button
-                    className="cta-btn wallet-overview-action"
-                    onClick={openWithdrawalDialog}
-                    type="button"
-                  >
-                    Yêu cầu rút tiền
-                  </button>
-                  <p className="wallet-integration-note">
-                    Yêu cầu rút sẽ trừ ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
-                  </p>
-                </div>
-              </section>
+                <button
+                  className="mt-4 w-full rounded-md bg-brand py-3 text-sm font-bold text-white hover:bg-brand-hover"
+                  onClick={openWithdrawalDialog}
+                  type="button"
+                >
+                  Yêu cầu rút tiền
+                </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  Yêu cầu rút sẽ trừ ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
+                </p>
+              </SectionCard>
+              <PayoutAccountsCard
+                accounts={payoutAccounts?.accounts || []}
+                maxAccounts={payoutAccounts?.maxAccounts}
+                api={USER_ACCOUNT_API}
+                onChanged={() => setReloadCount(count => count + 1)}
+              />
+              </div>
             )}
 
             {activeTab === 'ranking' && (
-              <div className="dashboard-columns ranking-columns">
-                <div className="dashboard-sidebar">
-                  <DailyMissions missions={summary.missions || []} />
-                  <CustomerPraise
-                    reviews={summary.reviews || []}
-                    badges={summary.badges || []}
-                    rating={summary.rating}
-                  />
-                </div>
+              <div className="grid items-start gap-6 lg:grid-cols-2">
+                <DailyMissions missions={summary.missions || []} />
+                <CustomerPraise
+                  reviews={summary.reviews || []}
+                  badges={summary.badges || []}
+                  rating={summary.rating}
+                />
               </div>
             )}
 
@@ -412,6 +366,7 @@ function DriverDashboard() {
             {activeTab === 'settings' && (
               <DriverSettings
                 onProfileUpdated={handleProfileUpdated}
+                onOpenWallet={() => setActiveTab('wallet')}
                 mobilePreview={mobilePreview}
                 onMobilePreviewChange={setMobilePreview}
               />
@@ -420,43 +375,54 @@ function DriverDashboard() {
         )}
       </main>
 
+      <Footer subtitle="Cổng đối tác tài xế giao hàng" />
+
       {showPayoutNotice && (
         <div
-          className="payout-dialog-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
           onClick={() => !withdrawing && setShowPayoutNotice(false)}
           role="presentation"
         >
           <section
             aria-labelledby="payout-dialog-title"
             aria-modal="true"
-            className="payout-dialog"
+            className="w-full max-w-md rounded-xl bg-white shadow-xl"
             onClick={event => event.stopPropagation()}
             role="dialog"
           >
-            <button
-              aria-label="Đóng thông báo"
-              className="payout-dialog-close"
-              onClick={() => !withdrawing && setShowPayoutNotice(false)}
-              type="button"
-            >
-              ×
-            </button>
-            <span className="payout-dialog-icon" aria-hidden="true">🏦</span>
-            <h2 id="payout-dialog-title">Yêu cầu rút tiền</h2>
-            <p>
-              Số dư ví hiện tại là{' '}
-              <strong>{Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ</strong>.
-            </p>
-            <p>
-              Mỗi lần rút {Number(summary.withdrawalLimits?.minimum || 0).toLocaleString('vi-VN')}–
-              {Number(summary.withdrawalLimits?.perWithdrawal || 0).toLocaleString('vi-VN')}đ.
-              Hạn mức còn hôm nay:{' '}
-              <strong>{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>.
-            </p>
-            <form className="payout-form" onSubmit={handleWithdrawal}>
-              <label className="payout-amount-label" htmlFor="withdrawal-amount">Số tiền muốn rút (VND)</label>
+            <div className="flex items-center justify-between border-b border-brand-soft/60 px-5 py-4">
+              <h2 id="payout-dialog-title" className="flex items-center gap-2 font-serif text-xl font-semibold text-slate-900">
+                <Landmark className="h-5 w-5 text-brand" aria-hidden="true" />
+                Yêu cầu rút tiền
+              </h2>
+              <button
+                aria-label="Đóng thông báo"
+                className="rounded p-1 text-slate-500 hover:bg-brand-light"
+                onClick={() => !withdrawing && setShowPayoutNotice(false)}
+                type="button"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-2 px-5 pt-4 text-sm text-slate-600">
+              <p>
+                Số dư ví hiện tại là{' '}
+                <strong className="text-slate-900">{Number(summary.walletBalance || 0).toLocaleString('vi-VN')}đ</strong>.
+              </p>
+              <p>
+                Mỗi lần rút {Number(summary.withdrawalLimits?.minimum || 0).toLocaleString('vi-VN')}–
+                {Number(summary.withdrawalLimits?.perWithdrawal || 0).toLocaleString('vi-VN')}đ.
+                Hạn mức còn hôm nay:{' '}
+                <strong className="text-slate-900">{Number(summary.withdrawalLimits?.dailyRemaining || 0).toLocaleString('vi-VN')}đ</strong>.
+              </p>
+            </div>
+            <form className="space-y-3 px-5 pb-5 pt-3" onSubmit={handleWithdrawal}>
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-700" htmlFor="withdrawal-amount">
+                Số tiền muốn rút (VND)
+              </label>
               <input
                 autoFocus
+                className="w-full rounded-md border border-transparent bg-brand-light px-4 py-2.5 text-lg font-bold tabular-nums text-slate-900 focus:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand/15"
                 id="withdrawal-amount"
                 max={Math.min(
                   summary.walletBalance || 0,
@@ -471,14 +437,28 @@ function DriverDashboard() {
                 type="number"
                 value={withdrawalAmount}
               />
-              {withdrawalError && <p className="payout-error" role="alert">{withdrawalError}</p>}
-              <p className="wallet-integration-note">
+              {defaultPayoutAccount ? (
+                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  Tiền chuyển về tài khoản mặc định:{' '}
+                  <strong>
+                    {defaultPayoutAccount.bankName} {defaultPayoutAccount.accountNumber} – {defaultPayoutAccount.accountHolder}
+                  </strong>
+                </p>
+              ) : (
+                <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  Chưa có tài khoản nhận tiền. Hãy thêm tài khoản ngân hàng trong tab Ví trước khi rút.
+                </p>
+              )}
+              {withdrawalError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{withdrawalError}</p>}
+              <p className="text-xs text-slate-500">
                 Yêu cầu được ghi nhận và trừ vào ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
               </p>
               <button
-                className="cta-btn"
+                className="w-full rounded-md bg-brand py-3 text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50"
                 disabled={
                   withdrawing
+                  || !defaultPayoutAccount
                   || !summary.walletBalance
                   || !summary.withdrawalLimits?.dailyRemaining
                   || summary.walletBalance < (summary.withdrawalLimits?.minimum || Infinity)
