@@ -1,35 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Tag, Store, ChevronLeft } from 'lucide-react'
+import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Store, ChevronLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
+import { cartLineKey } from '../../utils/cartLineKey.js'
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, subtotal, clearCart } = useCart()
   const { isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
-  const [voucherCode, setVoucherCode] = useState('')
-  const [appliedDiscount, setAppliedDiscount] = useState(0)
-
-  const handleApplyVoucher = (e) => {
-    e.preventDefault()
-    const code = voucherCode.trim().toUpperCase()
-    if (!code) return
-
-    if (code === 'FREESHIP15K') {
-      setAppliedDiscount(15000)
-      toast.success('Đã áp dụng mã miễn phí giao hàng 15.000đ! 🎉')
-    } else if (code === 'FOODDELIVERY50' || code === 'CRAVEDASH50') {
-      const discount = Math.min(Math.round(subtotal * 0.2), 50000)
-      setAppliedDiscount(discount)
-      toast.success(`Đã áp dụng mã giảm giá ${discount.toLocaleString('vi-VN')}đ! 🎉`)
-    } else {
-      toast.error('Mã giảm giá không hợp lệ hoặc đã hết lượt dùng.')
-    }
-  }
-
-  const finalTotal = Math.max(0, subtotal - appliedDiscount)
 
   const handleGoToCheckout = () => {
     if (!isAuthenticated) {
@@ -98,108 +78,85 @@ export default function CartPage() {
         ) : (
           <div className="space-y-3">
             {/* Item List */}
-            {cart.items.map((item) => (
-              <div
-                key={item.food._id || item.food.id}
-                className="flex gap-3.5 p-4 rounded-2xl bg-white dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:border-orange-200 dark:hover:border-slate-700"
-              >
-                <img
-                  src={
-                    item.food.image ||
-                    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=120&q=80'
-                  }
-                  alt={item.food.name}
-                  className="w-20 h-20 rounded-2xl object-cover shrink-0 shadow-sm"
-                />
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {item.food.name}
-                    </h4>
-                    <p className="text-primary font-black text-sm mt-0.5">
-                      {(item.food.price * item.quantity).toLocaleString('vi-VN')} đ
-                    </p>
-                    {item.note && (
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 italic">
-                        Ghi chú: {item.note}
+            {cart.items.map((item) => {
+              const lineKey = cartLineKey(item.food)
+              return (
+                <div
+                  key={lineKey}
+                  className="flex gap-3.5 p-4 rounded-2xl bg-white dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:border-orange-200 dark:hover:border-slate-700"
+                >
+                  <img
+                    src={
+                      item.food.image ||
+                      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=120&q=80'
+                    }
+                    alt={item.food.name}
+                    className="w-20 h-20 rounded-2xl object-cover shrink-0 shadow-sm"
+                  />
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {item.food.name}
+                      </h4>
+                      <p className="text-primary font-black text-sm mt-0.5">
+                        {(item.food.price * item.quantity).toLocaleString('vi-VN')} đ
                       </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-0.5 shadow-sm">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.food._id || item.food.id, -1)}
-                        className="w-7 h-7 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors"
-                        aria-label="Giảm"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-7 text-center font-bold text-sm text-slate-800 dark:text-white">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.food._id || item.food.id, 1)}
-                        className="w-7 h-7 rounded-lg text-primary hover:bg-orange-50 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
-                        aria-label="Tăng"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                      {item.note && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 italic">
+                          Ghi chú: {item.note}
+                        </p>
+                      )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.food._id || item.food.id)}
-                      className="text-xs font-semibold text-red-500 hover:text-red-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Xóa</span>
-                    </button>
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-0.5 shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(lineKey, -1)}
+                          className="w-7 h-7 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                          aria-label="Giảm"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-7 text-center font-bold text-sm text-slate-800 dark:text-white">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(lineKey, 1)}
+                          className="w-7 h-7 rounded-lg text-primary hover:bg-orange-50 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                          aria-label="Tăng"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(lineKey)}
+                        className="text-xs font-semibold text-red-500 hover:text-red-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Xóa</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {/* Summary Card */}
             <div className="mt-4 p-5 rounded-2xl bg-white dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
-              {/* Voucher */}
-              <form onSubmit={handleApplyVoucher} className="flex gap-2">
-                <div className="relative flex-1">
-                  <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Mã voucher (FREESHIP15K)"
-                    value={voucherCode}
-                    onChange={(e) => setVoucherCode(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white uppercase font-bold placeholder:normal-case placeholder:font-normal focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 transition-colors"
-                >
-                  Áp dụng
-                </button>
-              </form>
-
               {/* Price */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-slate-500 dark:text-slate-400">
                   <span>Tạm tính tiền món:</span>
                   <span className="font-semibold">{subtotal.toLocaleString('vi-VN')} đ</span>
                 </div>
-                {appliedDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-bold">
-                    <span>Mã giảm giá ưu đãi:</span>
-                    <span>-{appliedDiscount.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-base font-black text-slate-900 dark:text-white pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span>Tổng thanh toán:</span>
                   <span className="text-primary text-lg">
-                    {finalTotal.toLocaleString('vi-VN')} đ
+                    {subtotal.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
               </div>
@@ -217,7 +174,7 @@ export default function CartPage() {
               <button
                 type="button"
                 onClick={clearCart}
-                className="w-full text-center text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors py-1"
+                className="w-full text-center text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors py-1 cursor-pointer"
               >
                 Xóa toàn bộ giỏ hàng
               </button>

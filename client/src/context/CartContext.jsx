@@ -90,7 +90,7 @@ export function CartProvider({ children, userId }) {
 
   // ── addToCart ────────────────────────────────────────────────────────────
   // Resolves true when the dish was added, false when the customer kept the other restaurant's cart
-  const addToCart = async (food, quantity = 1, note = '') => {
+  const addToCart = async (food, quantity = 1, note = '', options = {}) => {
     const restaurantName =
       food.restaurantName ||
       (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
@@ -122,11 +122,14 @@ export function CartProvider({ children, userId }) {
           current.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
 
     if (isDifferentRestaurant) {
-      const confirmed = await confirmToast(
-        `Giỏ hàng của bạn đang có món từ "${current.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nXóa giỏ hàng hiện tại để chọn món từ "${restaurantName}"?`,
-        { confirmLabel: 'Xóa giỏ & thêm món', danger: true }
-      )
-      if (!confirmed) return false
+      // Khi chọn "Đặt ngay" (isBuyNow), tự động thay thế giỏ hàng bằng quán mới mà không hiển thị modal chặn
+      if (!options?.isBuyNow) {
+        const confirmed = await confirmToast(
+          `Giỏ hàng của bạn đang có món từ "${current.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nXóa giỏ hàng hiện tại để chọn món từ "${restaurantName}"?`,
+          { confirmLabel: 'Xóa giỏ & thêm món', danger: true }
+        )
+        if (!confirmed) return false
+      }
       setCart({
         restaurant: { id: restaurantId, name: restaurantName },
         items: [{ food, quantity, note }],
@@ -162,18 +165,24 @@ export function CartProvider({ children, userId }) {
   // ── updateQuantity ───────────────────────────────────────────────────────
   const updateQuantity = (foodId, delta) => {
     setCart((prev) => {
-      const targetIndex = prev.items.findIndex(
-        (item) => cartLineKey(item.food) === foodId
-      )
+      const targetIndex = prev.items.findIndex((item) => {
+        const key = cartLineKey(item.food)
+        return (
+          key === foodId ||
+          item.food?.id === foodId ||
+          item.food?._id === foodId ||
+          String(key) === String(foodId) ||
+          String(item.food?._id) === String(foodId) ||
+          String(item.food?.id) === String(foodId)
+        )
+      })
       if (targetIndex === -1) return prev
 
       const newQty = prev.items[targetIndex].quantity + delta
       let newItems
 
       if (newQty <= 0) {
-        newItems = prev.items.filter(
-          (item) => cartLineKey(item.food) !== foodId
-        )
+        newItems = prev.items.filter((_, idx) => idx !== targetIndex)
       } else {
         newItems = [...prev.items]
         newItems[targetIndex] = {
@@ -192,9 +201,17 @@ export function CartProvider({ children, userId }) {
   // ── removeFromCart ───────────────────────────────────────────────────────
   const removeFromCart = (foodId) => {
     setCart((prev) => {
-      const newItems = prev.items.filter(
-        (item) => cartLineKey(item.food) !== foodId
-      )
+      const newItems = prev.items.filter((item) => {
+        const key = cartLineKey(item.food)
+        const matches =
+          key === foodId ||
+          item.food?.id === foodId ||
+          item.food?._id === foodId ||
+          String(key) === String(foodId) ||
+          String(item.food?._id) === String(foodId) ||
+          String(item.food?.id) === String(foodId)
+        return !matches
+      })
       return {
         restaurant: newItems.length === 0 ? null : prev.restaurant,
         items: newItems,
