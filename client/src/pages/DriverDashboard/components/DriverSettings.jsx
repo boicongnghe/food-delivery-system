@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Monitor, Moon, Smartphone, Sun } from 'lucide-react'
+import { Monitor, Smartphone } from 'lucide-react'
 import driverApi from '../../../api/driverApi'
 
 const EMPTY_SETTINGS = {
@@ -21,8 +21,6 @@ function getErrorMessage(error) {
 
 function DriverSettings({
   onProfileUpdated,
-  theme,
-  onThemeChange,
   mobilePreview,
   onMobilePreviewChange,
 }) {
@@ -161,36 +159,12 @@ function DriverSettings({
       <section className="section-card settings-card settings-appearance-card">
         <div className="section-card-header">
           <h1 className="section-card-title">
-            <span className="section-card-title-icon" aria-hidden="true">🎨</span>
-            Giao diện ứng dụng
+            <span className="section-card-title-icon" aria-hidden="true">📱</span>
+            Xem trước giao diện
           </h1>
           <span className="section-card-badge">Tùy chỉnh hiển thị</span>
         </div>
         <div className="settings-form">
-          <div className="settings-appearance-row">
-            <div className="settings-appearance-copy">
-              <h2>Chế độ màu</h2>
-              <p>Chọn giao diện sáng hoặc tối cho trang tài xế.</p>
-            </div>
-            <div className="settings-choice-group" role="group" aria-label="Chế độ màu">
-              <button
-                type="button"
-                className={`settings-choice-button ${theme === 'light' ? 'active' : ''}`}
-                aria-pressed={theme === 'light'}
-                onClick={() => onThemeChange('light')}
-              >
-                <Sun size={16} /> Sáng
-              </button>
-              <button
-                type="button"
-                className={`settings-choice-button ${theme === 'dark' ? 'active' : ''}`}
-                aria-pressed={theme === 'dark'}
-                onClick={() => onThemeChange('dark')}
-              >
-                <Moon size={16} /> Tối
-              </button>
-            </div>
-          </div>
           <div className="settings-appearance-row">
             <div className="settings-appearance-copy">
               <h2>Xem trước trên điện thoại</h2>
