@@ -181,17 +181,17 @@ function PaymentResult() {
 
   if (loading) {
     return (
-      <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
-        <p style={{ color: 'var(--text-muted)' }}>Đang tạo mã VietQR thanh toán cho đơn hàng...</p>
+      <div className="mx-auto w-full max-w-[1200px] text-center py-20 px-0">
+        <p className="text-slate-500">Đang tạo mã VietQR thanh toán cho đơn hàng...</p>
       </div>
     )
   }
 
   if (!order || !qrInfo) {
     return (
-      <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
+      <div className="mx-auto w-full max-w-[1200px] text-center py-20 px-0">
         <h2>Không tìm thấy đơn hàng</h2>
-        <Link to="/" className="btn btn-primary" style={{ marginTop: 16 }}>
+        <Link to="/" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-5 py-2.5 text-[0.95rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 mt-4">
           Về trang chủ
         </Link>
       </div>
@@ -199,57 +199,40 @@ function PaymentResult() {
   }
 
   return (
-    <div className="container animate-fade-in" style={{ maxWidth: 680, paddingBottom: 60 }}>
+    <div className="mx-auto w-full animate-fade-in max-w-[680px] pb-[60px]">
       {/* 1. Màn hình THANH TOÁN THÀNH CÔNG */}
       {paymentStatus === 'success' && (
-        <div className="card" style={{ textAlign: 'center', padding: '48px 32px' }}>
-          <div style={{
-            width: 80,
-            height: 80,
-            background: 'var(--secondary-light)',
-            color: 'var(--secondary)',
-            borderRadius: '50%',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '2.5rem',
-            marginBottom: 20,
-          }}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md text-center py-12 px-8">
+          <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full inline-flex items-center justify-center text-[2.5rem] mb-5">
             ✓
           </div>
-          <h1 style={{ margin: '0 0 10px', fontSize: '1.8rem', fontWeight: 800, color: '#065f46' }}>
+          <h1 className="text-3xl font-extrabold text-emerald-800 mt-0 mb-2.5 mx-0">
             Tài khoản đã nhận tiền thành công!
           </h1>
-          <p style={{ margin: '0 0 24px', color: 'var(--text-muted)' }}>
+          <p className="text-slate-500 mt-0 mb-6 mx-0">
             Hệ thống đã xác nhận số tiền chuyển khoản của đơn hàng <strong>{order.orderNumber}</strong>. Đơn hàng đang được gửi đến nhà hàng để chuẩn bị.
           </p>
 
-          <div style={{
-            background: 'var(--bg-main)',
-            borderRadius: 'var(--radius-md)',
-            padding: '20px',
-            marginBottom: 28,
-            textAlign: 'left',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.92rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Mã giao dịch / Mã đơn:</span>
-              <span style={{ fontWeight: 700 }}>{transactionCode || order.orderNumber}</span>
+          <div className="bg-slate-50 rounded-xl text-left mb-7 p-5">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-slate-500">Mã giao dịch / Mã đơn:</span>
+              <span className="font-bold">{transactionCode || order.orderNumber}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.92rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Phương thức:</span>
-              <span style={{ fontWeight: 700 }}>Chuyển khoản Ngân hàng (VietQR)</span>
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-slate-500">Phương thức:</span>
+              <span className="font-bold">Chuyển khoản Ngân hàng (VietQR)</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800 }}>
+            <div className="flex justify-between text-lg font-extrabold">
               <span>Số tiền đã nhận:</span>
-              <span style={{ color: 'var(--primary)' }}>{order.totalPrice.toLocaleString('vi-VN')}đ</span>
+              <span className="text-orange-500">{order.totalPrice.toLocaleString('vi-VN')}đ</span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            <Link to={`/orders/${order._id}`} className="btn btn-primary btn-lg">
+          <div className="flex gap-3 justify-center">
+            <Link to={`/orders/${order._id}`} className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500">
               Theo dõi đơn hàng (Order Tracking) ➔
             </Link>
-            <Link to="/" className="btn btn-secondary">
+            <Link to="/" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-5 py-2.5 text-[0.95rem] border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50">
               Về trang chủ
             </Link>
           </div>
@@ -258,44 +241,25 @@ function PaymentResult() {
 
       {/* 2. Màn hình THANH TOÁN THẤT BẠI (UC16) */}
       {paymentStatus === 'failed' && (
-        <div className="card" style={{ textAlign: 'center', padding: '48px 32px' }}>
-          <div style={{
-            width: 80,
-            height: 80,
-            background: 'var(--danger-light)',
-            color: 'var(--danger)',
-            borderRadius: '50%',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '2.5rem',
-            marginBottom: 20,
-          }}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md text-center py-12 px-8">
+          <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full inline-flex items-center justify-center text-[2.5rem] mb-5">
             ✕
           </div>
-          <h1 style={{ margin: '0 0 10px', fontSize: '1.8rem', fontWeight: 800, color: 'var(--danger)' }}>
+          <h1 className="text-3xl font-extrabold text-red-500 mt-0 mb-2.5 mx-0">
             Thanh toán không thành công!
           </h1>
-          <p style={{ margin: '0 0 20px', color: 'var(--text-muted)' }}>
+          <p className="text-slate-500 mt-0 mb-5 mx-0">
             {failureReason || 'Giao dịch qua ngân hàng bị từ chối hoặc hết thời gian chờ.'}
           </p>
 
-          <div style={{
-            background: 'var(--danger-light)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            borderRadius: 'var(--radius-md)',
-            padding: '16px',
-            marginBottom: 28,
-            fontSize: '0.9rem',
-            color: '#991b1b',
-          }}>
+          <div className="bg-red-50 border border-[rgba(239,68,68,0.2)] rounded-xl text-sm text-red-800 mb-7 p-4">
             Đơn hàng <strong>{order.orderNumber}</strong> của bạn vẫn được lưu lại. Bạn có thể bấm nút bên dưới để quét lại mã VietQR.
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             <button
               type="button"
-              className="btn btn-primary btn-lg"
+              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500"
               disabled={processing}
               onClick={handleRetryPayment}
             >
@@ -304,7 +268,7 @@ function PaymentResult() {
 
             <Link
               to={`/orders/${order._id}`}
-              style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: 12 }}
+              className="text-slate-500 text-sm mt-3"
             >
               Xem chi tiết đơn hàng
             </Link>
@@ -314,152 +278,91 @@ function PaymentResult() {
 
       {/* 3. Màn hình CHỜ QUÉT MÃ VIETQR VÀ TỰ ĐỘNG DUYỆT KHI TIỀN VỀ */}
       {paymentStatus === 'pending' && (
-        <div className="card">
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <span className="badge badge-pending" style={{ marginBottom: 8 }}>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="text-center mb-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700 mb-2">
               Đang chờ chuyển khoản
             </span>
-            <h1 style={{ margin: '6px 0', fontSize: '1.6rem', fontWeight: 800 }}>
+            <h1 className="text-[1.6rem] font-extrabold my-1.5 mx-0">
               Quét mã VietQR để thanh toán
             </h1>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            <p className="text-slate-500 text-sm m-0">
               Mở app ngân hàng bất kỳ để quét mã. Số tiền và nội dung sẽ được điền tự động.
             </p>
           </div>
 
           {/* Khung chứa mã QR VietQR động */}
-          <div style={{
-            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '24px 20px',
-            textAlign: 'center',
-            marginBottom: 24,
-          }}>
-            <div style={{
-              display: 'inline-block',
-              background: '#ffffff',
-              padding: 16,
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-md)',
-              marginBottom: 16,
-            }}>
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 px-5 py-6 text-center">
+            <div className="inline-block bg-white rounded-xl shadow-md mb-4 p-4">
               <img
                 src={qrInfo.qrUrl}
                 alt="VietQR Payment"
-                style={{ width: 220, height: 220, display: 'block', margin: '0 auto' }}
+                className="w-[220px] h-[220px] block my-0 mx-auto"
               />
             </div>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              fontSize: '0.88rem',
-              color: '#059669',
-              fontWeight: 600,
-              marginBottom: 16,
-            }}>
-              <span style={{
-                display: 'inline-block',
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: '#10b981',
-                boxShadow: '0 0 0 4px rgba(16, 185, 129, 0.2)',
-                animation: 'pulse 1.5s infinite',
-              }} />
+            <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 font-semibold mb-4">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.2)] animate-pulse" />
               Hệ thống đang tự động lắng nghe tiền vào tài khoản...
             </div>
 
             {/* Bảng chi tiết chuyển khoản thủ công nếu không quét được QR */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: 'var(--radius-md)',
-              padding: '16px',
-              border: '1px solid var(--border)',
-              textAlign: 'left',
-              fontSize: '0.9rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Ngân hàng thụ hưởng:</span>
-                <span style={{ fontWeight: 700 }}>{qrInfo.bankId}</span>
+            <div className="bg-white rounded-xl border border-slate-200 text-left text-sm flex flex-col gap-2.5 p-4">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Ngân hàng thụ hưởng:</span>
+                <span className="font-bold">{qrInfo.bankId}</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
-                <span style={{ fontWeight: 700 }}>{qrInfo.accountName}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Chủ tài khoản:</span>
+                <span className="font-bold">{qrInfo.accountName}</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem' }}>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Số tài khoản:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-slate-900 text-base">
                     {qrInfo.accountNo}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleCopy(qrInfo.accountNo, 'accountNo')}
-                    className="btn btn-sm btn-secondary"
-                    style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                    className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50 text-xs py-0.5 px-2"
                   >
                     {copiedField === 'accountNo' ? '✓ Đã chép' : 'Sao chép'}
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Số tiền cần chuyển:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Số tiền cần chuyển:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-orange-500 text-lg">
                     {order.totalPrice.toLocaleString('vi-VN')}đ
                   </span>
                   <button
                     type="button"
                     onClick={() => handleCopy(order.totalPrice, 'amount')}
-                    className="btn btn-sm btn-secondary"
-                    style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                    className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50 text-xs py-0.5 px-2"
                   >
                     {copiedField === 'amount' ? '✓ Đã chép' : 'Sao chép'}
                   </button>
                 </div>
               </div>
 
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingTop: 8,
-                borderTop: '1px dashed var(--border)',
-                background: '#fffbeb',
-                margin: '4px -16px -16px',
-                padding: '12px 16px',
-                borderRadius: '0 0 var(--radius-md) var(--radius-md)',
-              }}>
+              <div className="flex justify-between items-center border-t border-dashed border-slate-200 bg-amber-50 mt-1 -mb-4 -mx-4 py-3 px-4 rounded-b-xl">
                 <div>
-                  <div style={{ fontSize: '0.78rem', color: '#b45309', fontWeight: 600 }}>
+                  <div className="text-xs text-amber-700 font-semibold">
                     Nội dung chuyển khoản (bắt buộc chính xác):
                   </div>
-                  <div style={{ fontWeight: 800, color: '#92400e', fontSize: '1.05rem', letterSpacing: '0.5px' }}>
+                  <div className="font-extrabold text-amber-800 text-base tracking-[0.5px]">
                     {qrInfo.transferContent}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleCopy(qrInfo.transferContent, 'content')}
-                  className="btn btn-sm"
-                  style={{
-                    padding: '4px 10px',
-                    fontSize: '0.78rem',
-                    background: '#fef3c7',
-                    border: '1px solid #f59e0b',
-                    color: '#b45309',
-                    fontWeight: 700,
-                  }}
+                  className="inline-flex items-center justify-center gap-2 transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg text-xs bg-amber-100 border border-amber-500 text-amber-700 font-bold py-1 px-2.5"
                 >
                   {copiedField === 'content' ? '✓ Đã chép' : 'Sao chép nội dung'}
                 </button>
@@ -468,10 +371,10 @@ function PaymentResult() {
           </div>
 
           {/* Nút hỗ trợ người dùng */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             <button
               type="button"
-              className="btn btn-primary btn-lg"
+              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500"
               disabled={checkingStatus}
               onClick={handleManualCheck}
             >
@@ -479,20 +382,14 @@ function PaymentResult() {
             </button>
 
             {/* Khung Test công cụ Dev / Chấm điểm đồ án */}
-            <div style={{
-              marginTop: 12,
-              padding: '16px',
-              border: '1px dashed #cbd5e1',
-              borderRadius: 'var(--radius-md)',
-              background: '#f8fafc',
-            }}>
-              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>
+            <div className="border border-dashed border-slate-300 rounded-xl bg-slate-50 mt-3 p-4">
+              <div className="text-sm font-bold text-slate-500 mb-2.5">
                 ⚡ Công cụ kiểm thử SePay Webhook (Dành cho demo localhost):
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div className="flex gap-2.5 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
                   disabled={processing}
                   onClick={handleSimulateReceiveMoney}
                   title="Giả lập sự kiện SePay webhook gửi báo có số tiền về tài khoản ngân hàng"
@@ -502,7 +399,7 @@ function PaymentResult() {
 
                 <button
                   type="button"
-                  className="btn btn-danger-outline btn-sm"
+                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100"
                   disabled={processing}
                   onClick={handleSimulateFailure}
                   title="Test kịch bản thất bại UC16"

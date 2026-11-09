@@ -14,7 +14,15 @@ import NotificationBell from '../NotificationBell/NotificationBell.jsx'
  * @param {string} hotline - support phone number
  * @param {string} accountImage - picture of the account button (restaurant portal: the restaurant logo)
  * @param {string} accountName - name on the account button (restaurant portal: the restaurant name)
+ * @param {string} accountCaption - line under the name in the account menu (default: the restaurant owner)
+ * @param {Array<{ to: string, label: string, icon: Component }>} menuItems - links of the account menu
  */
+const RESTAURANT_MENU_ITEMS = [
+  { to: '/restaurant/orders', label: 'Đơn hàng bếp', icon: ChefHat },
+  { to: '/restaurant/profile', label: 'Hồ sơ quán · đổi logo', icon: Store },
+  { to: '/restaurant/revenue?tab=wallet', label: 'Ví & rút tiền', icon: Wallet },
+]
+
 export default function Header({
   subtitle = 'Kênh Quán Ăn',
   navItems = [],
@@ -22,6 +30,8 @@ export default function Header({
   hotline = '1900 6868',
   accountImage = '',
   accountName = '',
+  accountCaption = '',
+  menuItems = RESTAURANT_MENU_ITEMS,
 }) {
   const { user, logout } = useAuth()
   // Restaurant portal (accountName given): the account IS the restaurant, so only its logo is shown
@@ -143,7 +153,9 @@ export default function Header({
                       )}
                       <div className="truncate">
                         <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
-                        {accountName && <p className="text-xs text-slate-600 truncate">Chủ quán: {user.fullName}</p>}
+                        {(accountCaption || accountName) && (
+                          <p className="text-xs text-slate-600 truncate">{accountCaption || `Chủ quán: ${user.fullName}`}</p>
+                        )}
                         {user.email && !user.email.startsWith('fb_') && (
                           <p className="text-xs text-slate-500 truncate">{user.email}</p>
                         )}
@@ -152,30 +164,17 @@ export default function Header({
                   )}
 
                   <div className="py-1">
-                    <Link
-                      to="/restaurant/orders"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
-                    >
-                      <ChefHat className="w-4 h-4 text-primary" />
-                      Đơn hàng bếp
-                    </Link>
-                    <Link
-                      to="/restaurant/profile"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
-                    >
-                      <Store className="w-4 h-4 text-primary" />
-                      Hồ sơ quán · đổi logo
-                    </Link>
-                    <Link
-                      to="/restaurant/revenue?tab=wallet"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
-                    >
-                      <Wallet className="w-4 h-4 text-primary" />
-                      Ví & rút tiền
-                    </Link>
+                    {menuItems.map(({ to, label, icon: Icon }) => (
+                      <Link
+                        key={to}
+                        to={to}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
+                      >
+                        <Icon className="w-4 h-4 text-primary" />
+                        {label}
+                      </Link>
+                    ))}
                     <Link
                       to="/"
                       onClick={() => setMenuOpen(false)}

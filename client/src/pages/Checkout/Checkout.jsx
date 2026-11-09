@@ -469,69 +469,42 @@ function Checkout() {
   }
 
   return (
-    <div className="container animate-fade-in" style={{ paddingBottom: 60 }}>
-      <div style={{ marginBottom: 28 }}>
-        <Link to="/" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>
+    <div className="mx-auto w-full max-w-[1200px] animate-fade-in pb-[60px]">
+      <div className="mb-7">
+        <Link to="/" className="text-slate-500 text-sm font-semibold">
           ← Quay lại chọn thêm món
         </Link>
-        <h1 style={{ margin: '8px 0 0', fontSize: '1.8rem', fontWeight: 800 }}>
+        <h1 className="text-3xl font-extrabold mt-2 mb-0 mx-0">
           Xác nhận đặt hàng & Thanh toán
         </h1>
       </div>
 
       {errorMsg && (
-        <div style={{
-          padding: '14px 20px',
-          background: 'var(--danger-light)',
-          color: 'var(--danger)',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: 24,
-          fontWeight: 600,
-        }}>
+        <div className="bg-red-50 text-red-500 rounded-xl font-semibold mb-6 py-3.5 px-5">
           ⚠️ {errorMsg}
         </div>
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: 32,
-        alignItems: 'start',
-      }}>
+      <div className="grid grid-cols-[repeat(auto-fit,_minmax(340px,_1fr))] gap-8 items-start">
         {/* Left Column: Delivery Address & Payment Method */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="flex flex-col gap-6">
           {/* UC12: Enter / Select Delivery Address */}
-          <div className="card">
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 16,
-              flexWrap: 'wrap',
-              gap: 10,
-            }}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-2.5 mb-4">
               <div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 className="text-xl font-bold flex items-center gap-2 m-0">
                   <span>📍</span> 1. Địa chỉ nhận hàng
                 </h2>
                 {addresses.length > 0 && (
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <span className="text-sm text-slate-500">
                     Chọn địa chỉ giao hàng từ danh sách ({addresses.length} địa chỉ đã lưu)
                   </span>
                 )}
               </div>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="justify-center border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 text-sm rounded-xl flex items-center gap-1.5 py-2 px-4"
                 onClick={handleOpenAddAddressModal}
-                style={{
-                  fontSize: '0.85rem',
-                  padding: '8px 16px',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
               >
                 <span>➕</span>
                 <span>Thêm địa chỉ mới</span>
@@ -540,85 +513,56 @@ function Checkout() {
 
             {/* If addresses.length > 0: Show list of selectable addresses */}
             {addresses.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="flex flex-col gap-3">
                 {addresses.map((addr) => {
                   const isSelected = selectedAddressId === addr._id
                   return (
                     <div
                       key={addr._id}
                       onClick={() => setSelectedAddressId(addr._id)}
-                      style={{
-                        padding: '16px',
-                        border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
-                        borderRadius: 'var(--radius-md)',
-                        background: isSelected ? 'var(--primary-light)' : '#ffffff',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
-                      }}
+                      className={`cursor-pointer rounded-xl border-2 p-4 transition ${isSelected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-slate-200 bg-white'}`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                      <div className="flex items-start gap-3.5">
                         <input
                           type="radio"
                           name="deliveryAddress"
                           checked={isSelected}
                           onChange={() => setSelectedAddressId(addr._id)}
-                          style={{
-                            marginTop: 4,
-                            accentColor: 'var(--primary)',
-                            width: 18,
-                            height: 18,
-                            cursor: 'pointer',
-                          }}
+                          className="accent-orange-500 w-[18px] h-[18px] cursor-pointer mt-1"
                         />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-base text-slate-900">
                               {addr.recipientName}
                             </span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            <span className="text-slate-500 text-sm">
                               • {addr.phone}
                             </span>
                             {addr.isDefault && (
                               <span
-                                style={{
-                                  background: '#ecfdf5',
-                                  color: '#059669',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  padding: '2px 8px',
-                                  borderRadius: '9999px',
-                                  border: '1px solid #a7f3d0',
-                                }}
+                                className="bg-emerald-50 text-emerald-600 text-xs font-bold rounded-full border border-emerald-200 py-0.5 px-2"
                               >
                                 Mặc định
                               </span>
                             )}
                           </div>
 
-                          <div style={{ fontSize: '0.92rem', color: 'var(--text-main)', marginTop: 6, lineHeight: 1.4 }}>
+                          <div className="text-sm text-slate-900 leading-[1.4] mt-1.5">
                             {addr.addressLine}
                           </div>
                           {addr.note && (
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                            <div className="text-sm text-slate-500 mt-1">
                               💬 Ghi chú: {addr.note}
                             </div>
                           )}
 
                           {/* Action links */}
-                          <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+                          <div className="flex gap-4 border-t border-dashed border-slate-200 mt-2.5 pt-2">
                             {!addr.isDefault && (
                               <button
                                 type="button"
                                 onClick={(e) => handleSetDefaultAddress(e, addr._id)}
-                                style={{
-                                  fontSize: '0.8rem',
-                                  color: 'var(--primary)',
-                                  fontWeight: 600,
-                                  background: 'none',
-                                  padding: 0,
-                                  cursor: 'pointer',
-                                }}
+                                className="text-xs text-orange-500 font-semibold bg-transparent cursor-pointer p-0"
                               >
                                 ⭐ Đặt làm mặc định
                               </button>
@@ -626,14 +570,7 @@ function Checkout() {
                             <button
                               type="button"
                               onClick={(e) => handleDeleteAddress(e, addr._id)}
-                              style={{
-                                fontSize: '0.8rem',
-                                color: 'var(--danger)',
-                                fontWeight: 600,
-                                background: 'none',
-                                padding: 0,
-                                cursor: 'pointer',
-                              }}
+                              className="text-xs text-red-500 font-semibold bg-transparent cursor-pointer p-0"
                             >
                               🗑️ Xóa địa chỉ
                             </button>
@@ -647,32 +584,19 @@ function Checkout() {
             ) : (
               /* If addresses.length === 0: Clean empty state box with prominent button */
               <div
-                style={{
-                  textAlign: 'center',
-                  padding: '36px 20px',
-                  background: 'var(--bg-main)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '2px dashed var(--border)',
-                }}
+                className="text-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 py-9 px-5"
               >
-                <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>📍</div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px' }}>
+                <div className="text-[2.5rem] mb-2.5">📍</div>
+                <h3 className="text-base font-bold text-slate-900 mt-0 mb-1.5 mx-0">
                   Bạn chưa có địa chỉ nhận hàng nào được lưu
                 </h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 18px', maxWidth: 420, marginInline: 'auto' }}>
+                <p className="text-sm text-slate-500 max-w-[420px] mt-0 mb-[18px] mx-auto">
                   Vui lòng thêm địa chỉ nhận hàng của bạn để hoàn tất đơn hàng. Bạn có thể lưu lại để dùng cho các lần đặt sau.
                 </p>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="inline-flex items-center justify-center gap-2 border transition disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-orange-500 text-white hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 text-base font-bold rounded-full shadow-md py-3 px-7"
                   onClick={handleOpenAddAddressModal}
-                  style={{
-                    padding: '12px 28px',
-                    fontSize: '0.95rem',
-                    fontWeight: 700,
-                    borderRadius: 'var(--radius-full)',
-                    boxShadow: 'var(--shadow-md)',
-                  }}
                 >
                   + Thêm địa chỉ nhận hàng ngay
                 </button>
@@ -681,48 +605,28 @@ function Checkout() {
           </div>
 
           {/* UC15: Payment Method Selection */}
-          <div className="card">
-            <h2 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 700 }}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <h2 className="text-xl font-bold mt-0 mb-4 mx-0">
               💳 2. Phương thức thanh toán
             </h2>
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                padding: 16,
-                border: '2px solid var(--primary)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--primary-light)',
-              }}
+              className="flex items-center gap-3.5 border-2 border-orange-500 rounded-xl bg-orange-50 p-4"
             >
               <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ffffff',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  flexShrink: 0,
-                }}
+                className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm font-extrabold shrink-0"
               >
                 ✓
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.98rem' }}>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-base">
                     Chuyển khoản Ngân hàng / Quét mã VietQR
                   </span>
-                  <span className="badge badge-confirmed" style={{ fontSize: '0.75rem' }}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700 text-xs">
                     Duy nhất
                   </span>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                <div className="text-sm text-slate-500 mt-0.5">
                   Quét mã QR tự động qua ứng dụng ngân hàng hoặc Internet Banking
                 </div>
               </div>
@@ -731,39 +635,31 @@ function Checkout() {
         </div>
 
         {/* Right Column: Order Summary & Promotion Rules */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="flex flex-col gap-6">
           {/* Items Summary (UC13) */}
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <h2 className="text-xl font-bold m-0">
                 📦 Tóm tắt đơn hàng ({cart.items.length} món)
               </h2>
               {cart.restaurant?.name && (
-                <span style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: 'var(--primary, #FF4B2B)',
-                  background: '#FFF0EB',
-                  border: '1px solid #FFE0D6',
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                }}>
+                <span className="text-sm font-bold text-orange-500 bg-[#fff0eb] border border-[#ffe0d6] rounded-xl py-1 px-2.5">
                   🏪 {cart.restaurant.name}
                 </span>
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            <div className="flex flex-col gap-3 mb-5">
               {cart.items.map((item) => (
                 <div
                   key={cartLineKey(item.food)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  className="flex justify-between items-center"
                 >
                   <div>
-                    <span style={{ fontWeight: 700 }}>{item.quantity}x</span>{' '}
+                    <span className="font-bold">{item.quantity}x</span>{' '}
                     <span>{item.food.name}</span>
                   </div>
-                  <span style={{ fontWeight: 600 }}>
+                  <span className="font-semibold">
                     {(item.food.price * item.quantity).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
@@ -772,42 +668,33 @@ function Checkout() {
 
             {/* UC14: Promotion Code Input & Suggestion Chips */}
             {restaurantVouchers.length > 0 && (
-              <div style={{ paddingTop: 16, borderTop: '1px dashed var(--border)', marginBottom: 16 }}>
-                <label className="form-label">🏪 Voucher của quán (tối đa 1 mã quán / đơn)</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="border-t border-dashed border-slate-200 mb-4 pt-4">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-900">🏪 Voucher của quán (tối đa 1 mã quán / đơn)</label>
+                <div className="flex flex-col gap-2">
                   {restaurantVouchers.map((voucher) => {
                     const isApplied = appliedRestaurantVoucher?.code === voucher.code
                     const isEligible = subtotal >= voucher.minOrderValue
                     return (
                       <div
                         key={voucher.code}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 12px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: isApplied ? '2px solid var(--secondary)' : '1px dashed var(--border)',
-                          background: isApplied ? 'var(--secondary-light)' : 'transparent',
-                          opacity: isEligible || isApplied ? 1 : 0.6,
-                        }}
+                        className={`flex items-center gap-2.5 rounded-lg py-2.5 px-3 ${isApplied ? 'border-2 border-emerald-500' : 'border border-dashed border-slate-200'} ${isApplied ? 'bg-emerald-50' : 'bg-transparent'} ${isEligible || isApplied ? 'opacity-100' : 'opacity-60'}`}
                       >
-                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--primary)' }}>{voucher.code}</span>
-                        <span style={{ flex: 1, fontSize: '0.85rem' }}>
+                        <span className="font-mono font-extrabold text-orange-500">{voucher.code}</span>
+                        <span className="flex-1 text-sm">
                           <strong>{voucher.title}</strong>
-                          <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                          <span className="block text-slate-500 text-xs">
                             {voucher.label}
                             {!isEligible && ' · chưa đủ đơn tối thiểu'}
                           </span>
                         </span>
                         {isApplied ? (
-                          <button type="button" className="btn btn-danger-outline btn-sm" onClick={handleRemoveRestaurantVoucher}>
+                          <button type="button" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100" onClick={handleRemoveRestaurantVoucher}>
                             Bỏ mã
                           </button>
                         ) : (
                           <button
                             type="button"
-                            className="btn btn-primary btn-sm"
+                            className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500"
                             disabled={!isEligible}
                             onClick={() => handleApplyRestaurantVoucher(voucher.code)}
                           >
@@ -819,36 +706,31 @@ function Checkout() {
                   })}
                 </div>
                 {restaurantVoucherError && (
-                  <div style={{ color: 'var(--danger)', fontSize: '0.82rem', marginTop: 8 }}>{restaurantVoucherError}</div>
+                  <div className="text-red-500 text-sm mt-2">{restaurantVoucherError}</div>
                 )}
                 {appliedRestaurantVoucher && (
-                  <div style={{ marginTop: 8, color: '#047857', fontSize: '0.88rem', fontWeight: 600 }}>
+                  <div className="text-emerald-700 text-sm font-semibold mt-2">
                     ✓ Mã quán {appliedRestaurantVoucher.code}: giảm {restaurantDiscount.toLocaleString('vi-VN')}đ
                   </div>
                 )}
               </div>
             )}
 
-            <div style={{
-              paddingTop: 16,
-              borderTop: '1px dashed var(--border)',
-              marginBottom: 16,
-            }}>
-              <label className="form-label">🎟️ Mã khuyến mãi của nền tảng (Voucher)</label>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div className="border-t border-dashed border-slate-200 mb-4 pt-4">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-900">🎟️ Mã khuyến mãi của nền tảng (Voucher)</label>
+              <div className="flex gap-2 mb-2">
                 <input
                   type="text"
-                  className="form-input"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25 uppercase"
                   placeholder="Nhập mã voucher..."
                   value={promoCodeInput}
                   onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
                   disabled={!!appliedPromo}
-                  style={{ textTransform: 'uppercase' }}
                 />
                 {appliedPromo ? (
                   <button
                     type="button"
-                    className="btn btn-danger-outline btn-sm"
+                    className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100"
                     onClick={handleRemovePromo}
                   >
                     Bỏ mã
@@ -856,7 +738,7 @@ function Checkout() {
                 ) : (
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm"
+                    className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500"
                     onClick={() => handleApplyPromo()}
                   >
                     Áp dụng
@@ -865,50 +747,31 @@ function Checkout() {
               </div>
 
               {promoError && (
-                <div style={{ color: 'var(--danger)', fontSize: '0.82rem', marginBottom: 8 }}>
+                <div className="text-red-500 text-sm mb-2">
                   {promoError}
                 </div>
               )}
 
               {appliedPromo && (
-                <div style={{
-                  padding: '8px 12px',
-                  background: 'var(--secondary-light)',
-                  color: '#047857',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                }}>
+                <div className="bg-emerald-50 text-emerald-700 rounded-lg text-sm font-semibold py-2 px-3">
                   ✓ Đã áp dụng mã {appliedPromo.code}: Giảm {discountAmount.toLocaleString('vi-VN')}đ
                 </div>
               )}
 
               {/* Suggestions: each voucher on its own line with full details */}
               {activePromotions.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                  }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Ticket size={15} style={{ color: 'var(--primary)' }} />
+                <div className="mt-3.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <Ticket size={15} className="text-orange-500" />
                       Gợi ý voucher ưu đãi ({activePromotions.length}):
                     </span>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    <span className="text-xs text-slate-500">
                       Tối đa 1 mã nền tảng / đơn
                     </span>
                   </div>
 
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    maxHeight: 340,
-                    overflowY: 'auto',
-                    paddingRight: 2,
-                  }}>
+                  <div className="flex flex-col gap-2 max-h-[340px] overflow-y-auto pr-0.5">
                     {activePromotions.map((p) => {
                       const isEligible = subtotal >= (p.minOrderValue || 0)
                       const isApplied = appliedPromo?.code === p.code
@@ -917,51 +780,22 @@ function Checkout() {
                       return (
                         <div
                           key={p.code}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            padding: '10px 12px',
-                            borderRadius: 'var(--radius-md, 8px)',
-                            border: isApplied
-                              ? '1.5px solid var(--primary)'
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition ${
+                            isApplied
+                              ? 'border-orange-500 bg-[rgba(255,75,43,0.06)] ring-1 ring-orange-500'
                               : isEligible
-                                ? '1px solid var(--border)'
-                                : '1px dashed var(--border)',
-                            background: isApplied
-                              ? 'rgba(255, 75, 43, 0.06)'
-                              : isEligible
-                                ? 'var(--bg-main)'
-                                : 'rgba(0, 0, 0, 0.02)',
-                            boxShadow: isApplied ? '0 0 0 1px var(--primary)' : 'none',
-                            transition: 'all 0.15s ease',
-                          }}
+                                ? 'border-slate-200 bg-slate-50'
+                                : 'border-dashed border-slate-200 bg-[rgba(0,0,0,0.02)]'
+                          }`}
                         >
                           {/* Left: Code badge + Full Info */}
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 }}>
+                          <div className="flex items-start gap-2.5 flex-1 min-w-0">
                             {/* Voucher Code Badge */}
                             <div
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '5px 8px',
-                                borderRadius: 6,
-                                background: isApplied ? 'var(--primary)' : 'rgba(255, 75, 43, 0.08)',
-                                color: isApplied ? '#fff' : 'var(--primary)',
-                                fontWeight: 800,
-                                fontSize: '0.8rem',
-                                letterSpacing: '0.5px',
-                                border: isApplied ? 'none' : '1px dashed var(--primary)',
-                                minWidth: 84,
-                                textAlign: 'center',
-                                flexShrink: 0,
-                              }}
+                              className={`flex flex-col items-center justify-center rounded-md font-extrabold text-xs tracking-[0.5px] min-w-[84px] text-center shrink-0 py-[5px] px-2 ${isApplied ? 'bg-orange-500' : 'bg-[rgba(255,75,43,0.08)]'} ${isApplied ? 'text-white' : 'text-orange-500'} ${isApplied ? 'border-0' : 'border border-dashed border-orange-500'}`}
                             >
                               <span>{p.code}</span>
-                              <span style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.9 }}>
+                              <span className="text-xs font-semibold opacity-90">
                                 {p.discountType === 'percentage'
                                   ? `GIẢM ${p.discountValue}%`
                                   : `GIẢM ${Math.round(p.discountValue / 1000)}K`}
@@ -969,27 +803,13 @@ function Checkout() {
                             </div>
 
                             {/* Info */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{
-                                fontWeight: 700,
-                                fontSize: '0.86rem',
-                                color: 'var(--text-main)',
-                                lineHeight: 1.3,
-                                marginBottom: 2,
-                              }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm text-slate-900 leading-[1.3] mb-0.5">
                                 {p.title || `Giảm ${p.discountType === 'percentage' ? `${p.discountValue}%` : `${p.discountValue?.toLocaleString('vi-VN')}đ`}`}
                               </div>
 
-                              <div style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--text-muted)',
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: '4px 8px',
-                                alignItems: 'center',
-                                lineHeight: 1.3,
-                              }}>
-                                <span>Đơn tối thiểu: <strong style={{ color: 'var(--text-main)' }}>{(p.minOrderValue || 0).toLocaleString('vi-VN')}đ</strong></span>
+                              <div className="text-xs text-slate-500 flex flex-wrap gap-y-1 gap-x-2 items-center leading-[1.3]">
+                                <span>Đơn tối thiểu: <strong className="text-slate-900">{(p.minOrderValue || 0).toLocaleString('vi-VN')}đ</strong></span>
                                 {p.maxDiscount && p.discountType === 'percentage' && (
                                   <span>• Tối đa: <strong>{p.maxDiscount.toLocaleString('vi-VN')}đ</strong></span>
                                 )}
@@ -999,17 +819,17 @@ function Checkout() {
                               </div>
 
                               {/* Eligibility status */}
-                              <div style={{ marginTop: 3, fontSize: '0.73rem', fontWeight: 600 }}>
+                              <div className="text-xs font-semibold mt-[3px]">
                                 {isApplied ? (
-                                  <span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                  <span className="text-emerald-600 inline-flex items-center gap-[3px]">
                                     <Check size={13} /> Đang áp dụng cho đơn này
                                   </span>
                                 ) : isEligible ? (
-                                  <span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                  <span className="text-emerald-600 inline-flex items-center gap-[3px]">
                                     <Check size={13} /> Đủ điều kiện áp dụng
                                   </span>
                                 ) : (
-                                  <span style={{ color: 'var(--danger, #dc2626)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                  <span className="text-red-500 inline-flex items-center gap-[3px]">
                                     <AlertCircle size={13} /> Cần mua thêm {missingAmount.toLocaleString('vi-VN')}đ để dùng mã này
                                   </span>
                                 )}
@@ -1018,22 +838,12 @@ function Checkout() {
                           </div>
 
                           {/* Right: Action button */}
-                          <div style={{ flexShrink: 0, paddingLeft: 6 }}>
+                          <div className="shrink-0 pl-1.5">
                             {isApplied ? (
                               <button
                                 type="button"
                                 onClick={handleRemovePromo}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '5px 12px',
-                                  color: 'var(--danger)',
-                                  background: 'transparent',
-                                  border: '1px solid var(--danger)',
-                                  borderRadius: 6,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                }}
+                                className="text-xs text-red-500 bg-transparent border border-red-500 rounded-md font-bold cursor-pointer transition py-[5px] px-3"
                               >
                                 Bỏ mã
                               </button>
@@ -1041,18 +851,7 @@ function Checkout() {
                               <button
                                 type="button"
                                 onClick={() => handleApplyPromo(p.code)}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '6px 14px',
-                                  background: 'var(--primary)',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  boxShadow: '0 2px 6px rgba(255, 75, 43, 0.3)',
-                                  transition: 'all 0.15s ease',
-                                }}
+                                className="text-xs bg-orange-500 text-white border-0 rounded-md font-bold cursor-pointer shadow-[0_2px_6px_rgba(255,75,43,0.3)] transition py-1.5 px-3.5"
                               >
                                 Áp dụng
                               </button>
@@ -1062,17 +861,7 @@ function Checkout() {
                                 onClick={() => {
                                   toast.error(`Đơn hàng cần tối thiểu ${(p.minOrderValue || 0).toLocaleString('vi-VN')}đ để dùng mã ${p.code}`)
                                 }}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '5px 10px',
-                                  background: 'var(--bg-main)',
-                                  color: 'var(--text-muted)',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: 6,
-                                  fontWeight: 600,
-                                  cursor: 'not-allowed',
-                                  opacity: 0.8,
-                                }}
+                                className="text-xs bg-slate-50 text-slate-500 border border-slate-200 rounded-md font-semibold cursor-not-allowed opacity-80 py-[5px] px-2.5"
                                 title={`Cần mua thêm ${missingAmount.toLocaleString('vi-VN')}đ`}
                               >
                                 Chưa đủ ĐK
@@ -1088,79 +877,48 @@ function Checkout() {
             </div>
 
             {/* Bill Breakdown */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              paddingTop: 16,
-              borderTop: '1px solid var(--border)',
-              fontSize: '0.95rem',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Tiền món:</span>
+            <div className="flex flex-col gap-2 border-t border-slate-200 text-base pt-4">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tiền món:</span>
                 <span>{subtotal.toLocaleString('vi-VN')}đ</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)' }}>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">
                   Phí vận chuyển {distanceKm != null ? `(${distanceKm} km${durationMinutes ? ` · ~${durationMinutes} phút` : ''})` : ''}:
                 </span>
-                <span style={{ fontWeight: 600 }}>
+                <span className="font-semibold">
                   {loadingShipping ? 'Đang tính...' : `${shippingFee.toLocaleString('vi-VN')}đ`}
                 </span>
               </div>
               {restaurantDiscount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
+                <div className="flex justify-between text-emerald-500 font-bold">
                   <span>Voucher quán ({appliedRestaurantVoucher.code}):</span>
                   <span>-{restaurantDiscount.toLocaleString('vi-VN')}đ</span>
                 </div>
               )}
               {discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
+                <div className="flex justify-between text-emerald-500 font-bold">
                   <span>Voucher nền tảng:</span>
                   <span>-{discountAmount.toLocaleString('vi-VN')}đ</span>
                 </div>
               )}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                paddingTop: 12,
-                marginTop: 6,
-                borderTop: '2px solid var(--border)',
-                fontSize: '1.25rem',
-                fontWeight: 800,
-              }}>
+              <div className="flex justify-between border-t-2 border-slate-200 text-xl font-extrabold mt-1.5 pt-3">
                 <span>Tổng thanh toán:</span>
-                <span style={{ color: !isDeliverable ? '#dc2626' : 'var(--primary)' }}>
+                <span className={`${!isDeliverable ? 'text-red-600' : 'text-orange-500'}`}>
                   {!isDeliverable ? 'Không thể giao' : `${totalPrice.toLocaleString('vi-VN')}đ`}
                 </span>
               </div>
             </div>
 
             {shippingError && (
-              <div style={{
-                marginTop: 14,
-                padding: '12px 14px',
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '10px',
-                color: '#dc2626',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                lineHeight: 1.4,
-              }}>
+              <div className="bg-red-50 border border-red-200 rounded-[10px] text-red-600 text-sm font-semibold leading-[1.4] mt-3.5 py-3 px-3.5">
                 ⚠️ {shippingError}
               </div>
             )}
 
             <button
               type="button"
-              className="btn btn-primary btn-lg"
-              style={{
-                width: '100%',
-                marginTop: 20,
-                backgroundColor: !isDeliverable ? '#94a3b8' : undefined,
-                cursor: !isDeliverable ? 'not-allowed' : undefined,
-              }}
+              className={`inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 w-full mt-5 ${!isDeliverable ? '!bg-slate-400' : ''} ${!isDeliverable ? 'cursor-not-allowed' : ''}`}
               disabled={isSubmitting || !isDeliverable || loadingShipping}
               onClick={handlePlaceOrder}
             >
@@ -1176,196 +934,130 @@ function Checkout() {
       {/* Box / Modal Popup for adding new address */}
       {isAddressModalOpen && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
+          className="fixed inset-0 z-[9999] bg-[rgba(15,23,42,0.65)] backdrop-blur-sm flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsAddressModalOpen(false)
           }}
         >
           <div
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '24px',
-              maxWidth: '520px',
-              width: '100%',
-              padding: '28px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative',
-            }}
+            className="bg-white rounded-3xl max-w-[520px] w-full shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] relative p-7"
           >
             {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>
+                <h3 className="text-xl font-extrabold text-slate-900 m-0">
                   📍 Thêm địa chỉ nhận hàng mới
                 </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                <p className="text-sm text-slate-500 mt-1 mb-0 mx-0">
                   Nhập thông tin bên dưới và bấm Lưu để chọn địa chỉ này
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddressModalOpen(false)}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  backgroundColor: '#f1f5f9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.1rem',
-                  color: '#64748b',
-                  cursor: 'pointer',
-                  border: 'none',
-                }}
+                className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-lg text-slate-500 cursor-pointer border-0"
               >
                 ✕
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveNewAddress} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+            <form onSubmit={handleSaveNewAddress} className="flex flex-col gap-4">
+              <div className="mb-0">
+                <label className="block text-slate-900 font-bold text-sm mb-1.5">
                   Tên người nhận (*)
                 </label>
                 <input
                   type="text"
-                  className="form-input"
+                  className="bg-white text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25 w-full rounded-xl border border-slate-300 py-2.5 px-3.5"
                   placeholder="Ví dụ: Nguyễn Văn A"
                   value={newAddressForm.recipientName}
                   onChange={(e) => setNewAddressForm({ ...newAddressForm, recipientName: e.target.value })}
                   required
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+              <div className="mb-0">
+                <label className="block text-slate-900 font-bold text-sm mb-1.5">
                   Số điện thoại liên hệ (*)
                 </label>
                 <input
                   type="tel"
-                  className="form-input"
+                  className="bg-white text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25 w-full rounded-xl border border-slate-300 py-2.5 px-3.5"
                   placeholder="Ví dụ: 0987654321"
                   value={newAddressForm.phone}
                   onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
                   required
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', margin: 0 }}>
+              <div className="mb-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-slate-900 font-bold text-sm m-0">
                     Địa chỉ chi tiết (*)
                   </label>
                   <button
                     type="button"
                     onClick={handleGetCurrentLocation}
                     disabled={isLocating}
-                    style={{
-                      background: '#eff6ff',
-                      color: '#2563eb',
-                      border: '1px solid #bfdbfe',
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: isLocating ? 'wait' : 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
+                    className={`bg-blue-50 text-blue-600 border border-[#bfdbfe] rounded-lg text-xs font-semibold inline-flex items-center gap-1 py-1 px-2.5 ${isLocating ? 'cursor-wait' : 'cursor-pointer'}`}
                   >
                     <span>{isLocating ? '⏳' : '📍'}</span>
                     <span>{isLocating ? 'Đang định vị GPS...' : 'Lấy vị trí GPS hiện tại'}</span>
                   </button>
                 </div>
                 <textarea
-                  className="form-input"
+                  className="bg-white text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25 w-full rounded-xl border border-slate-300 resize-y py-2.5 px-3.5"
                   rows={3}
                   placeholder="Ví dụ: Số 25, Ngõ 10 Tạ Quang Bửu, Phường Bách Khoa, Quận Hai Bà Trưng, Hà Nội"
                   value={newAddressForm.addressLine}
                   onChange={(e) => setNewAddressForm({ ...newAddressForm, addressLine: e.target.value })}
                   required
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'vertical' }}
                 />
                 {newAddressForm.location && (
-                  <div style={{ marginTop: 6, fontSize: '0.78rem', color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div className="text-xs text-green-600 font-semibold flex items-center gap-1 mt-1.5">
                     <span>✓ Tọa độ GPS:</span>
                     <span>{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
                   </div>
                 )}
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}>
+              <div className="mb-0">
+                <label className="block text-slate-900 font-bold text-sm mb-1.5">
                   Ghi chú cho tài xế giao hàng
                 </label>
                 <input
                   type="text"
-                  className="form-input"
+                  className="bg-white text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25 w-full rounded-xl border border-slate-300 py-2.5 px-3.5"
                   placeholder="Ví dụ: Gọi trước khi đến, gửi bảo vệ tầng 1"
                   value={newAddressForm.note}
                   onChange={(e) => setNewAddressForm({ ...newAddressForm, note: e.target.value })}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
                 />
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', cursor: 'pointer', marginTop: 4 }}>
+              <label className="flex items-center gap-2 text-sm cursor-pointer mt-1">
                 <input
                   type="checkbox"
                   checked={newAddressForm.isDefault}
                   onChange={(e) => setNewAddressForm({ ...newAddressForm, isDefault: e.target.checked })}
-                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+                  className="w-4 h-4 accent-orange-500"
                 />
-                <span style={{ fontWeight: 600, color: '#334155' }}>⭐ Đặt làm địa chỉ mặc định ưu tiên</span>
+                <span className="font-semibold text-slate-700">⭐ Đặt làm địa chỉ mặc định ưu tiên</span>
               </label>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 12 }}>
+              <div className="flex gap-3 justify-end mt-3">
                 <button
                   type="button"
                   onClick={() => setIsAddressModalOpen(false)}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '12px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#475569',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                  }}
+                  className="rounded-xl border border-slate-300 bg-slate-50 text-slate-600 font-semibold text-sm cursor-pointer py-2.5 px-5"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={savingAddress}
-                  style={{
-                    padding: '10px 24px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: 'var(--primary)',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    fontSize: '0.9rem',
-                    cursor: savingAddress ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 6px -1px rgba(249, 115, 22, 0.3)',
-                    opacity: savingAddress ? 0.7 : 1,
-                  }}
+                  className={`rounded-xl border-0 bg-orange-500 text-white font-bold text-sm shadow-[0_4px_6px_-1px_rgba(249,115,22,0.3)] py-2.5 px-6 ${savingAddress ? 'cursor-not-allowed' : 'cursor-pointer'} ${savingAddress ? 'opacity-70' : 'opacity-100'}`}
                 >
                   {savingAddress ? 'Đang lưu...' : '💾 Lưu địa chỉ'}
                 </button>
