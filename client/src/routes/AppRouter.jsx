@@ -66,8 +66,8 @@ function AppRouter() {
         <Routes>
           {/* Shipper dashboard stays outside the storefront layout. */}
           <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
-            <Route path="/shipper" element={<DriverDashboard />} />
-            <Route path="/shipper/dashboard/*" element={<DriverDashboard />} />
+            <Route path="/shipper" element={<Navigate to="/shipper/dashboard" replace />} />
+            <Route path="/shipper/:tab/*" element={<DriverDashboard />} />
             {/* Dev-only tool: changes real orders, never part of a production build */}
             {import.meta.env.DEV && <Route path="/shipper/debug" element={<DebugShipperFlow />} />}
           </Route>

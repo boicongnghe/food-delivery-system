@@ -110,17 +110,17 @@ function OrderTracking() {
 
   if (loading && !order) {
     return (
-      <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
-        <p style={{ color: 'var(--text-muted)' }}>Đang tải tiến trình đơn hàng...</p>
+      <div className="mx-auto w-full max-w-[1200px] text-center py-20 px-0">
+        <p className="text-slate-500">Đang tải tiến trình đơn hàng...</p>
       </div>
     )
   }
 
   if (!order) {
     return (
-      <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
+      <div className="mx-auto w-full max-w-[1200px] text-center py-20 px-0">
         <h2>Không tìm thấy đơn hàng</h2>
-        <Link to="/orders" className="btn btn-primary" style={{ marginTop: 16 }}>
+        <Link to="/orders" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-5 py-2.5 text-[0.95rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 mt-4">
           Xem danh sách đơn hàng
         </Link>
       </div>
@@ -134,32 +134,32 @@ function OrderTracking() {
   const currentStepIndex = STATUS_STEPS.findIndex((s) => s.key === order.status)
 
   return (
-    <div className="container animate-fade-in" style={{ maxWidth: 860 }}>
+    <div className="mx-auto w-full px-5 animate-fade-in max-w-[860px]">
       {/* Back button & Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <Link to="/orders" style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 600 }}>
+          <Link to="/orders" className="text-slate-500 text-sm font-semibold">
             ← Danh sách đơn hàng
           </Link>
-          <h1 style={{ margin: '6px 0 0', fontSize: '1.8rem', fontWeight: 800 }}>
+          <h1 className="text-3xl font-extrabold mt-1.5 mb-0 mx-0">
             Đơn hàng #{order.orderNumber}
           </h1>
-          <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+          <span className="text-sm text-slate-500">
             Đặt lúc: {new Date(order.createdAt).toLocaleString('vi-VN')}
           </span>
         </div>
 
         <div>
           {isCancelled ? (
-            <span className="badge badge-cancelled" style={{ fontSize: '0.9rem', padding: '8px 14px' }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full font-bold uppercase tracking-wide bg-red-50 text-red-700 text-sm py-2 px-3.5">
               Đã hủy đơn
             </span>
           ) : isDelivered ? (
-            <span className="badge badge-delivered" style={{ fontSize: '0.9rem', padding: '8px 14px' }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 text-sm py-2 px-3.5">
               Đã giao thành công
             </span>
           ) : (
-            <span className="badge badge-preparing" style={{ fontSize: '0.9rem', padding: '8px 14px' }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full font-bold uppercase tracking-wide bg-fuchsia-50 text-fuchsia-700 text-sm py-2 px-3.5">
               {STATUS_STEPS.find((step) => step.key === order.status)?.label || 'Đang thực hiện'}
             </span>
           )}
@@ -167,52 +167,29 @@ function OrderTracking() {
       </div>
 
       {actionMsg && (
-        <div style={{
-          padding: '12px 18px',
-          background: 'var(--secondary-light)',
-          color: '#047857',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: 20,
-          fontWeight: 600,
-        }}>
+        <div className="bg-emerald-50 text-emerald-700 rounded-xl font-semibold mb-5 py-3 px-[18px]">
           ✓ {actionMsg}
         </div>
       )}
 
       {/* UC18: Order Status Progress Timeline */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: '0 0 24px', fontSize: '1.2rem', fontWeight: 700 }}>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md mb-6">
+        <h2 className="text-xl font-bold mt-0 mb-6 mx-0">
           🛵 Tiến trình đơn hàng (Live Tracking)
         </h2>
 
         {!isCancelled ? (
           <div>
             {/* Visual Step Bar */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              position: 'relative',
-              marginBottom: 32,
-            }}>
+            <div className="flex justify-between relative mb-8">
               {/* Connecting line track */}
-              <div style={{
-                position: 'absolute',
-                top: 20,
-                left: 40,
-                right: 40,
-                height: 4,
-                background: 'var(--border)',
-                zIndex: 1,
-                borderRadius: 2,
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${currentStepIndex <= 0 ? 0 : Math.min(100, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
-                  background: 'var(--secondary)',
-                  transition: 'width 0.4s ease',
-                  borderRadius: 2,
-                }} />
+              <div className="absolute top-5 left-10 right-10 h-1 bg-slate-200 z-[1] rounded overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-400 rounded"
+                  style={{
+                    width: `${currentStepIndex <= 0 ? 0 : Math.min(100, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
+                  }}
+                />
               </div>
 
               {STATUS_STEPS.map((step, idx) => {
@@ -222,41 +199,15 @@ function OrderTracking() {
                 return (
                   <div
                     key={step.key}
-                    style={{
-                      position: 'relative',
-                      zIndex: 3,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      width: 80,
-                    }}
+                    className="relative z-[3] flex flex-col items-center w-20"
                   >
                     <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '50%',
-                        background: isPassed ? 'var(--secondary)' : '#ffffff',
-                        border: `3px solid ${isPassed ? 'var(--secondary)' : 'var(--border)'}`,
-                        color: isPassed ? '#ffffff' : 'var(--text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.2rem',
-                        boxShadow: isCurrent ? '0 0 0 4px var(--primary-glow)' : 'none',
-                        transition: 'all 0.3s ease',
-                      }}
+                      className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] text-xl transition ${isPassed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200 bg-white text-slate-500'} ${isCurrent ? 'ring-4 ring-orange-500/25' : ''}`}
                     >
                       {step.icon}
                     </div>
                     <span
-                      style={{
-                        marginTop: 8,
-                        fontSize: '0.8rem',
-                        fontWeight: isCurrent ? 800 : isPassed ? 600 : 500,
-                        color: isCurrent ? 'var(--primary)' : isPassed ? 'var(--text-main)' : 'var(--text-muted)',
-                        textAlign: 'center',
-                      }}
+                      className={`text-xs text-center mt-2 ${isCurrent ? 'font-extrabold' : isPassed ? 'font-semibold' : 'font-medium'} ${isCurrent ? 'text-orange-500' : isPassed ? 'text-slate-900' : 'text-slate-500'}`}
                     >
                       {step.label}
                     </span>
@@ -266,24 +217,14 @@ function OrderTracking() {
             </div>
 
             {/* Quick Demo Advancement Bar for Professor/Testing */}
-            <div style={{
-              background: 'var(--bg-main)',
-              borderRadius: 'var(--radius-md)',
-              padding: '12px 16px',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              marginBottom: 16,
-            }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            <div className="bg-slate-50 rounded-xl flex flex-wrap items-center justify-between gap-3 mb-4 py-3 px-4">
+              <span className="text-sm text-slate-500 font-semibold">
                 ⚡ Nút điều khiển tiến trình (Demo):
               </span>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
                   onClick={() => handleProgressDemo('confirmed')}
                   disabled={order.status !== 'pending'}
                 >
@@ -291,7 +232,7 @@ function OrderTracking() {
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
                   onClick={() => handleProgressDemo('preparing')}
                   disabled={order.status !== 'confirmed'}
                 >
@@ -299,7 +240,7 @@ function OrderTracking() {
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
                   onClick={() => handleProgressDemo('delivering')}
                   disabled={order.status !== 'preparing'}
                 >
@@ -312,8 +253,7 @@ function OrderTracking() {
             {!isDelivered && (
               <button
                 type="button"
-                className="btn btn-primary btn-lg"
-                style={{ width: '100%', marginBottom: 12 }}
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 w-full mb-3"
                 onClick={handleReceiveOrder}
               >
                 ✅ Tôi đã nhận được hàng (Xác nhận hoàn thành)
@@ -322,17 +262,11 @@ function OrderTracking() {
           </div>
         ) : (
           /* Cancelled & Refund Notice (UC17) */
-          <div style={{
-            background: 'var(--danger-light)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            borderRadius: 'var(--radius-md)',
-            padding: '20px',
-            textAlign: 'center',
-          }}>
-            <h3 style={{ margin: '0 0 6px', color: 'var(--danger)', fontSize: '1.15rem' }}>
+          <div className="bg-red-50 border border-[rgba(239,68,68,0.2)] rounded-xl text-center p-5">
+            <h3 className="text-red-500 text-lg mt-0 mb-1.5 mx-0">
               Đơn hàng này đã bị hủy
             </h3>
-            <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: '#991b1b' }}>
+            <p className="text-sm text-red-800 mt-0 mb-3 mx-0">
               Lý do: <strong>{order.cancelReason || 'Không có lý do cụ thể'}</strong>
             </p>
 
@@ -344,41 +278,17 @@ function OrderTracking() {
 
               if (isRefunded) {
                 return (
-                  <div style={{
-                    background: '#f0fdf4',
-                    border: '1px solid #86efac',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '14px 18px',
-                    display: 'inline-block',
-                    color: '#166534',
-                    fontWeight: 600,
-                    fontSize: '0.95rem',
-                    textAlign: 'center',
-                    maxWidth: 520,
-                    margin: '0 auto',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6, fontWeight: 700, fontSize: '1rem', color: '#15803d' }}>
+                  <div className="bg-green-50 border border-[#86efac] rounded-lg inline-block text-[#166534] font-semibold text-base text-center max-w-[520px] my-0 mx-auto py-3.5 px-[18px]">
+                    <div className="flex items-center justify-center gap-2 font-bold text-base text-green-700 mb-1.5">
                       <span>💰</span>
                       <span>Hoàn tiền thành công</span>
                     </div>
-                    <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: '#166534', lineHeight: 1.5 }}>
+                    <p className="text-sm text-[#166534] leading-normal mt-0 mb-3 mx-0">
                       Đã hoàn lại <strong>{refundAmount.toLocaleString('vi-VN')}đ</strong> vào <strong>Ví ảo</strong> của bạn. Bạn có thể kiểm tra số dư hoặc yêu cầu rút về tài khoản ngân hàng bất kỳ lúc nào.
                     </p>
                     <Link
                       to="/wallet"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 16px',
-                        background: '#16a34a',
-                        color: '#ffffff',
-                        borderRadius: 8,
-                        fontSize: '0.88rem',
-                        fontWeight: 700,
-                        textDecoration: 'none',
-                        boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
-                      }}
+                      className="inline-flex items-center gap-1.5 bg-green-600 text-white rounded-lg text-sm font-bold no-underline shadow-[0_2px_4px_rgba(22,163,74,0.2)] py-[7px] px-4"
                     >
                       <span>👛</span> Xem số dư Ví ảo & Rút tiền ➔
                     </Link>
@@ -388,23 +298,14 @@ function OrderTracking() {
 
               if (isRefundPending) {
                 return (
-                  <div style={{
-                    background: '#ffffff',
-                    border: '1px solid #f59e0b',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '12px 16px',
-                    display: 'inline-block',
-                    color: '#92400e',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                  }}>
+                  <div className="bg-white border border-amber-500 rounded-lg inline-block text-amber-800 font-bold text-base py-3 px-4">
                     ⏳ Trạng thái hoàn tiền: Đang xử lý hoàn {refundAmount.toLocaleString('vi-VN')}đ vào ví ảo của bạn.
                   </div>
                 );
               }
 
               return (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                <div className="text-sm text-slate-500">
                   Đơn hàng chưa thanh toán - Chưa phát sinh chi phí.
                 </div>
               );
@@ -414,10 +315,10 @@ function OrderTracking() {
 
         {/* Cancel Action Button (UC17) */}
         {canCancel && !isCancelled && (
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <div className="text-center mt-4">
             <button
               type="button"
-              className="btn btn-danger-outline btn-sm"
+              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100"
               onClick={() => setShowCancelModal(true)}
             >
               Hủy đơn hàng này
@@ -427,102 +328,82 @@ function OrderTracking() {
       </div>
 
       {/* Order Details & Items Card */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 700 }}>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md mb-6">
+        <h2 className="text-xl font-bold mt-0 mb-4 mx-0">
           🍽️ Chi tiết món ăn
         </h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+        <div className="flex flex-col gap-3 mb-5">
           {order.items?.map((item, idx) => (
-            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={idx} className="flex justify-between items-center">
               <div>
-                <span style={{ fontWeight: 700 }}>{item.quantity}x</span> {item.name}
+                <span className="font-bold">{item.quantity}x</span> {item.name}
                 {item.options?.length > 0 && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>
+                  <span className="text-xs text-slate-500 block">
                     + Topping: {item.options.map((opt) => `${opt.name}${opt.quantity > 1 ? ` x${opt.quantity}` : ''}`).join(', ')}
                   </span>
                 )}
                 {item.note && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>
+                  <span className="text-xs text-slate-500 block">
                     ({item.note})
                   </span>
                 )}
               </div>
-              <span style={{ fontWeight: 600 }}>
+              <span className="font-semibold">
                 {(item.price * item.quantity).toLocaleString('vi-VN')}đ
               </span>
             </div>
           ))}
         </div>
 
-        <div style={{
-          borderTop: '1px solid var(--border)',
-          paddingTop: 16,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          fontSize: '0.92rem',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Tạm tính:</span>
+        <div className="border-t border-slate-200 flex flex-col gap-2 text-sm pt-4">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Tạm tính:</span>
             <span>{order.subtotal?.toLocaleString('vi-VN')}đ</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>
+          <div className="flex justify-between">
+            <span className="text-slate-500">
               Phí vận chuyển {order.distanceKm ? `(${order.distanceKm} km)` : ''}:
             </span>
             <span>{order.shippingFee?.toLocaleString('vi-VN')}đ</span>
           </div>
           {order.promotion?.discountAmount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--secondary)', fontWeight: 700 }}>
+            <div className="flex justify-between text-emerald-500 font-bold">
               <span>Voucher ({order.promotion.code}):</span>
               <span>-{order.promotion.discountAmount.toLocaleString('vi-VN')}đ</span>
             </div>
           )}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-            marginTop: 6,
-            borderTop: '2px solid var(--border)',
-            fontSize: '1.2rem',
-            fontWeight: 800,
-          }}>
+          <div className="flex justify-between border-t-2 border-slate-200 text-xl font-extrabold mt-1.5 pt-3">
             <span>Tổng thanh toán:</span>
-            <span style={{ color: 'var(--primary)' }}>{order.totalPrice?.toLocaleString('vi-VN')}đ</span>
+            <span className="text-orange-500">{order.totalPrice?.toLocaleString('vi-VN')}đ</span>
           </div>
         </div>
       </div>
 
       {/* Delivery & Payment Info */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 20,
-        marginBottom: 32,
-      }}>
-        <div className="card">
-          <h3 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700 }}>
+      <div className="grid grid-cols-[repeat(auto-fit,_minmax(280px,_1fr))] gap-5 mb-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <h3 className="text-base font-bold mt-0 mb-2.5 mx-0">
             📍 Địa chỉ nhận hàng
           </h3>
-          <p style={{ margin: '0 0 4px', fontWeight: 600 }}>
+          <p className="font-semibold mt-0 mb-1 mx-0">
             {order.deliveryAddress?.recipientName} ({order.deliveryAddress?.phone})
           </p>
-          <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+          <p className="text-sm text-slate-500 m-0">
             {order.deliveryAddress?.addressLine}
           </p>
         </div>
 
-        <div className="card">
-          <h3 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700 }}>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <h3 className="text-base font-bold mt-0 mb-2.5 mx-0">
             💳 Thông tin thanh toán
           </h3>
-          <p style={{ margin: '0 0 4px', fontSize: '0.9rem' }}>
+          <p className="text-sm mt-0 mb-1 mx-0">
             Phương thức: <strong>{order.paymentMethod === 'banking' ? 'Chuyển khoản Ngân hàng (VietQR)' : order.paymentMethod?.toUpperCase()}</strong>
           </p>
-          <p style={{ margin: 0, fontSize: '0.9rem' }}>
+          <p className="text-sm m-0">
             Trạng thái:{' '}
-            <span className={`badge ${order.paymentStatus === 'paid' ? 'badge-paid' : order.paymentStatus === 'failed' ? 'badge-failed' : 'badge-pending'}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${order.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : order.paymentStatus === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
               {order.paymentStatus === 'paid' ? 'Đã thanh toán' : order.paymentStatus === 'failed' ? 'Thanh toán lỗi' : 'Chờ thanh toán'}
             </span>
           </p>
@@ -531,21 +412,21 @@ function OrderTracking() {
 
       {/* UC17: Cancel Modal */}
       {showCancelModal && (
-        <div className="drawer-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ maxWidth: 480, width: '90%', animation: 'fadeIn 0.2s ease' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '1.3rem', fontWeight: 800 }}>
+        <div className="fixed inset-0 z-[200] bg-slate-900/45 backdrop-blur-sm animate-fade-in flex items-center justify-center">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md max-w-[480px] w-[90%] animate-fade-in">
+            <h3 className="text-xl font-extrabold mt-0 mb-3 mx-0">
               Xác nhận hủy đơn hàng?
             </h3>
-            <p style={{ margin: '0 0 16px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            <p className="text-sm text-slate-500 mt-0 mb-4 mx-0">
               {order.paymentStatus === 'paid'
                 ? 'Đơn hàng này đã được thanh toán. Sau khi hủy, hệ thống sẽ tự động kích hoạt quy trình hoàn tiền cho bạn.'
                 : 'Bạn có chắc chắn muốn hủy đơn hàng này không?'}
             </p>
 
-            <div className="form-group">
-              <label className="form-label">Chọn lý do hủy:</label>
+            <div className="mb-4">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-900">Chọn lý do hủy:</label>
               <select
-                className="form-select"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[0.95rem] text-slate-900 outline-none transition focus:border-orange-500 focus:ring-[3px] focus:ring-orange-500/25"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
               >
@@ -556,17 +437,17 @@ function OrderTracking() {
               </select>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
+            <div className="flex gap-3 justify-end mt-5">
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
                 onClick={() => setShowCancelModal(false)}
               >
                 Quay lại
               </button>
               <button
                 type="button"
-                className="btn btn-danger btn-sm"
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-red-500 text-white hover:bg-red-600"
                 disabled={cancelling}
                 onClick={handleCancelOrder}
               >

@@ -1,5 +1,29 @@
+import { Bike, Coins, Landmark, Star, Zap } from 'lucide-react'
+
 function formatVND(amount) {
   return `${Number(amount || 0).toLocaleString('vi-VN')}đ`
+}
+
+const cardClass = 'flex flex-col gap-3 rounded-xl border border-brand-soft/70 bg-white p-5 shadow-sm'
+
+function CardHeader({ label, icon: Icon }) {
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-light text-brand" aria-hidden="true">
+        <Icon className="h-4 w-4" />
+      </span>
+    </div>
+  )
+}
+
+function BreakdownRow({ label, value, highlight = false }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className={`font-semibold tabular-nums ${highlight ? 'text-emerald-700' : 'text-slate-800'}`}>{value}</span>
+    </div>
+  )
 }
 
 function StatCards({ summary, onWithdraw }) {
@@ -8,40 +32,26 @@ function StatCards({ summary, onWithdraw }) {
     : 0
 
   return (
-    <div className="stat-cards-grid" role="list" aria-label="Driver performance summary">
-      <div className="stat-card earnings" role="listitem" id="stat-card-earnings">
-        <div className="stat-card-header">
-          <span className="stat-card-label">Tổng thu nhập kỳ này</span>
-          <div className="stat-card-icon" aria-hidden="true">💰</div>
-        </div>
-        <div className="stat-card-value">{formatVND(summary.baseFare)}</div>
-        <div className="stat-card-breakdown">
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Phí giao đơn</span>
-            <span className="breakdown-row-value">{formatVND(summary.baseFare)}</span>
-          </div>
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Thưởng</span>
-            <span className="breakdown-row-value bonus">{formatVND(summary.bonus)}</span>
-          </div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Driver performance summary">
+      <div className={cardClass} role="listitem" id="stat-card-earnings">
+        <CardHeader label="Tổng thu nhập kỳ này" icon={Coins} />
+        <div className="text-2xl font-bold tabular-nums text-slate-900">{formatVND(summary.baseFare)}</div>
+        <div className="space-y-1.5 border-t border-slate-100 pt-3">
+          <BreakdownRow label="Phí giao đơn" value={formatVND(summary.baseFare)} />
+          <BreakdownRow label="Thưởng" value={formatVND(summary.bonus)} highlight />
         </div>
       </div>
 
-      <div className="stat-card trips" role="listitem" id="stat-card-trips">
-        <div className="stat-card-header">
-          <span className="stat-card-label">Chuyến xe hoàn tất</span>
-          <div className="stat-card-icon" aria-hidden="true">🛵</div>
-        </div>
-        <div className="stat-card-value">
+      <div className={cardClass} role="listitem" id="stat-card-trips">
+        <CardHeader label="Chuyến xe hoàn tất" icon={Bike} />
+        <div className="text-2xl font-bold tabular-nums text-slate-900">
           {summary.completedTrips}
-          <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-muted)' }}>
-            {' '}/ {summary.tripGoal} cuốc
-          </span>
+          <span className="text-base font-medium text-slate-500"> / {summary.tripGoal} cuốc</span>
         </div>
-        <div className="trip-progress">
-          <div className="trip-progress-bar-wrap">
+        <div className="space-y-1.5">
+          <div className="h-2 overflow-hidden rounded-full bg-brand-light">
             <div
-              className="trip-progress-bar"
+              className="h-full rounded-full bg-brand transition-all"
               style={{ width: `${tripProgress}%` }}
               role="progressbar"
               aria-valuenow={tripProgress}
@@ -49,65 +59,44 @@ function StatCards({ summary, onWithdraw }) {
               aria-valuemax="100"
             />
           </div>
-          <div className="trip-progress-stats">
+          <div className="flex justify-between text-xs text-slate-500">
             <span>Tiến độ: {tripProgress}%</span>
             <span>Còn {Math.max(0, summary.tripGoal - summary.completedTrips)} chuyến</span>
           </div>
         </div>
-        <div className="stat-card-breakdown">
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Đánh giá trung bình</span>
-            <span className="breakdown-row-value bonus">{Number(summary.rating || 0).toFixed(2)} ★</span>
-          </div>
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Số lượt đánh giá</span>
-            <span className="breakdown-row-value">{summary.ratingCount}</span>
-          </div>
+        <div className="space-y-1.5 border-t border-slate-100 pt-3">
+          <BreakdownRow label="Đánh giá trung bình" value={`${Number(summary.rating || 0).toFixed(2)} ★`} highlight />
+          <BreakdownRow label="Số lượt đánh giá" value={summary.ratingCount} />
         </div>
       </div>
 
-      <div className="stat-card wallet" role="listitem" id="stat-card-wallet">
-        <div className="stat-card-header">
-          <span className="stat-card-label">Số dư ví khả dụng</span>
-          <div className="stat-card-icon" aria-hidden="true">🏦</div>
-        </div>
-        <div className="stat-card-value">{formatVND(summary.walletBalance)}</div>
-        <div className="wallet-cta">
-          <button className="wallet-cta-btn" id="btn-withdraw-wallet" type="button" onClick={onWithdraw}>
-            <span aria-hidden="true">⚡</span>
-            Rút tiền về ngân hàng
-          </button>
-        </div>
-        <div className="stat-card-breakdown">
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Hạn mức rút còn hôm nay</span>
-            <span className="breakdown-row-value">{formatVND(summary.withdrawalLimits?.dailyRemaining)}</span>
-          </div>
-          <div className="breakdown-row">
-            <span className="breakdown-row-label">Tổng thu nhập tuần</span>
-            <span className="breakdown-row-value bonus">{formatVND(summary.weeklyEarnings)}</span>
-          </div>
+      <div className={cardClass} role="listitem" id="stat-card-wallet">
+        <CardHeader label="Số dư ví khả dụng" icon={Landmark} />
+        <div className="text-2xl font-bold tabular-nums text-slate-900">{formatVND(summary.walletBalance)}</div>
+        <button
+          className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-bold text-white hover:bg-brand-hover"
+          id="btn-withdraw-wallet"
+          type="button"
+          onClick={onWithdraw}
+        >
+          <Zap className="h-4 w-4" aria-hidden="true" />
+          Rút tiền về ngân hàng
+        </button>
+        <div className="space-y-1.5 border-t border-slate-100 pt-3">
+          <BreakdownRow label="Hạn mức rút còn hôm nay" value={formatVND(summary.withdrawalLimits?.dailyRemaining)} />
+          <BreakdownRow label="Tổng thu nhập tuần" value={formatVND(summary.weeklyEarnings)} highlight />
         </div>
       </div>
 
-      <div className="stat-card rating" role="listitem" id="stat-card-rating">
-        <div className="stat-card-header">
-          <span className="stat-card-label">Hạng đối tác &amp; Đánh giá</span>
-          <div className="stat-card-icon" aria-hidden="true">⭐</div>
-        </div>
-        <div className="stat-card-value">{Number(summary.rating || 0).toFixed(2)} ★</div>
-        <div className="rating-tier">
-          <div className="rating-tier-badge">💎 {summary.tier || 'Chưa xếp hạng'}</div>
-          <div className="stat-card-breakdown">
-            <div className="breakdown-row">
-              <span className="breakdown-row-label">Tổng đánh giá</span>
-              <span className="breakdown-row-value">{summary.ratingCount}</span>
-            </div>
-            <div className="breakdown-row">
-              <span className="breakdown-row-label">5 sao liên tiếp</span>
-              <span className="breakdown-row-value bonus">{summary.consecutiveFiveStarTrips} cuốc</span>
-            </div>
-          </div>
+      <div className={cardClass} role="listitem" id="stat-card-rating">
+        <CardHeader label="Hạng đối tác & Đánh giá" icon={Star} />
+        <div className="text-2xl font-bold tabular-nums text-slate-900">{Number(summary.rating || 0).toFixed(2)} ★</div>
+        <span className="self-start rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
+          {summary.tier || 'Chưa xếp hạng'}
+        </span>
+        <div className="space-y-1.5 border-t border-slate-100 pt-3">
+          <BreakdownRow label="Tổng đánh giá" value={summary.ratingCount} />
+          <BreakdownRow label="5 sao liên tiếp" value={`${summary.consecutiveFiveStarTrips} cuốc`} highlight />
         </div>
       </div>
     </div>
