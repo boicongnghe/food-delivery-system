@@ -21,6 +21,7 @@ import PendingOrderCard from './components/PendingOrderCard.jsx'
 import PreparingOrderCard from './components/PreparingOrderCard.jsx'
 import ReadyOrderCard from './components/ReadyOrderCard.jsx'
 import RejectOrderDialog from './components/RejectOrderDialog.jsx'
+import { confirmToast } from '../../utils/confirmToast.jsx'
 
 const EMPTY_BOARD = {
   pending: [],
@@ -266,7 +267,13 @@ export default function OrderBoard() {
   // Pause / resume new orders. Orders already on the board are not affected.
   const toggleAcceptingOrders = async () => {
     const next = restaurant.isAcceptingOrders === false
-    if (!next && !window.confirm('Tạm ngưng nhận đơn mới? Khách sẽ không đặt được món cho tới khi bạn mở lại. Đơn đang có vẫn xử lý bình thường.')) {
+    if (
+      !next &&
+      !(await confirmToast('Tạm ngưng nhận đơn mới? Khách sẽ không đặt được món cho tới khi bạn mở lại. Đơn đang có vẫn xử lý bình thường.', {
+        confirmLabel: 'Tạm ngưng',
+        danger: true,
+      }))
+    ) {
       return
     }
     setTogglingAccepting(true)

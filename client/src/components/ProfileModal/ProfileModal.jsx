@@ -32,6 +32,7 @@ import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/useCart.js'
 import authApi from '../../api/authApi.js'
 import uploadApi from '../../api/uploadApi.js'
+import { confirmToast } from '../../utils/confirmToast.jsx'
 
 export default function ProfileModal({ isOpen, onClose }) {
   const { user, updateProfile, deleteAccount } = useAuth()
@@ -228,7 +229,7 @@ export default function ProfileModal({ isOpen, onClose }) {
 
   // Handler: Delete Address
   const handleDeleteAddress = async (addressId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?')) return
+    if (!(await confirmToast('Bạn có chắc chắn muốn xóa địa chỉ này không?', { confirmLabel: 'Xóa', danger: true }))) return
 
     try {
       const res = await authApi.deleteAddress(addressId)

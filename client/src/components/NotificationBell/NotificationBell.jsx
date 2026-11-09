@@ -17,6 +17,7 @@ import useAuth from '../../hooks/useAuth.js'
 import notificationApi from '../../api/notificationApi.js'
 import { connectSocket } from '../../services/socket.js'
 import { playNotificationSound } from '../../utils/playNotificationSound.js'
+import { confirmToast } from '../../utils/confirmToast.jsx'
 
 const formatTimeAgo = (dateStr) => {
   if (!dateStr) return 'Vừa xong'
@@ -181,7 +182,7 @@ export default function NotificationBell({ isDark = false }) {
 
   // Xóa tất cả thông báo
   const handleClearAll = async () => {
-    if (!window.confirm('Bạn có chắc muốn xóa tất cả thông báo?')) return
+    if (!(await confirmToast('Bạn có chắc muốn xóa tất cả thông báo?', { confirmLabel: 'Xóa tất cả', danger: true }))) return
     setNotifications([])
     setUnreadCount(0)
 

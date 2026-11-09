@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
 import { paymentApi } from '../../api/paymentApi.js'
+import toast from 'react-hot-toast'
 
 function PaymentResult() {
   const [searchParams] = useSearchParams()
@@ -126,10 +127,13 @@ function PaymentResult() {
       if (res.data?.data?.paymentStatus === 'paid') {
         setPaymentStatus('success')
       } else {
-        alert('Hệ thống chưa nhận được thông báo tiền vào tài khoản. Nếu bạn vừa chuyển khoản, vui lòng đợi 10 - 30 giây để ngân hàng gửi thông báo!')
+        toast('Hệ thống chưa nhận được thông báo tiền vào tài khoản. Nếu bạn vừa chuyển khoản, vui lòng đợi 10 - 30 giây để ngân hàng gửi thông báo!', {
+          icon: '⏳',
+          duration: 6000,
+        })
       }
     } catch {
-      alert('Không thể kiểm tra trạng thái lúc này')
+      toast.error('Không thể kiểm tra trạng thái lúc này')
     } finally {
       setCheckingStatus(false)
     }
@@ -145,7 +149,7 @@ function PaymentResult() {
         setTransactionCode(res.data.data?.payment?.transactionCode || 'SIM-SEPAY-SUCCESS')
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Giả lập tiền vào tài khoản thất bại')
+      toast.error(err.response?.data?.message || 'Giả lập tiền vào tài khoản thất bại')
     } finally {
       setProcessing(false)
     }

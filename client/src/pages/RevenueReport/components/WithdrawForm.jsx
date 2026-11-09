@@ -4,6 +4,7 @@ import { ArrowDownToLine } from 'lucide-react'
 import walletApi from '../../../api/walletApi.js'
 import { formatCurrency, formatNumber, parseNumberInput } from '../../../utils/formatCurrency.js'
 import { formatDay } from '../../../utils/formatDate.js'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 // One key per withdrawal: a double click or a retry after a timeout never sends a second transfer
 const newIdempotencyKey = () =>
@@ -43,7 +44,7 @@ export default function WithdrawForm({ wallet, onDone }) {
       return
     }
     const target = `${payoutAccount.bankName} ${payoutAccount.accountNumber} – ${payoutAccount.accountHolder}`
-    if (!window.confirm(`Rút ${formatCurrency(amount)} về tài khoản ${target}?`)) return
+    if (!(await confirmToast(`Rút ${formatCurrency(amount)} về tài khoản ${target}?`, { confirmLabel: 'Rút tiền' }))) return
 
     setSubmitting(true)
     try {

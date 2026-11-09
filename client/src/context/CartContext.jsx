@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { cartLineKey } from '../utils/cartLineKey.js'
+import { confirmToast } from '../utils/confirmToast.jsx'
 
 export const CartContext = createContext(null)
 
@@ -81,8 +82,15 @@ export function CartProvider({ children, userId }) {
     saveCart(cart, userId)
   }, [cart, userId])
 
+  // Latest cart for addToCart, which reads it after an await
+  const cartRef = useRef(cart)
+  useEffect(() => {
+    cartRef.current = cart
+  }, [cart])
+
   // ── addToCart ────────────────────────────────────────────────────────────
-  const addToCart = (food, quantity = 1, note = '') => {
+  // Resolves true when the dish was added, false when the customer kept the other restaurant's cart
+  const addToCart = async (food, quantity = 1, note = '') => {
     const restaurantName =
       food.restaurantName ||
       (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
@@ -103,27 +111,31 @@ export function CartProvider({ children, userId }) {
             `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
           )
 
+    // Another restaurant in the cart: ask first (one order = one restaurant). Asked outside setCart:
+    // a state updater must stay synchronous.
+    const current = cartRef.current
+    const isDifferentRestaurant =
+      current.restaurant &&
+      current.items.length > 0 &&
+      ((current.restaurant.id && current.restaurant.id !== restaurantId) ||
+        (current.restaurant.name &&
+          current.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
+
+    if (isDifferentRestaurant) {
+      const confirmed = await confirmToast(
+        `Giỏ hàng của bạn đang có món từ "${current.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nXóa giỏ hàng hiện tại để chọn món từ "${restaurantName}"?`,
+        { confirmLabel: 'Xóa giỏ & thêm món', danger: true }
+      )
+      if (!confirmed) return false
+      setCart({
+        restaurant: { id: restaurantId, name: restaurantName },
+        items: [{ food, quantity, note }],
+      })
+      return true
+    }
+
     setCart((prev) => {
-      const isDifferentRestaurant =
-        prev.restaurant &&
-        prev.items.length > 0 &&
-        ((prev.restaurant.id && prev.restaurant.id !== restaurantId) ||
-          (prev.restaurant.name &&
-            prev.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
-
-      if (isDifferentRestaurant) {
-        const confirmChange = window.confirm(
-          `Giỏ hàng của bạn đang có món từ "${prev.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nBạn có muốn XÓA giỏ hàng hiện tại để chọn món từ "${restaurantName}" không?`
-        )
-        if (!confirmChange) return prev
-
-        return {
-          restaurant: { id: restaurantId, name: restaurantName },
-          items: [{ food, quantity, note }],
-        }
-      }
-
-      // Cùng quán hoặc giỏ hàng đang trống
+      // Same restaurant or empty cart
       const existingIndex = prev.items.findIndex(
         (item) => cartLineKey(item.food) === cartLineKey(food)
       )
@@ -144,6 +156,7 @@ export function CartProvider({ children, userId }) {
         items: newItems,
       }
     })
+    return true
   }
 
   // ── updateQuantity ───────────────────────────────────────────────────────
