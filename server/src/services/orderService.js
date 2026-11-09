@@ -573,6 +573,34 @@ export const receiveOrder = async (orderId, userId) => {
     changedByRole: 'customer',
   });
 
+  // Thông báo realtime tới cả Khách hàng và Chủ nhà hàng khi khách xác nhận đã nhận hàng
+  try {
+    const orderNumber = order.orderCode || order.orderNumber || String(order._id).slice(-6);
+
+    // 1. Khách hàng
+    await sendRealtimeNotification(order.customer, {
+      title: 'Đã nhận hàng thành công 🎉',
+      message: `Đơn hàng #${orderNumber} đã được bạn xác nhận nhận hàng thành công! Chúc bạn ngon miệng.`,
+      type: 'order',
+      orderId: order._id,
+      link: `/orders/${order._id}`,
+    });
+
+    // 2. Chủ nhà hàng
+    const restaurantDoc = await Restaurant.findById(order.restaurant).select('owner name').lean();
+    if (restaurantDoc?.owner) {
+      await sendRealtimeNotification(restaurantDoc.owner, {
+        title: 'Đơn hàng đã hoàn thành 🍽️',
+        message: `Đơn hàng #${orderNumber} của quán "${restaurantDoc.name}" đã được khách hàng xác nhận nhận hàng thành công.`,
+        type: 'order',
+        orderId: order._id,
+        link: `/restaurant/orders`,
+      });
+    }
+  } catch (notifErr) {
+    console.warn('Failed to send delivered notification in confirmDeliveredByCustomer:', notifErr?.message);
+  }
+
   return order;
 };
 
