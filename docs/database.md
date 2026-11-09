@@ -205,7 +205,7 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 
 Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper`, `admin_cancel` hoặc `delivery_issue` (admin hủy khi xử lý sự cố giao hàng).
 
-Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn, admin không duyệt được. Không có ca qua đêm.
+Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn (admin vẫn duyệt được hồ sơ). Không có ca qua đêm.
 
 ## 8. Trường đã bỏ (refactor/db-cleanup)
 
