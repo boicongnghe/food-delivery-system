@@ -22,7 +22,7 @@ const DEMO_ACCOUNTS = {
     createdAt: new Date().toISOString(),
     restaurantDetails: {
       restaurantName: 'Cơm Tấm Ba Ghiền',
-      restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+      restaurantAddress: 'Cổng số 1 ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
       businessItems: 'Cơm tấm sườn bì chả, sườn cây nướng, canh rong biển thịt bằm',
       ownerCitizenId: '079201007788',
       businessLicense: {

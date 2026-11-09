@@ -8,7 +8,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Cơm Tấm Sườn Bì Chả Đặc Biệt',
     restaurantName: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+    restaurantAddress: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 65000,
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80',
@@ -17,7 +17,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Cơm Gà Xối Mỡ Da Giòn',
     restaurantName: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+    restaurantAddress: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 55000,
     image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=700&q=80',
@@ -26,7 +26,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Cơm Chiên Dương Châu Xá Xíu',
     restaurantName: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+    restaurantAddress: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 50000,
     image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=700&q=80',
@@ -35,7 +35,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Cơm Tấm Sườn Nướng Mật Ong',
     restaurantName: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+    restaurantAddress: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 45000,
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80',
@@ -44,7 +44,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Cơm Gà Xé Phay Trộn Rau Răm',
     restaurantName: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    restaurantAddress: '84 Đặng Văn Ngữ, P.10, Q.Phú Nhuận, TP.HCM',
+    restaurantAddress: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 48000,
     image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=700&q=80',
@@ -53,7 +53,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Phở Bò Tái Nạm Gầu Bát Đá',
     restaurantName: 'Phở Thìn Lò Đúc Hà Nội',
-    restaurantAddress: '13 Lò Đúc, Q.Hai Bà Trưng, Hà Nội',
+    restaurantAddress: 'Tái định cư Bắc Phú Cát, Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 70000,
     image: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=700&q=80',
@@ -62,7 +62,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Bún Bò Huế Chả Cua Thịt Chân Giò',
     restaurantName: 'Phở Thìn Lò Đúc Hà Nội',
-    restaurantAddress: '13 Lò Đúc, Q.Hai Bà Trưng, Hà Nội',
+    restaurantAddress: 'Tái định cư Bắc Phú Cát, Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 65000,
     image: 'https://images.unsplash.com/photo-1594998893017-36147cbcae05?auto=format&fit=crop&w=700&q=80',
@@ -71,7 +71,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Bún Chả Hà Nội Nướng Than Hoa',
     restaurantName: 'Phở Thìn Lò Đúc Hà Nội',
-    restaurantAddress: '13 Lò Đúc, Q.Hai Bà Trưng, Hà Nội',
+    restaurantAddress: 'Tái định cư Bắc Phú Cát, Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Cơm & Mì Phở',
     price: 55000,
     image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=600&q=80',
@@ -80,7 +80,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Burger Bò Nướng Phô Mai Double Cheesy',
     restaurantName: 'The Grill Burger House',
-    restaurantAddress: '45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Burger & Gà Rán',
     price: 89000,
     image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80',
@@ -89,7 +89,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Gà Rán Giòn Cay Sốt Phô Mai Hàn Quốc',
     restaurantName: 'The Grill Burger House',
-    restaurantAddress: '45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Burger & Gà Rán',
     price: 75000,
     image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=700&q=80',
@@ -98,7 +98,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Khoai Tây Lắc Phô Mai BBQ Giòn Rụm',
     restaurantName: 'The Grill Burger House',
-    restaurantAddress: '45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Đồ Ăn Vặt',
     price: 35000,
     image: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=700&q=80',
@@ -107,7 +107,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Trà Sữa Đường Đen Trân Châu Hoàng Kim',
     restaurantName: 'The Alley & Tea House',
-    restaurantAddress: '68 Nguyễn Huệ, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Ngã 3 Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Trà Sữa & Cà Phê',
     price: 45000,
     image: 'https://images.unsplash.com/photo-1558857563-b37cfb8cb042?auto=format&fit=crop&w=700&q=80',
@@ -116,7 +116,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Trà Đào Cam Sả Hạt Chia',
     restaurantName: 'The Alley & Tea House',
-    restaurantAddress: '68 Nguyễn Huệ, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Ngã 3 Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Trà Sữa & Cà Phê',
     price: 38000,
     image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=700&q=80',
@@ -125,7 +125,7 @@ const DISHES_TO_SEED = [
   {
     name: 'Salad Ức Gà Áp Chảo Sốt Mè Rang',
     restaurantName: 'The Grill Burger House',
-    restaurantAddress: '45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM',
+    restaurantAddress: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Món Chay Healthy',
     price: 59000,
     image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=700&q=80',
