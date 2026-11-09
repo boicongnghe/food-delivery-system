@@ -265,10 +265,12 @@ export const createOrder = async (userId, data) => {
   // Shipping fee calculation based on GPS distance
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
-  if (restLat == null || restLng == null) {
+  // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
     const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
+    Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
   let destLat = deliveryAddress.location?.lat;
@@ -610,10 +612,12 @@ export const estimateShipping = async (userId, params) => {
 
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
-  if (restLat == null || restLng == null) {
+  // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
     const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
+    Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
   let destLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : null;
