@@ -44,32 +44,10 @@ function PaymentResult() {
 
         try {
           const qrRes = await paymentApi.getPaymentQrInfo(orderId)
-          qr = qrRes.data.data
+          qr = qrRes.data?.data
           setQrInfo(qr)
         } catch (e) {
-          console.error('Error fetching qr info', e)
-        }
-
-        // Fallback: Nếu API qr có trục trặc nhưng có đơn hàng, tự sinh VietQR ngay tại client
-        if (ord && !qr) {
-          const bankId = 'TPB'
-          const accountNo = '0393863658'
-          const accountName = 'DO MANH DUONG'
-          const amount = ord.totalPrice
-          const transferContent = ord.orderNumber
-          const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(accountName)}`
-          const fallbackQr = {
-            orderId: ord._id,
-            orderNumber: ord.orderNumber,
-            amount,
-            bankId,
-            accountNo,
-            accountName,
-            transferContent,
-            qrUrl,
-            paymentStatus: ord.paymentStatus,
-          }
-          setQrInfo(fallbackQr)
+          console.error('Error fetching qr info from server', e)
         }
 
         if (ord?.paymentStatus === 'paid') {
@@ -277,7 +255,13 @@ function PaymentResult() {
       )}
 
       {/* 3. Màn hình CHỜ QUÉT MÃ VIETQR VÀ TỰ ĐỘNG DUYỆT KHI TIỀN VỀ */}
-      {paymentStatus === 'pending' && (
+      {paymentStatus === 'pending' && !qrInfo && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+          <p className="text-slate-600 font-semibold mb-4">Đang tải thông tin thanh toán VietQR từ hệ thống...</p>
+        </div>
+      )}
+
+      {paymentStatus === 'pending' && qrInfo && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
           <div className="text-center mb-5">
             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700 mb-2">

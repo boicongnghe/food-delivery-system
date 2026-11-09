@@ -316,14 +316,9 @@ export default function Home() {
     }
   }, [])
 
-  // Combine partner restaurants
+  // Partner restaurants: prioritize real DB partners; fallback only if DB is empty / offline
   const allPartners = useMemo(() => {
-    if (apiPartners.length > 0) {
-      const apiNames = new Set(apiPartners.map((p) => p.name.toLowerCase()))
-      const nonOverlapping = DEFAULT_PARTNERS.filter((p) => !apiNames.has(p.name.toLowerCase()))
-      return [...apiPartners, ...nonOverlapping]
-    }
-    return DEFAULT_PARTNERS
+    return apiPartners.length > 0 ? apiPartners : DEFAULT_PARTNERS
   }, [apiPartners])
 
   // Filtered partner restaurants
@@ -336,23 +331,10 @@ export default function Home() {
     })
   }, [allPartners, restaurantFilter])
 
-  // Combine dishes
+  // Dishes: prioritize real DB dishes from menuitems; fallback only if DB is empty / offline
   const allDishes = useMemo(() => {
-    if (apiDishes.length > 0) {
-      const apiNames = new Set(apiDishes.map((d) => d.name.toLowerCase()))
-      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase())).map((d) => {
-        const matched = apiPartners.find(
-          (p) => (p.name || '').trim().toLowerCase() === (d.restaurant || '').trim().toLowerCase()
-        )
-        return {
-          ...d,
-          restaurantId: matched?._id || matched?.id || d.restaurantId,
-        }
-      })
-      return [...apiDishes, ...nonOverlappingStatic]
-    }
-    return DISHES
-  }, [apiDishes, apiPartners])
+    return apiDishes.length > 0 ? apiDishes : DISHES
+  }, [apiDishes])
 
   // Handle welcome toast when returning from login
   useEffect(() => {
