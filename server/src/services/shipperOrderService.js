@@ -1,20 +1,35 @@
 import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
+import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
-import { broadcastRealtimeNotification } from '../socket.js';
+import { broadcastRealtimeNotification, sendRealtimeNotification } from '../socket.js';
+import { getKitchenStartFields } from './kitchenService.js';
+import {
+  NOT_PICKED_UP_STATUSES,
+  SHIPPER_ACTIVE_STATUSES as ACTIVE_STATUSES,
+  SHIPPER_POOL_STATUSES,
+} from './orderAssignmentService.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
 
 const AVAILABLE_FILTER = {
-  status: 'ready_for_pickup',
+  status: { $in: SHIPPER_POOL_STATUSES },
   shipper: null,
   ...PAYMENT_ALLOWS_FULFILLMENT_FILTER,
 };
-const ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
+const codeOf = order => order.orderCode || order.orderNumber || '';
+const notifyRestaurantOwner = async (restaurantId, payload) => {
+  const restaurant = await Restaurant.findById(restaurantId).select('owner').lean();
+  if (restaurant?.owner) await sendRealtimeNotification(restaurant.owner, payload);
+};
+const getAvailableOrderFilter = async () => ({
+  ...AVAILABLE_FILTER,
+  restaurant: { $in: await Restaurant.distinct('_id') },
+});
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
 const DASHBOARD_PERIODS = ['today', 'week', 'month'];
 const DASHBOARD_PERIOD_FIELDS = [
@@ -105,21 +120,24 @@ const toAvailableOrder = (order) => {
     estimatedPay: order.shippingFee,
     total: order.total,
     amountToCollect: order.payment.method === 'cod' ? order.total : 0,
+    acceptedAt: order.acceptedAt,
+    kitchenDueAt: order.kitchenDueAt,
     readyAt: order.readyAt,
   };
 };
 
 export const listAvailableForPickup = async (shipperId, { page, limit }) => {
   await getDriverDashboard(shipperId);
+  const filter = await getAvailableOrderFilter();
   const [orders, totalItems] = await Promise.all([
-    Order.find(AVAILABLE_FILTER)
+    Order.find(filter)
       .populate('restaurant', 'name address')
-      .sort({ readyAt: 1 })
+      .sort({ acceptedAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment readyAt status')
+      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
       .lean(),
-    Order.countDocuments(AVAILABLE_FILTER),
+    Order.countDocuments(filter),
   ]);
 
   return {
@@ -130,9 +148,9 @@ export const listAvailableForPickup = async (shipperId, { page, limit }) => {
 
 export const getAvailableOrderDetail = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
-  const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
+  const order = await Order.findOne({ _id: orderId, ...(await getAvailableOrderFilter()) })
     .populate('restaurant', 'name address phone')
-    .select('orderCode restaurant delivery items total shippingFee payment readyAt status')
+    .select('orderCode restaurant delivery items total shippingFee payment acceptedAt kitchenDueAt readyAt status')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Đơn hàng không còn trong danh sách chờ nhận');
@@ -152,8 +170,9 @@ export const getActiveOrders = async (shipperId) => {
 
 export const acceptOrder = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
-  const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
-    .populate('restaurant', 'name address phone')
+  const availableFilter = await getAvailableOrderFilter();
+  const order = await Order.findOne({ _id: orderId, ...availableFilter })
+    .select('status restaurant customer orderCode orderNumber')
     .lean();
   if (!order) {
     throw new ApiError(409, 'Đơn hàng không còn khả dụng, vui lòng tải lại danh sách');
@@ -175,10 +194,18 @@ export const acceptOrder = async (shipperId, orderId) => {
   }
 
   const acceptedAt = new Date();
+  const startsKitchen = order.status === 'confirmed';
+  const kitchen = startsKitchen ? await getKitchenStartFields(order.restaurant, acceptedAt) : null;
+  const update = startsKitchen
+    ? {
+        $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt, status: 'preparing', ...kitchen },
+        $push: { statusHistory: { status: 'preparing', at: acceptedAt, byRole: 'shipper' } },
+      }
+    : { $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt } };
   const accepted = await Order.findOneAndUpdate(
-    { _id: orderId, ...AVAILABLE_FILTER },
-    { $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt } },
-    { new: true, runValidators: true },
+    { _id: orderId, ...availableFilter, status: order.status },
+    update,
+    { returnDocument: 'after', runValidators: true },
   );
   if (!accepted) {
     await DriverDashboard.updateOne(
@@ -188,6 +215,34 @@ export const acceptOrder = async (shipperId, orderId) => {
     throw new ApiError(409, 'Đơn hàng vừa được shipper khác nhận');
   }
 
+  if (startsKitchen) {
+    const ticket = String(kitchen.kitchenTicketNo).padStart(2, '0');
+    await recordStatusChange({
+      orderId: accepted._id,
+      fromStatus: 'confirmed',
+      toStatus: 'preparing',
+      role: 'shipper',
+      action: 'Shipper đã nhận đơn',
+      note: `Bếp bắt đầu chế biến (phiếu bếp #${ticket})`,
+    });
+    await notifyRestaurantOwner(accepted.restaurant, {
+      title: `Đơn #${codeOf(accepted)}: đã có shipper, bắt đầu nấu`,
+      message: `Shipper đã nhận đơn và đang đến quán. Phiếu bếp #${ticket}.`,
+      type: 'order',
+      orderId: accepted._id,
+      link: `/restaurant/orders?order=${accepted._id}`,
+    });
+    if (accepted.customer) {
+      await sendRealtimeNotification(accepted.customer, {
+        title: 'Đã có shipper, quán đang nấu',
+        message: `Đơn #${codeOf(accepted)} đã có shipper nhận giao và bếp bắt đầu chế biến.`,
+        type: 'order',
+        orderId: accepted._id,
+        link: `/orders/${accepted._id}`,
+      });
+    }
+  }
+
   return Order.findById(accepted._id)
     .populate('restaurant', 'name address phone')
     .populate('customer', 'fullName phone')
@@ -195,16 +250,24 @@ export const acceptOrder = async (shipperId, orderId) => {
 };
 
 export const cancelAcceptance = async (shipperId, orderId) => {
-  const cutoff = new Date(Date.now() - ACCEPTANCE_WINDOW_MS);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - ACCEPTANCE_WINDOW_MS);
   const released = await Order.findOneAndUpdate(
     {
       _id: orderId,
       shipper: shipperId,
-      status: 'ready_for_pickup',
+      status: { $in: NOT_PICKED_UP_STATUSES },
       shipperAcceptedAt: { $gte: cutoff },
     },
-    { $set: { shipper: null, shipperAcceptedAt: null } },
-    { new: true },
+    {
+      $set: {
+        shipper: null,
+        shipperAcceptedAt: null,
+        'timeouts.shipperAlertedAt': null,
+        'timeouts.releasedAt': now,
+      },
+    },
+    { returnDocument: 'after' },
   );
   if (!released) {
     throw new ApiError(409, 'Chỉ có thể trả đơn trong 3 phút sau khi nhận và trước khi xác nhận lấy hàng');
@@ -214,6 +277,13 @@ export const cancelAcceptance = async (shipperId, orderId) => {
     { userId: shipperId, activeOrderId: orderId },
     { $set: { activeOrderId: null } },
   );
+  await notifyRestaurantOwner(released.restaurant, {
+    title: `Đơn #${codeOf(released)}: shipper đã trả đơn`,
+    message: 'Hệ thống đang tìm shipper khác. Bếp tiếp tục chuẩn bị món như bình thường.',
+    type: 'order',
+    orderId: released._id,
+    link: `/restaurant/orders?order=${released._id}`,
+  });
   broadcastRealtimeNotification('shipper', 'new_pickup_order', {
     orderId: released._id,
     orderCode: codeOf(released),

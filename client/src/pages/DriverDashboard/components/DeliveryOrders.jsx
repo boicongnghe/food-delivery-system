@@ -30,6 +30,15 @@ const formatAddress = order =>
   order.delivery?.address || order.deliveryAddress?.addressLine || 'Chưa có địa chỉ giao hàng'
 const recipientPhone = order => order.delivery?.phone || order.deliveryAddress?.phone || ''
 const hasWaitingRequirement = type => ['customer_unreachable', 'customer_refused'].includes(type)
+const POOL_STATUS_LABELS = {
+  confirmed: 'Quán đã nhận · chờ bạn để nấu',
+  preparing: 'Bếp đang nấu',
+  ready_for_pickup: 'Sẵn sàng lấy hàng',
+}
+const AT_RESTAURANT_STATUSES = ['preparing', 'ready_for_pickup']
+const formatTime = value => (value
+  ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  : '')
 
 function getErrorMessage(error) {
   return error.response?.data?.message || error.message || 'Không thể thực hiện thao tác.'
@@ -334,7 +343,7 @@ function DeliveryOrders({ onOrderChanged }) {
       <div className="delivery-orders-heading">
         <div>
           <h1>Quản lý đơn giao hàng</h1>
-          <p>Danh sách đơn nhà hàng đã chuẩn bị xong và đang chờ tài xế nhận.</p>
+          <p>Nhận đơn nhà hàng đã xác nhận; bếp sẽ bắt đầu chuẩn bị sau khi có tài xế.</p>
         </div>
         <button
           type="button"
@@ -377,7 +386,9 @@ function DeliveryOrders({ onOrderChanged }) {
               <div className="delivery-active-list">
                 {activeOrders.map(order => {
                   const acceptedAt = new Date(order.shipperAcceptedAt || 0).getTime()
-                  const cancelAvailable = order.status === 'ready_for_pickup'
+                  const isAtRestaurant = AT_RESTAURANT_STATUSES.includes(order.status)
+                  const isCooking = order.status === 'preparing'
+                  const cancelAvailable = isAtRestaurant
                     && (!now || now - acceptedAt <= 3 * 60 * 1000)
                   const waitMinutes = order.customerWaitStartedAt
                     ? Math.max(0, Math.floor((now - new Date(order.customerWaitStartedAt).getTime()) / 60000))
@@ -392,7 +403,11 @@ function DeliveryOrders({ onOrderChanged }) {
                       <div className="delivery-order-card-top">
                         <strong>{order.orderCode}</strong>
                         <span className={`delivery-status ${order.status === 'delivering' ? 'transit' : 'ready'}`}>
-                          {order.status === 'delivering' ? 'Bước 2 · Đang giao' : 'Bước 1 · Chờ lấy hàng'}
+                          {order.status === 'delivering'
+                            ? 'Bước 2 · Đang giao'
+                            : isCooking
+                              ? 'Bước 1 · Bếp đang nấu'
+                              : 'Bước 1 · Chờ lấy hàng'}
                         </span>
                       </div>
                         <div className="delivery-stepper" aria-label="Tiến độ giao hàng">
@@ -400,7 +415,7 @@ function DeliveryOrders({ onOrderChanged }) {
                           <span className={order.status === 'delivering' ? 'complete' : 'current'}>2. Lấy hàng</span>
                           <span className={order.status === 'delivering' ? 'current' : ''}>3. Giao khách</span>
                         </div>
-                        {order.status === 'ready_for_pickup' ? (
+                        {isAtRestaurant ? (
                           <section className="delivery-stage-panel">
                             <h3>Bước 2 · Lấy hàng tại nhà hàng</h3>
                             <div className="delivery-active-columns">
@@ -422,12 +437,16 @@ function DeliveryOrders({ onOrderChanged }) {
                               ))}
                             </ul>
                           </div>
-                          <p className="delivery-muted-note">Chỉ xác nhận sau khi đã nhận và kiểm tra đủ món.</p>
+                          <p className="delivery-muted-note">
+                            {isCooking
+                              ? `Quán đang nấu${order.kitchenDueAt ? `, dự kiến xong lúc ${formatTime(order.kitchenDueAt)}` : ''}. Hãy đến quán; nút xác nhận mở khi quán báo xong món.`
+                              : 'Chỉ xác nhận sau khi đã nhận và kiểm tra đủ món.'}
+                          </p>
                           {cancelAvailable && (
                             <button
                               type="button"
                               className="delivery-secondary-button"
-                              disabled={busyOrderId === order._id}
+                              disabled={busyOrderId === order._id || isCooking}
                               onClick={() => runOrderAction(order._id, () =>
                                 orderApi.cancelDeliveryAcceptance(order._id),
                               )}
@@ -443,7 +462,11 @@ function DeliveryOrders({ onOrderChanged }) {
                               orderApi.confirmDeliveryPickup(order._id),
                             )}
                           >
-                            {busyOrderId === order._id ? 'Đang xác nhận…' : 'Bước tiếp theo: Xác nhận đã lấy'}
+                            {busyOrderId === order._id
+                              ? 'Đang xác nhận…'
+                              : isCooking
+                                ? 'Chờ quán nấu xong'
+                                : 'Bước tiếp theo: Xác nhận đã lấy'}
                           </button>
                         </section>
                       ) : (
@@ -590,7 +613,7 @@ function DeliveryOrders({ onOrderChanged }) {
             <header className="delivery-section-heading">
               <div>
                 <h2>Đơn có thể nhận</h2>
-                <p>Bước 1 · Xem danh sách đơn sẵn sàng, chọn đơn rồi xác nhận nhận</p>
+                <p>Bước 1 · Chọn đơn quán đã nhận. Bếp bắt đầu nấu ngay khi bạn nhận đơn</p>
               </div>
               {!isStatusError && (
                 <span className="delivery-count">{availablePagination.totalItems}</span>
@@ -605,7 +628,7 @@ function DeliveryOrders({ onOrderChanged }) {
                   : '🔒 Tài khoản chưa đủ điều kiện. Liên hệ Admin để được hỗ trợ.'}
               </div>
             ) : availableOrders.length === 0 ? (
-              <div className="delivery-empty">Hiện chưa có đơn nào sẵn sàng để shipper nhận.</div>
+              <div className="delivery-empty">Hiện chưa có đơn nào chờ shipper nhận.</div>
             ) : (
               <>
                 <div className="delivery-order-grid">
@@ -613,7 +636,7 @@ function DeliveryOrders({ onOrderChanged }) {
                   <article className="delivery-order-card" key={order._id}>
                     <div className="delivery-order-card-top">
                       <strong>{order.orderCode}</strong>
-                      <span className="delivery-status ready">Sẵn sàng lấy hàng</span>
+                      <span className="delivery-status ready">{POOL_STATUS_LABELS[order.status] || 'Chờ shipper'}</span>
                     </div>
                     <h3>{order.restaurant.name}</h3>
                     <p className="delivery-address">{order.restaurant.address}</p>
@@ -623,6 +646,9 @@ function DeliveryOrders({ onOrderChanged }) {
                       <span className="delivery-pay-highlight">
                         Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong>
                       </span>
+                      {order.status === 'preparing' && order.kitchenDueAt && (
+                        <span>Bếp dự kiến xong lúc {formatTime(order.kitchenDueAt)}</span>
+                      )}
                       {order.amountToCollect > 0 && (
                         <span className="delivery-cod-tag">
                           Thu hộ COD: <strong>{formatMoney(order.amountToCollect)}</strong>
