@@ -121,7 +121,14 @@ const toModalOptions = (optionGroups = []) => {
       : [],
     toppings: optionGroups
       .filter((group) => group !== sizeGroup)
-      .flatMap((group) => group.options.map((option) => ({ name: option.name, price: option.price, groupName: group.name }))),
+      .flatMap((group) =>
+        group.options.map((option) => ({
+          name: option.name,
+          price: option.price,
+          groupName: group.name,
+          maxSelect: group.maxSelect || 10,
+        }))
+      ),
   }
 }
 
@@ -253,7 +260,7 @@ export default function Home() {
             restaurant: f.restaurant?.name || 'Quán Ăn Ngon',
             restaurantId: f.restaurant?._id || f.restaurant,
             price: f.price,
-            originalPrice: Math.round(f.price * 1.15),
+            originalPrice: f.originalPrice && f.originalPrice > f.price ? f.originalPrice : undefined,
             image:
               f.image ||
               'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
@@ -1407,9 +1414,12 @@ export default function Home() {
               }
 
               // Enrich customized food with size and toppings to preserve total price in Cart
+              const toppingKeyPart = (orderData.selectedToppings || [])
+                .map((t) => `${t.name}x${t.quantity || 1}`)
+                .join('-')
               const customizedFood = {
                 ...orderData.dish,
-                id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${(orderData.selectedToppings || []).map((t) => t.name).join('-')}`,
+                id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${toppingKeyPart}`,
                 name: orderData.selectedSize?.name
                   ? `${orderData.dish.name} (${orderData.selectedSize.name})`
                   : orderData.dish.name,

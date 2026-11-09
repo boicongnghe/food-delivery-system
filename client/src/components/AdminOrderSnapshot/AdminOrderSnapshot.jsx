@@ -31,7 +31,9 @@ export default function AdminOrderSnapshot({ order }) {
                 <span className="font-bold text-primary">{item.quantity}×</span> {item.name}
               </p>
               {item.options?.length > 0 && (
-                <p className="text-xs text-slate-500">{item.options.map((option) => option.name).join(', ')}</p>
+                <p className="text-xs text-slate-500">
+                  {item.options.map((option) => `${option.name}${option.quantity > 1 ? ` x${option.quantity}` : ''}`).join(', ')}
+                </p>
               )}
               {item.note && <p className="text-xs italic text-amber-700/80 dark:text-amber-300/80">Ghi chú: {item.note}</p>}
             </div>

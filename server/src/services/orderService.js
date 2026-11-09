@@ -120,19 +120,36 @@ const resolveItemOptions = (menuItem, selected = []) => {
 
   const chosen = [];
   for (const group of menuItem.optionGroups) {
-    const names = [...new Set(selected.filter((choice) => choice.groupName === group.name).map((choice) => choice.name))];
-    if (group.isRequired && names.length === 0) {
+    const choicesForGroup = selected.filter((choice) => choice.groupName === group.name);
+    const totalCount = choicesForGroup.reduce(
+      (sum, choice) => sum + (Number(choice.quantity) > 0 ? Number(choice.quantity) : 1),
+      0
+    );
+
+    if (group.isRequired && totalCount === 0) {
       throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
     }
-    if (names.length > group.maxSelect) {
+    if (totalCount > group.maxSelect) {
       throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
     }
-    for (const name of names) {
-      const option = group.options.find((candidate) => candidate.name === name);
+
+    for (const choice of choicesForGroup) {
+      const option = group.options.find((candidate) => candidate.name === choice.name);
       if (!option) {
-        throw invalidItem(`Lựa chọn "${name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
+        throw invalidItem(`Lựa chọn "${choice.name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
       }
-      chosen.push({ groupName: group.name, name: option.name, price: option.price });
+      const qty = Number(choice.quantity) > 0 ? Number(choice.quantity) : 1;
+      const existing = chosen.find((c) => c.groupName === group.name && c.name === option.name);
+      if (existing) {
+        existing.quantity = (existing.quantity || 1) + qty;
+      } else {
+        chosen.push({
+          groupName: group.name,
+          name: option.name,
+          price: option.price,
+          quantity: qty,
+        });
+      }
     }
   }
   return chosen;
@@ -209,7 +226,7 @@ const buildOrderItem = async (restaurantId, item) => {
   const options = Array.isArray(menuItem.optionGroups) && menuItem.optionGroups.length > 0
     ? resolveItemOptions(menuItem, item.options)
     : [];
-  const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price, 0);
+  const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price * (option.quantity || 1), 0);
   return {
     menuItem: menuItem._id,
     name: menuItem.name,

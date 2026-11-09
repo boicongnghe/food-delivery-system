@@ -405,6 +405,11 @@ function OrderTracking() {
             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <span style={{ fontWeight: 700 }}>{item.quantity}x</span> {item.name}
+                {item.options?.length > 0 && (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>
+                    + Topping: {item.options.map((opt) => `${opt.name}${opt.quantity > 1 ? ` x${opt.quantity}` : ''}`).join(', ')}
+                  </span>
+                )}
                 {item.note && (
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>
                     ({item.note})
