@@ -1,43 +1,13 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { cartLineKey } from '../utils/cartLineKey.js'
+import { foodApi } from '../api/foodApi.js'
 
 export const CartContext = createContext(null)
 
 const GUEST_CART_KEY = 'food_delivery_cart_guest'
 const EMPTY_CART = { restaurant: null, items: [] }
 
-const KNOWN_RESTAURANTS = {
-  'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
-  'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
-  'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
-  'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
-  'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
-  'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
-}
-
-const resolveKnownRestaurantId = (name, fallbackId) => {
-  if (!name) return fallbackId
-  const key = String(name).trim().toLowerCase()
-  return KNOWN_RESTAURANTS[key] || fallbackId
-}
-
-const healCartRestaurant = (cartData) => {
-  if (!cartData?.restaurant) return cartData || EMPTY_CART
-  const curId = String(cartData.restaurant.id || '')
-  if (curId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(curId)) {
-    const healed = resolveKnownRestaurantId(cartData.restaurant.name, curId)
-    if (healed && healed !== curId) {
-      return {
-        ...cartData,
-        restaurant: {
-          ...cartData.restaurant,
-          id: healed,
-        },
-      }
-    }
-  }
-  return cartData
-}
+const isValidObjectId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id)
 
 const getCartKey = (userId) =>
   userId ? `food_delivery_cart_${userId}` : GUEST_CART_KEY
@@ -45,7 +15,7 @@ const getCartKey = (userId) =>
 const loadCart = (userId) => {
   try {
     const raw = localStorage.getItem(getCartKey(userId))
-    return raw ? healCartRestaurant(JSON.parse(raw)) : EMPTY_CART
+    return raw ? JSON.parse(raw) : EMPTY_CART
   } catch {
     return EMPTY_CART
   }
@@ -62,6 +32,39 @@ const saveCart = (cart, userId) => {
 export function CartProvider({ children, userId }) {
   const userIdRef = useRef(userId)
   const [cart, setCart] = useState(() => loadCart(userId))
+
+  // Dynamically resolve and heal restaurant MongoDB ObjectId from database if missing or invalid
+  useEffect(() => {
+    const rId = cart?.restaurant?.id
+    const rName = cart?.restaurant?.name
+    if (rName && (!rId || !isValidObjectId(rId))) {
+      let isMounted = true
+      foodApi
+        .getRestaurants()
+        .then((res) => {
+          if (!isMounted) return
+          const dbRestaurants = res.data?.data || []
+          const match = dbRestaurants.find(
+            (r) => (r.name || '').trim().toLowerCase() === rName.trim().toLowerCase()
+          )
+          if (match?._id) {
+            setCart((prev) => ({
+              ...prev,
+              restaurant: {
+                ...prev.restaurant,
+                id: match._id,
+              },
+            }))
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not auto-heal cart restaurant from DB:', err?.message)
+        })
+      return () => {
+        isMounted = false
+      }
+    }
+  }, [cart?.restaurant?.id, cart?.restaurant?.name])
 
   // ── Switch cart when user logs in / out ──────────────────────────────────
   useEffect(() => {
@@ -96,12 +99,9 @@ export function CartProvider({ children, userId }) {
         : null)
 
     const restaurantId =
-      rawRestId && /^[0-9a-fA-F]{24}$/.test(rawRestId)
+      rawRestId && isValidObjectId(rawRestId)
         ? rawRestId
-        : resolveKnownRestaurantId(
-            restaurantName,
-            `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
-          )
+        : `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
 
     setCart((prev) => {
       const isDifferentRestaurant =

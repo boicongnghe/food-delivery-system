@@ -4,12 +4,34 @@ import { Ticket, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
 import { authApi } from '../../api/authApi.js'
+import { foodApi } from '../../api/foodApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import restaurantVoucherApi from '../../api/restaurantVoucherApi.js'
 import { orderApi } from '../../api/orderApi.js'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 import { cartLineKey } from '../../utils/cartLineKey.js'
+
+const resolveRestaurantObjectId = async (cartRestaurant) => {
+  let rId = cartRestaurant?.id || cartRestaurant?._id
+  if (rId && /^[0-9a-fA-F]{24}$/.test(rId)) {
+    return rId
+  }
+  const rName = (cartRestaurant?.name || '').trim().toLowerCase()
+  if (!rName) return rId
+
+  try {
+    const res = await foodApi.getRestaurants()
+    const list = res.data?.data || []
+    const match = list.find((r) => (r.name || '').trim().toLowerCase() === rName)
+    if (match?._id) {
+      return match._id
+    }
+  } catch (err) {
+    console.warn('Could not resolve restaurant ID from database:', err?.message)
+  }
+  return rId
+}
 
 function Checkout() {
   const { user } = useAuth()
@@ -133,23 +155,8 @@ function Checkout() {
   // Tự động tính phí vận chuyển dựa trên khoảng cách GPS từ nhà hàng đến địa chỉ nhận
   useEffect(() => {
     const fetchShippingFee = async () => {
-      let restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
-      if (!restaurantId || !selectedAddressId) return
-
-      const KNOWN_RESTAURANTS = {
-        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
-        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
-        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
-        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
-        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
-        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
-      }
-      if (restaurantId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) {
-        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
-        if (KNOWN_RESTAURANTS[rName]) {
-          restaurantId = KNOWN_RESTAURANTS[rName]
-        }
-      }
+      const restaurantId = await resolveRestaurantObjectId(cart?.restaurant)
+      if (!restaurantId || !selectedAddressId || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) return
 
       const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
       const params = { restaurantId, addressId: selectedAddressId }
@@ -409,20 +416,11 @@ function Checkout() {
     try {
       setIsSubmitting(true)
 
-      let orderRestaurantId = cart.restaurant?.id || cart.restaurant?._id
-      const KNOWN_RESTAURANTS = {
-        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
-        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
-        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
-        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
-        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
-        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
-      }
-      if (orderRestaurantId?.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
-        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
-        if (KNOWN_RESTAURANTS[rName]) {
-          orderRestaurantId = KNOWN_RESTAURANTS[rName]
-        }
+      const orderRestaurantId = await resolveRestaurantObjectId(cart.restaurant)
+      if (!orderRestaurantId || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
+        toast.error('Không tìm thấy thông tin nhà hàng trong hệ thống. Vui lòng thử lại!')
+        setIsSubmitting(false)
+        return
       }
 
       const payload = {

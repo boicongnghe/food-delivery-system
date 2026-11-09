@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   Search,
@@ -283,11 +283,19 @@ export default function Home() {
   const allDishes = useMemo(() => {
     if (apiDishes.length > 0) {
       const apiNames = new Set(apiDishes.map((d) => d.name.toLowerCase()))
-      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase()))
+      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase())).map((d) => {
+        const matched = apiPartners.find(
+          (p) => (p.name || '').trim().toLowerCase() === (d.restaurant || '').trim().toLowerCase()
+        )
+        return {
+          ...d,
+          restaurantId: matched?._id || matched?.id || d.restaurantId,
+        }
+      })
       return [...apiDishes, ...nonOverlappingStatic]
     }
     return DISHES
-  }, [apiDishes])
+  }, [apiDishes, apiPartners])
 
   // Handle welcome toast when returning from login
   useEffect(() => {
