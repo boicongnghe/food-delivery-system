@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Star, Clock, MapPin, Plus, Minus, ShoppingBag } from 'lucide-react'
+import { X, Star, Clock, MapPin, Plus, Minus, ShoppingBag, Zap } from 'lucide-react'
 
 export default function DishDetailModal({
   dish,
@@ -12,7 +12,7 @@ export default function DishDetailModal({
   const [selectedSize, setSelectedSize] = useState(() => dish?.options?.sizes?.[0] || null)
   const [selectedToppings, setSelectedToppings] = useState([])
   const [note, setNote] = useState('')
-  const [ordering, setOrdering] = useState(false)
+  const [orderingMode, setOrderingMode] = useState(null)
 
   if (!dish) return null
 
@@ -32,10 +32,10 @@ export default function DishDetailModal({
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
   }
 
-  const handleConfirmOrder = () => {
-    setOrdering(true)
+  const handleConfirmOrder = (mode = 'cart') => {
+    setOrderingMode(mode)
     setTimeout(() => {
-      setOrdering(false)
+      setOrderingMode(null)
       if (onOrderSuccess) {
         onOrderSuccess({
           dish,
@@ -44,6 +44,7 @@ export default function DishDetailModal({
           selectedToppings,
           totalPrice,
           note,
+          isBuyNow: mode === 'buy_now',
         })
       }
       onClose()
@@ -240,12 +241,11 @@ export default function DishDetailModal({
           </div>
         )}
 
-        {/* Modal Footer: Quantity & Confirm button */}
-        <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-[#121418] flex flex-col sm:flex-row items-center justify-between gap-4">
-          {/* Quantity Stepper */}
-          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 sm:hidden">Số lượng:</span>
-            <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-2xl shadow-sm">
+        {/* Modal Footer: Quantity & 2 Action buttons (Add to cart & Buy now) */}
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-[#121418] flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          {/* Quantity Stepper & Mobile Price Overview */}
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div className="flex items-center gap-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-2xl shadow-xs">
               <button
                 type="button"
                 onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
@@ -266,25 +266,49 @@ export default function DishDetailModal({
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
+            <div className="sm:hidden text-right">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Tổng tiền</span>
+              <span className="text-sm font-black text-primary">{formatPrice(totalPrice)}</span>
+            </div>
           </div>
 
-          {/* Action Button with Total Price */}
-          <button
-            type="button"
-            onClick={handleConfirmOrder}
-            disabled={ordering || isRestaurantClosed}
-            className={`w-full sm:w-auto sm:min-w-[260px] py-3.5 px-6 rounded-2xl font-bold text-sm transition-all flex items-center justify-between gap-4 ${
-              isRestaurantClosed
-                ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-80'
-                : 'bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:opacity-95 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 active:scale-[0.99] disabled:opacity-60 cursor-pointer'
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4" />
-              {isRestaurantClosed ? 'Quán hiện đóng cửa' : ordering ? 'Đang thêm vào giỏ...' : 'Thêm vào giỏ hàng'}
-            </span>
-            <span className={isRestaurantClosed ? 'text-slate-400' : 'text-amber-200 font-extrabold'}>{formatPrice(totalPrice)}</span>
-          </button>
+          {/* Action Buttons Group (Thêm vào giỏ & Đặt ngay) */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            {/* Nút 1: Thêm vào giỏ hàng */}
+            <button
+              type="button"
+              onClick={() => handleConfirmOrder('cart')}
+              disabled={Boolean(orderingMode) || isRestaurantClosed}
+              className={`flex-1 sm:flex-initial py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                isRestaurantClosed
+                  ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                  : 'border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 text-primary hover:bg-orange-100 dark:hover:bg-orange-500/20 active:scale-[0.98]'
+              }`}
+              title="Thêm món này vào giỏ và tiếp tục dạo thực đơn"
+            >
+              <ShoppingBag className="w-4 h-4 shrink-0" />
+              <span>{orderingMode === 'cart' ? 'Đang thêm...' : 'Thêm vào giỏ'}</span>
+            </button>
+
+            {/* Nút 2: Đặt ngay (Mua ngay -> chuyển thẳng sang Checkout) */}
+            <button
+              type="button"
+              onClick={() => handleConfirmOrder('buy_now')}
+              disabled={Boolean(orderingMode) || isRestaurantClosed}
+              className={`flex-1 sm:flex-initial py-3 px-5 rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 text-white shadow-lg cursor-pointer ${
+                isRestaurantClosed
+                  ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed opacity-80 shadow-none'
+                  : 'bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:opacity-95 shadow-orange-500/25 hover:shadow-orange-500/40 active:scale-[0.98]'
+              }`}
+              title="Thêm món và chuyển ngay đến màn hình thanh toán"
+            >
+              <Zap className="w-4 h-4 shrink-0 fill-amber-300 text-amber-300" />
+              <span>{orderingMode === 'buy_now' ? 'Đang chuyển...' : 'Đặt ngay'}</span>
+              <span className="hidden sm:inline font-extrabold text-amber-200 text-xs">
+                • {formatPrice(totalPrice)}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
