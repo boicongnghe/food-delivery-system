@@ -14,17 +14,21 @@ import {
   Tag,
   ShieldCheck,
   Copy,
+  Check,
+  Ticket,
   Store,
   Percent,
   Timer,
   ArrowRight,
   UtensilsCrossed,
+  MapPin,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/useCart.js'
 import { CATEGORIES, DISHES } from '../../data/dishesData.js'
 import { foodApi } from '../../api/foodApi.js'
+import { promotionApi } from '../../api/promotionApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
 import { isOpenNow, getOpeningHoursText } from '../../utils/openingHours.js'
 
@@ -42,6 +46,7 @@ const DEFAULT_PARTNERS = [
   {
     id: 'res-1',
     name: 'Cơm Tấm Ba Ghiền - Sài Gòn',
+    address: '84 Đặng Văn Ngữ, P. 10, Q. Phú Nhuận, TP. HCM',
     category: 'Cơm tấm sườn bì chả, Đặc sản Sài Gòn',
     rating: 4.9,
     reviewsCount: 1420,
@@ -57,6 +62,7 @@ const DEFAULT_PARTNERS = [
   {
     id: 'res-2',
     name: 'Phở Thìn Lò Đúc Hà Nội',
+    address: '13 Lò Đúc, P. Phạm Đình Hổ, Q. Hai Bà Trưng, Hà Nội',
     category: 'Phở bò tái lăn, Quẩy giòn gia truyền',
     rating: 4.8,
     reviewsCount: 980,
@@ -72,6 +78,7 @@ const DEFAULT_PARTNERS = [
   {
     id: 'res-3',
     name: 'The Grill Burger House',
+    address: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Burger Bò Úc nướng khói, Gà giòn sốt cay',
     rating: 4.9,
     reviewsCount: 750,
@@ -87,6 +94,7 @@ const DEFAULT_PARTNERS = [
   {
     id: 'res-4',
     name: 'The Alley & Tea House',
+    address: 'Ngã 3 Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Trà sữa đường đen Okinawa, Trà hoa quả',
     rating: 5.0,
     reviewsCount: 2150,
@@ -147,11 +155,15 @@ export default function Home() {
   // 3D Tilt calculation state for Hero Showcase
   const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 })
 
-  // Flash Deal Countdown Timer (State: Hours, Minutes, Seconds)
+  // Flash Deal Active Promotions from Admin & Dynamic Countdown (UC14)
+  const [activePromotions, setActivePromotions] = useState([])
+  const [loadingPromotions, setLoadingPromotions] = useState(true)
+  const [copiedCode, setCopiedCode] = useState(null)
   const [timeLeft, setTimeLeft] = useState({
-    hours: 4,
-    minutes: 48,
-    seconds: 32,
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
   })
 
   // Synchronize URL search params (?q=...) with searchQuery
@@ -163,24 +175,68 @@ export default function Home() {
     }
   }, [location.search])
 
-  // Countdown Interval
+  // Fetch active promotions from backend (Admin issued, currently active)
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev.seconds > 0) {
-          return { ...prev, seconds: prev.seconds - 1 }
+    let isMounted = true
+    const fetchPromos = async () => {
+      try {
+        setLoadingPromotions(true)
+        const res = await promotionApi.getPromotions({ activeOnly: true })
+        const promos = res.data?.data || res.data || []
+        if (isMounted && Array.isArray(promos)) {
+          setActivePromotions(promos)
         }
-        if (prev.minutes > 0) {
-          return { ...prev, minutes: 59, seconds: 59 }
-        }
-        if (prev.hours > 0) {
-          return { hours: prev.hours - 1, minutes: 59, seconds: 59 }
-        }
-        return { hours: 6, minutes: 0, seconds: 0 }
-      })
-    }, 1000)
-    return () => clearInterval(timer)
+      } catch (err) {
+        console.error('Failed to fetch promotions for home banner:', err)
+      } finally {
+        if (isMounted) setLoadingPromotions(false)
+      }
+    }
+    fetchPromos()
+    return () => {
+      isMounted = false
+    }
   }, [])
+
+  // Dynamic Countdown Timer based on closest active promotion endDate or end of day
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date()
+      let targetDate = null
+
+      if (activePromotions.length > 0) {
+        const futureDates = activePromotions
+          .map((p) => (p.endDate ? new Date(p.endDate).getTime() : null))
+          .filter((t) => t && t > now.getTime())
+          .sort((a, b) => a - b)
+
+        if (futureDates.length > 0) {
+          targetDate = futureDates[0]
+        }
+      }
+
+      if (!targetDate) {
+        const endOfDay = new Date(now)
+        endOfDay.setHours(23, 59, 59, 999)
+        targetDate = endOfDay.getTime()
+      }
+
+      const diff = Math.max(0, targetDate - now.getTime())
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+      return { days, hours, minutes, seconds }
+    }
+
+    setTimeLeft(calculateTimeLeft())
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft())
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [activePromotions])
 
   // Fetch foods from backend if available
   useEffect(() => {
@@ -226,6 +282,7 @@ export default function Home() {
           const mappedPartners = restaurants.map((r, idx) => ({
             id: r._id || `res-${idx}`,
             name: r.name,
+            address: r.address || '',
             category: r.description || 'Quán ăn đặc sản đối tác',
             rating: r.rating || 4.8,
             reviewsCount: 300 + idx * 80,
@@ -388,7 +445,7 @@ export default function Home() {
   }
 
   // Quick Add to cart from dish or restaurant chips
-  const handleQuickAddToCart = (e, dish) => {
+  const handleQuickAddToCart = async (e, dish) => {
     e.stopPropagation()
     if (!isAuthenticated) {
       toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
@@ -421,17 +478,21 @@ export default function Home() {
       return
     }
 
-    addToCart(dish, 1, '')
+    if (!(await addToCart(dish, 1, ''))) return
     toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
       icon: '🛒',
       duration: 2500,
     })
   }
 
-  // Copy coupon helper
+  // Copy coupon helper with visual feedback
   const handleCopyCoupon = (code) => {
     navigator.clipboard?.writeText(code)
+    setCopiedCode(code)
     toast.success(`Đã sao chép mã ưu đãi "${code}"! Áp dụng ngay khi thanh toán. 🎉`)
+    setTimeout(() => {
+      setCopiedCode((prev) => (prev === code ? null : prev))
+    }, 2000)
   }
 
   // Hero Parallax Tilt Handler
@@ -835,7 +896,10 @@ export default function Home() {
                   {/* Restaurant Content */}
                   <div className="p-5 space-y-3">
                     <div>
-                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1">
+                      <h3
+                        className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1"
+                        title={partner.name}
+                      >
                         {partner.name}
                       </h3>
                       <div className="flex items-center justify-between gap-2 mt-1">
@@ -852,6 +916,16 @@ export default function Home() {
                           {isOpen ? 'Mở cửa' : 'Đóng cửa'} ({hoursText})
                         </span>
                       </div>
+
+                      {partner.address && (
+                        <p
+                          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-1"
+                          title={partner.address}
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <span className="truncate">{partner.address}</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* Promo Tag: the restaurant's best running voucher, only when it has one */}
@@ -1176,74 +1250,130 @@ export default function Home() {
           <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-white/10 blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-1/3 -mb-20 w-72 h-72 rounded-full bg-amber-400/20 blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
-            <div className="space-y-4 max-w-2xl text-center lg:text-left">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+            {/* Cột trái: Tiêu đề + Đồng hồ đếm ngược (5 cột) */}
+            <div className="lg:col-span-5 space-y-4 text-center lg:text-left">
               <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-xs font-black uppercase tracking-wider">
                 <Flame className="w-4 h-4 text-amber-300 animate-bounce" />
                 Flash Deal Đếm Ngược Giờ Vàng
               </span>
 
               <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight">
-                Giảm 50% & Miễn Phí Ship <br />
-                <span className="text-amber-200">Cho Tất Cả Đơn Hàng Hôm Nay!</span>
+                Ưu Đãi Giờ Vàng <br />
+                <span className="text-amber-200">Từ Hệ Thống FoodDelivery!</span>
               </h3>
 
               <p className="text-sm sm:text-base text-orange-100 max-w-xl leading-relaxed">
-                Áp dụng cho hơn 500+ món ăn bán chạy nhất hệ thống. Đừng bỏ lỡ ưu đãi giới hạn thời gian!
+                Áp dụng cho mọi đơn hàng hôm nay. Lấy ngay các mã khuyến mãi độc quyền do Admin phát hành!
               </p>
 
               {/* Countdown Digits */}
-              <div className="flex items-center justify-center lg:justify-start gap-3 pt-2">
-                <div className="flex flex-col items-center p-3 rounded-2xl bg-black/30 backdrop-blur-md border border-white/20 min-w-[70px]">
+              <div className="flex items-center justify-center lg:justify-start gap-2.5 sm:gap-3 pt-2">
+                {timeLeft.days > 0 && (
+                  <>
+                    <div className="flex flex-col items-center p-2.5 sm:p-3 rounded-2xl bg-black/35 backdrop-blur-md border border-white/20 min-w-[62px] sm:min-w-[70px]">
+                      <span className="text-2xl sm:text-3xl font-black">{String(timeLeft.days).padStart(2, '0')}</span>
+                      <span className="text-[10px] uppercase font-bold text-orange-200">Ngày</span>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-black">:</span>
+                  </>
+                )}
+                <div className="flex flex-col items-center p-2.5 sm:p-3 rounded-2xl bg-black/35 backdrop-blur-md border border-white/20 min-w-[62px] sm:min-w-[70px]">
                   <span className="text-2xl sm:text-3xl font-black">{String(timeLeft.hours).padStart(2, '0')}</span>
                   <span className="text-[10px] uppercase font-bold text-orange-200">Giờ</span>
                 </div>
-                <span className="text-2xl font-black">:</span>
-                <div className="flex flex-col items-center p-3 rounded-2xl bg-black/30 backdrop-blur-md border border-white/20 min-w-[70px]">
+                <span className="text-xl sm:text-2xl font-black">:</span>
+                <div className="flex flex-col items-center p-2.5 sm:p-3 rounded-2xl bg-black/35 backdrop-blur-md border border-white/20 min-w-[62px] sm:min-w-[70px]">
                   <span className="text-2xl sm:text-3xl font-black">{String(timeLeft.minutes).padStart(2, '0')}</span>
                   <span className="text-[10px] uppercase font-bold text-orange-200">Phút</span>
                 </div>
-                <span className="text-2xl font-black">:</span>
-                <div className="flex flex-col items-center p-3 rounded-2xl bg-black/30 backdrop-blur-md border border-white/20 min-w-[70px]">
+                <span className="text-xl sm:text-2xl font-black">:</span>
+                <div className="flex flex-col items-center p-2.5 sm:p-3 rounded-2xl bg-black/35 backdrop-blur-md border border-white/20 min-w-[62px] sm:min-w-[70px]">
                   <span className="text-2xl sm:text-3xl font-black">{String(timeLeft.seconds).padStart(2, '0')}</span>
                   <span className="text-[10px] uppercase font-bold text-orange-200">Giây</span>
                 </div>
               </div>
             </div>
 
-            {/* Promo Voucher Cards */}
-            <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0 w-full sm:w-auto">
-              <div className="p-4 rounded-2xl bg-white text-slate-900 shadow-xl flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase">Mã Freeship</p>
-                  <p className="text-lg font-black text-primary">FREESHIP15K</p>
-                  <span className="text-[11px] text-slate-500">Giảm 15k phí giao hàng</span>
+            {/* Cột phải: Danh sách Voucher Thật Do Admin Phát Hành (7 cột) */}
+            <div className="lg:col-span-7">
+              {loadingPromotions ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="h-24 rounded-2xl bg-white/10 backdrop-blur-md animate-pulse" />
+                  <div className="h-24 rounded-2xl bg-white/10 backdrop-blur-md animate-pulse" />
+                  <div className="h-24 rounded-2xl bg-white/10 backdrop-blur-md animate-pulse" />
+                  <div className="h-24 rounded-2xl bg-white/10 backdrop-blur-md animate-pulse" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyCoupon('FREESHIP15K')}
-                  className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-primary text-primary hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Sao chép</span>
-                </button>
-              </div>
+              ) : activePromotions.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {activePromotions.slice(0, 4).map((promo) => {
+                    const isCopied = copiedCode === promo.code
+                    return (
+                      <div
+                        key={promo._id || promo.code}
+                        className="relative p-3.5 sm:p-4 rounded-2xl bg-white text-slate-900 shadow-xl flex items-center justify-between gap-3 border border-orange-100 hover:scale-[1.02] transition-all group overflow-hidden"
+                      >
+                        {/* Decorative Ticket Accent */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-[#FF4B2B] to-[#FFB800]" />
 
-              <div className="p-4 rounded-2xl bg-white text-slate-900 shadow-xl flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase">Mã Giảm Giá 50k</p>
-                  <p className="text-lg font-black text-orange-600">FOODDELIVERY50</p>
-                  <span className="text-[11px] text-slate-500">Giảm tối đa 50k cho đơn 150k</span>
+                        <div className="pl-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-orange-100 text-primary uppercase shrink-0">
+                              {promo.discountType === 'percentage'
+                                ? `Giảm ${promo.discountValue}%`
+                                : `Giảm ${Math.round(promo.discountValue / 1000)}K`}
+                            </span>
+                            {promo.minOrderValue > 0 && (
+                              <span className="text-[10px] text-slate-500 font-medium truncate">
+                                Đơn từ {promo.minOrderValue >= 1000 ? `${Math.round(promo.minOrderValue / 1000)}k` : `${promo.minOrderValue}đ`}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-base sm:text-lg font-black text-primary font-mono tracking-wider mt-1 truncate">
+                            {promo.code}
+                          </p>
+
+                          <p className="text-xs text-slate-600 truncate mt-0.5" title={promo.title || promo.description}>
+                            {promo.title || promo.description || 'Ưu đãi đặc quyền hôm nay'}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCoupon(promo.code)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95 cursor-pointer ${
+                            isCopied
+                              ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                              : 'bg-orange-50 hover:bg-primary text-primary hover:text-white'
+                          }`}
+                          title={`Sao chép mã ${promo.code}`}
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Đã chép</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Sao chép</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyCoupon('FOODDELIVERY50')}
-                  className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-primary text-primary hover:text-white text-xs font-bold transition-all flex items-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Sao chép</span>
-                </button>
-              </div>
+              ) : (
+                <div className="p-8 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center text-white space-y-2">
+                  <Tag className="w-10 h-10 text-amber-300 mx-auto opacity-80" />
+                  <p className="text-base font-bold">Chương trình Flash Deal sắp ra mắt</p>
+                  <p className="text-xs text-orange-100 max-w-sm mx-auto">
+                    Các mã giảm giá mới nhất từ Admin đang được chuẩn bị. Hãy quay lại sau ít phút nhé!
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1260,7 +1390,7 @@ export default function Home() {
             isRestaurantClosed={!isOpen}
             openingHoursText={hoursText}
             onClose={() => setActiveDish(null)}
-            onOrderSuccess={(orderData) => {
+            onOrderSuccess={async (orderData) => {
               if (!isAuthenticated) {
                 toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
                   icon: '🔒',
@@ -1296,10 +1426,21 @@ export default function Home() {
                 selectedToppings: orderData.selectedToppings,
               }
 
-              addToCart(customizedFood, orderData.quantity, orderData.note)
-              toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
-                icon: '🛒',
-              })
+              const isBuyNow = Boolean(orderData.isBuyNow)
+              if (!(await addToCart(customizedFood, orderData.quantity, orderData.note, { isBuyNow }))) return
+
+              if (orderData.isBuyNow) {
+                toast.success('Đang chuyển đến trang thanh toán...', {
+                  icon: '⚡',
+                  duration: 2000,
+                })
+                navigate('/checkout')
+              } else {
+                toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
+                  icon: '🛒',
+                  duration: 2500,
+                })
+              }
             }}
           />
         )

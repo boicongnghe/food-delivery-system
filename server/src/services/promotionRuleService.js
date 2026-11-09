@@ -152,14 +152,21 @@ export const updatePromotionRule = async (ruleId, data) => {
   return updated;
 };
 
+/**
+ * A code can be deleted when no customer used it yet, or when checkout can no longer apply it
+ * (turned off or expired). Orders keep their own copy of the code and discount, so a used code can go.
+ */
 export const deletePromotionRule = async (ruleId) => {
-  const rule = await PromotionRule.findById(ruleId).select('code usedCount').lean();
+  const rule = await PromotionRule.findById(ruleId).select('code').lean();
   if (!rule) {
     throw new ApiError(404, 'Không tìm thấy mã khuyến mãi');
   }
-  // Conditional delete: checkout may use the code between the check and the delete
-  const { deletedCount } = await PromotionRule.deleteOne({ _id: ruleId, usedCount: 0 });
+  // Conditional delete: checkout may use the code (or the admin turn it back on) between the check and the delete
+  const { deletedCount } = await PromotionRule.deleteOne({
+    _id: ruleId,
+    $or: [{ usedCount: 0 }, { isActive: false }, { endDate: { $lt: new Date() } }],
+  });
   if (deletedCount === 0) {
-    throw new ApiError(409, `Mã ${rule.code} đã được khách sử dụng nên không thể xóa. Hãy tắt mã để ngừng áp dụng.`);
+    throw new ApiError(409, `Mã ${rule.code} đã được khách sử dụng nên chỉ xóa được khi đã tắt hoặc đã hết hạn. Hãy tắt mã trước.`);
   }
 };

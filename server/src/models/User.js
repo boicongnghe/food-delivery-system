@@ -63,6 +63,22 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Số dư ví không thể âm'],
     },
+    // Bank accounts receiving wallet withdrawals (customers, shippers): max 5, the default one is used
+    payoutAccounts: {
+      type: [
+        new mongoose.Schema(
+          {
+            bankName: { type: String, trim: true, required: true },
+            accountNumber: { type: String, trim: true, required: true },
+            accountHolder: { type: String, trim: true, required: true },
+            isDefault: { type: Boolean, default: false },
+            createdAt: { type: Date, default: Date.now },
+          },
+          { _id: true },
+        ),
+      ],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,

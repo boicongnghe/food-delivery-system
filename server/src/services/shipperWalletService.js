@@ -6,6 +6,7 @@ import ApiError from '../utils/ApiError.js';
 import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
 import driverDashboardService from './driverDashboardService.js';
+import { getUserDefaultAccount } from './payoutAccountService.js';
 
 const getDailyWithdrawals = async (shipperId, start, end, session = null) => {
   const aggregation = ShipperWithdrawal.aggregate([
@@ -40,6 +41,12 @@ export const requestWithdrawal = async (shipperId, amount) => {
     throw new ApiError(400, `Mỗi lần rút tối đa ${SHIPPER_WITHDRAWAL_LIMITS.perWithdrawal.toLocaleString('vi-VN')}đ`);
   }
 
+  // Withdrawals go to the default bank account saved in the wallet
+  const bankAccount = await getUserDefaultAccount(shipperId);
+  if (!bankAccount) {
+    throw new ApiError(400, 'Hãy thêm tài khoản ngân hàng nhận tiền trong ví trước khi rút');
+  }
+
   await driverDashboardService.getDashboard(shipperId, 'today');
   const day = vietnamDateString();
   const start = startOfVietnamDay(day);
@@ -66,7 +73,7 @@ export const requestWithdrawal = async (shipperId, amount) => {
       }
 
       [withdrawal] = await ShipperWithdrawal.create(
-        [{ shipper: shipperId, amount, transactionCode, status: 'requested' }],
+        [{ shipper: shipperId, amount, transactionCode, status: 'requested', bankAccount }],
         { session },
       );
     });

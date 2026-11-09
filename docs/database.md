@@ -198,6 +198,8 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
 | `restaurant_vouchers` | `RestaurantVoucher.js` | Voucher quán tự chạy, quán chịu tiền: `code` (unique theo quán), `discountType`, `discountValue`, `maxDiscount`, `minOrderValue`, `startAt`/`endAt`, `usageLimit`, `perCustomerLimit`, `isActive`. Đơn lưu bản sao ở `orders.restaurantVoucher`. Xem [restaurant-voucher.md](restaurant-voucher.md) |
+| `users.payoutAccounts` | (trong `User.js`) | Tài khoản ngân hàng nhận tiền rút của customer và shipper, cùng quy tắc với quán (tối đa 5, một mặc định). API `/api/wallet/payout-accounts` |
+| `restaurants.payoutAccounts` | (trong `Restaurant.js`) | Tối đa 5 tài khoản ngân hàng nhận tiền rút `{ bankName, accountNumber, accountHolder, isDefault }`; `restaurants.payoutAccount` là bản sao của tài khoản mặc định |
 | `restaurant_wallets` | `RestaurantWallet.js` | Ví của quán (mỗi quán một document): `withdrawnTotal`, `weekStart`/`weekCount` (giới hạn 3 lần rút/tuần), `version` (compare-and-set). Số dư tính từ đơn, xem [restaurant-wallet.md](restaurant-wallet.md) |
 | `restaurant_withdrawals` | `RestaurantWithdrawal.js` | Lệnh rút tiền `RT-0001`: `amount`, bản sao `bankAccount`, `status` `processing → succeeded \| failed`, `providerRef`, `idempotencyKey` (unique theo quán) |
 
@@ -205,7 +207,7 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 
 Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper`, `admin_cancel` hoặc `delivery_issue` (admin hủy khi xử lý sự cố giao hàng).
 
-Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn, admin không duyệt được. Không có ca qua đêm.
+Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn (admin vẫn duyệt được hồ sơ). Không có ca qua đêm.
 
 ## 8. Trường đã bỏ (refactor/db-cleanup)
 
@@ -220,6 +222,7 @@ Các trường dưới đây đã bị xóa khỏi model vì không còn code n�
 | `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | Collection riêng `addresses` |
 | `users.addresses` | Mảng nhúng trong User gây phình to khi auth, khó đánh index địa lý | Collection riêng `addresses` (`/api/addresses`) |
 | `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
+| `platform_settings.reconInterval`, `refundSlaHours` | Lưu trên màn Cấu hình vận hành nhưng không code nào đọc | (không cần) |
 
 Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):
 

@@ -5,7 +5,7 @@ import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
-import { sendRealtimeNotification } from '../socket.js';
+import { broadcastRealtimeNotification, sendRealtimeNotification } from '../socket.js';
 import { getKitchenStartFields } from './kitchenService.js';
 import {
   NOT_PICKED_UP_STATUSES,
@@ -16,19 +16,20 @@ import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
 
-// Orders a shipper can take: confirmed by the restaurant (the kitchen waits for a shipper before cooking),
-// or given back to the pool while cooking / ready
 const AVAILABLE_FILTER = {
   status: { $in: SHIPPER_POOL_STATUSES },
   shipper: null,
   ...PAYMENT_ALLOWS_FULFILLMENT_FILTER,
 };
-const codeOf = (order) => order.orderCode || order.orderNumber || '';
-
+const codeOf = order => order.orderCode || order.orderNumber || '';
 const notifyRestaurantOwner = async (restaurantId, payload) => {
   const restaurant = await Restaurant.findById(restaurantId).select('owner').lean();
   if (restaurant?.owner) await sendRealtimeNotification(restaurant.owner, payload);
 };
+const getAvailableOrderFilter = async () => ({
+  ...AVAILABLE_FILTER,
+  restaurant: { $in: await Restaurant.distinct('_id') },
+});
 const ACCEPTANCE_WINDOW_MS = 3 * 60 * 1000;
 const DASHBOARD_PERIODS = ['today', 'week', 'month'];
 const DASHBOARD_PERIOD_FIELDS = [
@@ -127,15 +128,16 @@ const toAvailableOrder = (order) => {
 
 export const listAvailableForPickup = async (shipperId, { page, limit }) => {
   await getDriverDashboard(shipperId);
+  const filter = await getAvailableOrderFilter();
   const [orders, totalItems] = await Promise.all([
-    Order.find(AVAILABLE_FILTER)
+    Order.find(filter)
       .populate('restaurant', 'name address')
-      .sort({ acceptedAt: 1 }) // waiting longest first
+      .sort({ acceptedAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
       .lean(),
-    Order.countDocuments(AVAILABLE_FILTER),
+    Order.countDocuments(filter),
   ]);
 
   return {
@@ -146,7 +148,7 @@ export const listAvailableForPickup = async (shipperId, { page, limit }) => {
 
 export const getAvailableOrderDetail = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
-  const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
+  const order = await Order.findOne({ _id: orderId, ...(await getAvailableOrderFilter()) })
     .populate('restaurant', 'name address phone')
     .select('orderCode restaurant delivery items total shippingFee payment acceptedAt kitchenDueAt readyAt status')
     .lean();
@@ -166,14 +168,10 @@ export const getActiveOrders = async (shipperId) => {
   return orders;
 };
 
-/**
- * Take an order. A confirmed order starts cooking now (status preparing, kitchen deadline from the
- * restaurant's prepTime): the kitchen never cooks for an order nobody will deliver. An order given back
- * to the pool keeps its kitchen status. Conditional on the status just read: two shippers cannot both win.
- */
 export const acceptOrder = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
-  const order = await Order.findOne({ _id: orderId, ...AVAILABLE_FILTER })
+  const availableFilter = await getAvailableOrderFilter();
+  const order = await Order.findOne({ _id: orderId, ...availableFilter })
     .select('status restaurant customer orderCode orderNumber')
     .lean();
   if (!order) {
@@ -189,23 +187,23 @@ export const acceptOrder = async (shipperId, orderId) => {
       $or: [{ activeOrderId: null }, { activeOrderId: { $exists: false } }],
     },
     { $set: { activeOrderId: orderId } },
-    { returnDocument: 'after' },
+    { new: true },
   );
   if (!reserved) {
     throw new ApiError(409, 'Bạn đang có một đơn giao hàng chưa hoàn tất');
   }
 
-  const now = new Date();
+  const acceptedAt = new Date();
   const startsKitchen = order.status === 'confirmed';
-  const kitchen = startsKitchen ? await getKitchenStartFields(order.restaurant, now) : null;
+  const kitchen = startsKitchen ? await getKitchenStartFields(order.restaurant, acceptedAt) : null;
   const update = startsKitchen
     ? {
-        $set: { shipper: shipperId, shipperAcceptedAt: now, status: 'preparing', ...kitchen },
-        $push: { statusHistory: { status: 'preparing', at: now, byRole: 'shipper' } },
+        $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt, status: 'preparing', ...kitchen },
+        $push: { statusHistory: { status: 'preparing', at: acceptedAt, byRole: 'shipper' } },
       }
-    : { $set: { shipper: shipperId, shipperAcceptedAt: now } };
+    : { $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt } };
   const accepted = await Order.findOneAndUpdate(
-    { _id: orderId, ...AVAILABLE_FILTER, status: order.status },
+    { _id: orderId, ...availableFilter, status: order.status },
     update,
     { returnDocument: 'after', runValidators: true },
   );
@@ -228,7 +226,7 @@ export const acceptOrder = async (shipperId, orderId) => {
       note: `Bếp bắt đầu chế biến (phiếu bếp #${ticket})`,
     });
     await notifyRestaurantOwner(accepted.restaurant, {
-      title: `Đơn #${codeOf(accepted)}: đã có shipper, bắt đầu nấu 🍳`,
+      title: `Đơn #${codeOf(accepted)}: đã có shipper, bắt đầu nấu`,
       message: `Shipper đã nhận đơn và đang đến quán. Phiếu bếp #${ticket}.`,
       type: 'order',
       orderId: accepted._id,
@@ -236,7 +234,7 @@ export const acceptOrder = async (shipperId, orderId) => {
     });
     if (accepted.customer) {
       await sendRealtimeNotification(accepted.customer, {
-        title: 'Đã có shipper, quán đang nấu! 🍳',
+        title: 'Đã có shipper, quán đang nấu',
         message: `Đơn #${codeOf(accepted)} đã có shipper nhận giao và bếp bắt đầu chế biến.`,
         type: 'order',
         orderId: accepted._id,
@@ -251,8 +249,6 @@ export const acceptOrder = async (shipperId, orderId) => {
     .lean();
 };
 
-// Within 3 minutes and before pickup the shipper may give the order back. The kitchen keeps cooking;
-// the order returns to the pool and the no-shipper rules (TO-06, TO-07) count again from now.
 export const cancelAcceptance = async (shipperId, orderId) => {
   const now = new Date();
   const cutoff = new Date(now.getTime() - ACCEPTANCE_WINDOW_MS);
@@ -287,6 +283,10 @@ export const cancelAcceptance = async (shipperId, orderId) => {
     type: 'order',
     orderId: released._id,
     link: `/restaurant/orders?order=${released._id}`,
+  });
+  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+    orderId: released._id,
+    orderCode: codeOf(released),
   });
   return { orderId, released: true };
 };

@@ -7,6 +7,10 @@ import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
+import { getUserDefaultAccount, maskAccountNumber } from './payoutAccountService.js';
+
+// "Vietcombank · **** 4567": the default bank account saved in the wallet (withdrawals go there)
+const payoutBankLabel = (account) => (account ? `${account.bankName} · ${maskAccountNumber(account.accountNumber)}` : 'Chưa thiết lập');
 
 const VALID_PERIODS = new Set(['today', 'week', 'month']);
 
@@ -104,6 +108,7 @@ const getDashboard = async (userId, period) => {
     Review.countDocuments({ shipper: userId, isHidden: false, shipperRating: { $ne: null } }),
     getWithdrawalLimits(userId),
   ]);
+  const defaultAccount = await getUserDefaultAccount(userId);
   if (!dashboard.periods?.[period]) {
     throw new ApiError(404, 'Driver dashboard data was not found');
   }
@@ -147,9 +152,7 @@ const getDashboard = async (userId, period) => {
       rating: shipper.rating,
       ratingCount,
     }),
-    payoutBank: dashboard.profile.bankName
-      ? `${dashboard.profile.bankName} · ****${(bankAccountNumber || '').slice(-4)}`
-      : periodData.payoutBank,
+    payoutBank: payoutBankLabel(defaultAccount),
   };
 };
 
@@ -174,9 +177,6 @@ const getSettings = async (userId) => {
       : '',
     vehicleInfo: shipper?.vehicleInfo || '',
     shipperStatus: shipper?.status || '',
-    bankName: dashboard.profile.bankName,
-    bankAccountName: dashboard.profile.bankAccountName,
-    bankAccountNumber: dashboard.profile.bankAccountNumber,
   };
 };
 
@@ -203,9 +203,6 @@ const updateSettings = async (userId, settings) => {
     fullName: 'name',
     phone: 'phone',
     avatarUrl: 'avatarUrl',
-    bankName: 'bankName',
-    bankAccountName: 'bankAccountName',
-    bankAccountNumber: 'bankAccountNumber',
   };
 
   for (const [inputField, userField] of Object.entries(userFields)) {
@@ -237,9 +234,7 @@ const updateSettings = async (userId, settings) => {
 
   return {
     profile,
-    payoutBank: dashboard.profile.bankName
-      ? `${dashboard.profile.bankName} · ****${(bankAccountNumber || '').slice(-4)}`
-      : 'Chưa thiết lập',
+    payoutBank: payoutBankLabel(await getUserDefaultAccount(userId)),
   };
 };
 

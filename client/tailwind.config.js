@@ -46,6 +46,15 @@ export default {
         sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
         serif: ['Lora', 'Georgia', 'serif'],
       },
+      keyframes: {
+        fadeIn: {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.3s ease forwards',
+      },
     },
   },
   plugins: [],

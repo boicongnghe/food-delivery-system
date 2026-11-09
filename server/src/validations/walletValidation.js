@@ -20,8 +20,9 @@ export const withdrawalSchema = Joi.object({
   idempotencyKey: Joi.string().trim().min(8).max(64).required(),
 });
 
-// PUT /api/restaurants/me/wallet/payout-account - all three fields: a half-filled account cannot receive money
+// POST /api/restaurants/me/wallet/payout-accounts - all three fields: a half-filled account cannot receive money
 export const payoutAccountSchema = Joi.object({
+  makeDefault: Joi.boolean().default(false),
   bankName: Joi.string().trim().min(2).max(60).required().messages({
     'string.empty': 'Vui lòng nhập ngân hàng',
     'string.min': 'Tên ngân hàng quá ngắn',

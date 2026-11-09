@@ -47,7 +47,7 @@ function MainLayout() {
                 </p>
                 <p className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary shrink-0" />
-                  <span>Tòa nhà Innovation Hub, Quận 1, TP. Hồ Chí Minh</span>
+                  <span>Đại học FPT, Hòa Lạc, Hà Nội</span>
                 </p>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { cartLineKey } from '../utils/cartLineKey.js'
 import { foodApi } from '../api/foodApi.js'
+import { confirmToast } from '../utils/confirmToast.jsx'
 
 export const CartContext = createContext(null)
 
@@ -84,8 +85,15 @@ export function CartProvider({ children, userId }) {
     saveCart(cart, userId)
   }, [cart, userId])
 
+  // Latest cart for addToCart, which reads it after an await
+  const cartRef = useRef(cart)
+  useEffect(() => {
+    cartRef.current = cart
+  }, [cart])
+
   // ── addToCart ────────────────────────────────────────────────────────────
-  const addToCart = (food, quantity = 1, note = '') => {
+  // Resolves true when the dish was added, false when the customer kept the other restaurant's cart
+  const addToCart = async (food, quantity = 1, note = '', options = {}) => {
     const restaurantName =
       food.restaurantName ||
       (typeof food.restaurant === 'string' ? food.restaurant : food.restaurant?.name) ||
@@ -103,27 +111,34 @@ export function CartProvider({ children, userId }) {
         ? rawRestId
         : `res-${encodeURIComponent(restaurantName.trim().toLowerCase())}`
 
-    setCart((prev) => {
-      const isDifferentRestaurant =
-        prev.restaurant &&
-        prev.items.length > 0 &&
-        ((prev.restaurant.id && prev.restaurant.id !== restaurantId) ||
-          (prev.restaurant.name &&
-            prev.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
+    // Another restaurant in the cart: ask first (one order = one restaurant). Asked outside setCart:
+    // a state updater must stay synchronous.
+    const current = cartRef.current
+    const isDifferentRestaurant =
+      current.restaurant &&
+      current.items.length > 0 &&
+      ((current.restaurant.id && current.restaurant.id !== restaurantId) ||
+        (current.restaurant.name &&
+          current.restaurant.name.trim().toLowerCase() !== restaurantName.trim().toLowerCase()))
 
-      if (isDifferentRestaurant) {
-        const confirmChange = window.confirm(
-          `Giỏ hàng của bạn đang có món từ "${prev.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nBạn có muốn XÓA giỏ hàng hiện tại để chọn món từ "${restaurantName}" không?`
+    if (isDifferentRestaurant) {
+      // Khi chọn "Đặt ngay" (isBuyNow), tự động thay thế giỏ hàng bằng quán mới mà không hiển thị modal chặn
+      if (!options?.isBuyNow) {
+        const confirmed = await confirmToast(
+          `Giỏ hàng của bạn đang có món từ "${current.restaurant.name}". Mỗi đơn hàng chỉ được đặt từ 1 quán duy nhất.\n\nXóa giỏ hàng hiện tại để chọn món từ "${restaurantName}"?`,
+          { confirmLabel: 'Xóa giỏ & thêm món', danger: true }
         )
-        if (!confirmChange) return prev
-
-        return {
-          restaurant: { id: restaurantId, name: restaurantName },
-          items: [{ food, quantity, note }],
-        }
+        if (!confirmed) return false
       }
+      setCart({
+        restaurant: { id: restaurantId, name: restaurantName },
+        items: [{ food, quantity, note }],
+      })
+      return true
+    }
 
-      // Cùng quán hoặc giỏ hàng đang trống
+    setCart((prev) => {
+      // Same restaurant or empty cart
       const existingIndex = prev.items.findIndex(
         (item) => cartLineKey(item.food) === cartLineKey(food)
       )
@@ -144,23 +159,30 @@ export function CartProvider({ children, userId }) {
         items: newItems,
       }
     })
+    return true
   }
 
   // ── updateQuantity ───────────────────────────────────────────────────────
   const updateQuantity = (foodId, delta) => {
     setCart((prev) => {
-      const targetIndex = prev.items.findIndex(
-        (item) => cartLineKey(item.food) === foodId
-      )
+      const targetIndex = prev.items.findIndex((item) => {
+        const key = cartLineKey(item.food)
+        return (
+          key === foodId ||
+          item.food?.id === foodId ||
+          item.food?._id === foodId ||
+          String(key) === String(foodId) ||
+          String(item.food?._id) === String(foodId) ||
+          String(item.food?.id) === String(foodId)
+        )
+      })
       if (targetIndex === -1) return prev
 
       const newQty = prev.items[targetIndex].quantity + delta
       let newItems
 
       if (newQty <= 0) {
-        newItems = prev.items.filter(
-          (item) => cartLineKey(item.food) !== foodId
-        )
+        newItems = prev.items.filter((_, idx) => idx !== targetIndex)
       } else {
         newItems = [...prev.items]
         newItems[targetIndex] = {
@@ -179,9 +201,17 @@ export function CartProvider({ children, userId }) {
   // ── removeFromCart ───────────────────────────────────────────────────────
   const removeFromCart = (foodId) => {
     setCart((prev) => {
-      const newItems = prev.items.filter(
-        (item) => cartLineKey(item.food) !== foodId
-      )
+      const newItems = prev.items.filter((item) => {
+        const key = cartLineKey(item.food)
+        const matches =
+          key === foodId ||
+          item.food?.id === foodId ||
+          item.food?._id === foodId ||
+          String(key) === String(foodId) ||
+          String(item.food?._id) === String(foodId) ||
+          String(item.food?.id) === String(foodId)
+        return !matches
+      })
       return {
         restaurant: newItems.length === 0 ? null : prev.restaurant,
         items: newItems,

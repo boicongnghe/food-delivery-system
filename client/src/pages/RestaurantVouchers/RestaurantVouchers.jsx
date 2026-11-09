@@ -8,6 +8,7 @@ import { useKeyedRequest } from '../../hooks/useKeyedRequest.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
 import VoucherFormModal from './components/VoucherFormModal.jsx'
 import VoucherRow from './components/VoucherRow.jsx'
+import { confirmToast } from '../../utils/confirmToast.jsx'
 
 const SummaryPill = ({ label, value, tone = 'text-slate-900' }) => (
   <div className="rounded-xl border border-brand-soft/70 bg-white px-4 py-3 shadow-sm">
@@ -52,8 +53,8 @@ export default function RestaurantVouchers() {
   }
 
   const toggle = (voucher) => runAction(voucher, () => restaurantVoucherApi.setVoucherActive(voucher._id, !voucher.isActive))
-  const remove = (voucher) => {
-    if (!window.confirm(`Xóa mã ${voucher.code}? Không thể hoàn tác.`)) return
+  const remove = async (voucher) => {
+    if (!(await confirmToast(`Xóa mã ${voucher.code}? Không thể hoàn tác.`, { confirmLabel: 'Xóa mã', danger: true }))) return
     runAction(voucher, () => restaurantVoucherApi.deleteVoucher(voucher._id))
   }
 

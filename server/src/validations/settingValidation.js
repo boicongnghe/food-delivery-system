@@ -18,7 +18,7 @@ const minutes = (label, min, max) =>
 const after = (field, label) =>
   Joi.number().greater(Joi.ref(field)).messages({ 'number.greater': `${label} phải lớn hơn thời gian nhắc` });
 
-// PUT /api/admin/settings/order-timeouts - the whole form is sent (minutes unless noted)
+// PUT /api/admin/settings/order-timeouts - the whole form is sent, in minutes
 export const orderTimeoutSettingsSchema = Joi.object({
   payTimeout: minutes('Thời hạn thanh toán', 5, 120),
   acceptRemind: minutes('Thời gian nhắc quán nhận đơn', 1, 30),
@@ -31,6 +31,4 @@ export const orderTimeoutSettingsSchema = Joi.object({
   ),
   pickupWait: minutes('Thời gian shipper chờ ở quán', 5, 120),
   closingCutoff: minutes('Thời gian ngừng nhận đơn trước giờ đóng', 0, 180),
-  reconInterval: minutes('Chu kỳ đối soát', 5, 60),
-  refundSlaHours: minutes('Hạn hoàn tiền (giờ)', 1, 168),
 });

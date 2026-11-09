@@ -1,22 +1,20 @@
 import mongoose from 'mongoose';
 
 /**
- * Order timeout rules (TO-01..TO-16, see docs/order-timeouts.md). One document, _id "order-timeouts".
- * All values in minutes except refundSlaHours. Defaults are the BA assumptions (SRS > Assumptions).
+ * Order timeout rules (see docs/order-timeouts.md). One document, _id "order-timeouts".
+ * All values in minutes. Defaults are the BA assumptions (SRS > Assumptions).
  */
 export const ORDER_TIMEOUT_KEY = 'order-timeouts';
 export const ORDER_TIMEOUT_DEFAULTS = {
-  payTimeout: 15, // TO-01 - payment module
+  payTimeout: 15, // TO-01 - kept for the payment module, not read yet
   acceptRemind: 2, // TO-02
   acceptTimeout: 5, // TO-03
   defaultPrepTime: 15, // TO-04 - used when a restaurant has not declared its own prepTime
   prepGrace: 15, // TO-05
   shipperRemind: 10, // TO-06
   shipperTimeout: 20, // TO-07
-  pickupWait: 30, // TO-08 - shipper module
+  pickupWait: 30, // TO-08b - shipper accepted the order but has not picked it up
   closingCutoff: 30, // TO-10
-  reconInterval: 15, // TO-16 - payment module
-  refundSlaHours: 24, // TO-11..TO-14
 };
 
 const platformSettingSchema = new mongoose.Schema(
