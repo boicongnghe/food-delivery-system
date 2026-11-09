@@ -76,6 +76,7 @@ const orderOptionSchema = new mongoose.Schema(
     groupName: { type: String, required: true },
     name: { type: String, required: true },
     price: { type: Number, min: 0, default: 0 },
+    quantity: { type: Number, min: 1, default: 1 },
   },
   { _id: false },
 );

@@ -24,6 +24,9 @@ const optionSchema = Joi.object({
   price: Joi.number().integer().min(0).max(1000000).default(0).messages({
     'number.min': 'Giá cộng thêm không được âm',
   }),
+  stock: Joi.number().integer().min(0).max(9999).default(50).messages({
+    'number.min': 'Số lượng trong kho không được âm',
+  }),
 });
 
 const optionGroupSchema = Joi.object({
@@ -31,13 +34,13 @@ const optionGroupSchema = Joi.object({
     'string.empty': 'Tên nhóm tùy chọn không được để trống',
   }),
   isRequired: Joi.boolean().default(false),
-  maxSelect: Joi.number().integer().min(1).required(),
+  maxSelect: Joi.number().integer().min(1).max(50).required(),
   options: Joi.array().items(optionSchema).min(1).max(20).required().messages({
     'array.min': 'Mỗi nhóm tùy chọn phải có ít nhất 1 lựa chọn',
     'array.max': 'Mỗi nhóm tối đa 20 lựa chọn',
   }),
 }).custom((group, helpers) => {
-  if (group.maxSelect > group.options.length) {
+  if (group.isRequired && group.maxSelect > group.options.length) {
     return helpers.message(`Nhóm "${group.name}": số lựa chọn tối đa không được lớn hơn số lựa chọn có sẵn`);
   }
   return group;

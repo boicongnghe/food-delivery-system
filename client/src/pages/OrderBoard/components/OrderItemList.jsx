@@ -15,7 +15,7 @@ export default function OrderItemList({ items, struck = false }) {
           </div>
           {(item.options.length > 0 || item.note) && (
             <p className="mt-0.5 pl-7 text-xs text-slate-500">
-              {item.options.map((option) => option.name).join(', ')}
+              {item.options.map((option) => `${option.name}${option.quantity > 1 ? ` x${option.quantity}` : ''}`).join(', ')}
               {item.options.length > 0 && item.note && ' • '}
               {item.note && <span className="italic">{item.note}</span>}
             </p>

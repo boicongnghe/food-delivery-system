@@ -17,15 +17,40 @@ export default function DishDetailModal({
   if (!dish) return null
 
   const handleToppingToggle = (topping) => {
-    if (selectedToppings.some((t) => t.name === topping.name)) {
+    const stock = topping.stock !== undefined ? topping.stock : 50
+    if (stock <= 0) return
+
+    const existing = selectedToppings.find((t) => t.name === topping.name)
+    if (existing) {
       setSelectedToppings(selectedToppings.filter((t) => t.name !== topping.name))
     } else {
-      setSelectedToppings([...selectedToppings, topping])
+      setSelectedToppings([...selectedToppings, { ...topping, quantity: 1 }])
     }
   }
 
+  const handleToppingQuantityChange = (toppingName, delta) => {
+    setSelectedToppings((prev) => {
+      const target = prev.find((t) => t.name === toppingName)
+      if (!target) return prev
+
+      const currentQty = target.quantity || 1
+      const newQty = currentQty + delta
+
+      if (newQty <= 0) {
+        return prev.filter((t) => t.name !== toppingName)
+      }
+
+      const stock = target.stock !== undefined ? target.stock : 50
+      if (delta > 0 && currentQty >= stock) {
+        return prev // Cannot exceed available stock
+      }
+
+      return prev.map((t) => (t.name === toppingName ? { ...t, quantity: newQty } : t))
+    })
+  }
+
   const basePrice = dish.price + (selectedSize ? selectedSize.extra : 0)
-  const toppingsPrice = selectedToppings.reduce((sum, t) => sum + t.price, 0)
+  const toppingsPrice = selectedToppings.reduce((sum, t) => sum + t.price * (t.quantity || 1), 0)
   const totalPrice = (basePrice + toppingsPrice) * quantity
 
   const formatPrice = (price) => {
@@ -190,27 +215,102 @@ export default function DishDetailModal({
                 <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2">Món ăn kèm & Topping thêm</h4>
                 <div className="space-y-2">
                   {dish.options.toppings.map((topping, idx) => {
-                    const isChecked = selectedToppings.some((t) => t.name === topping.name)
+                    const selected = selectedToppings.find((t) => t.name === topping.name)
+                    const isChecked = Boolean(selected)
+                    const toppingQty = selected?.quantity || 1
+                    const stock = topping.stock !== undefined ? topping.stock : 50
+                    const isOutOfStock = stock <= 0
+                    const canIncrease = toppingQty < stock
+
                     return (
-                      <label
+                      <div
                         key={idx}
-                        className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
-                          isChecked
-                            ? 'border-primary/60 bg-primary/5 dark:bg-primary/10 text-slate-900 dark:text-white ring-1 ring-primary/40'
-                            : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40'
+                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                          isOutOfStock
+                            ? 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 opacity-60'
+                            : isChecked
+                              ? 'border-primary/60 bg-primary/5 dark:bg-primary/10 text-slate-900 dark:text-white ring-1 ring-primary/40'
+                              : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div
+                          className={`flex items-center gap-3 flex-1 select-none ${
+                            isOutOfStock ? 'cursor-not-allowed' : 'cursor-pointer'
+                          }`}
+                          onClick={() => !isOutOfStock && handleToppingToggle(topping)}
+                        >
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => handleToppingToggle(topping)}
-                            className="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/20 w-4 h-4 accent-primary"
+                            disabled={isOutOfStock}
+                            onChange={() => !isOutOfStock && handleToppingToggle(topping)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/20 w-4 h-4 accent-primary cursor-pointer disabled:cursor-not-allowed"
                           />
-                          <span className="text-xs font-semibold">{topping.name}</span>
+                          <div className="flex items-center flex-wrap gap-1.5">
+                            <span className={`text-xs font-semibold ${isOutOfStock ? 'line-through text-slate-400' : ''}`}>
+                              {topping.name}
+                            </span>
+                            {isOutOfStock ? (
+                              <span className="text-[10px] text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-950/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                Hết hàng
+                              </span>
+                            ) : stock <= 5 ? (
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                Còn {stock} phần
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                (kho: {stock})
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs font-bold text-primary">+{formatPrice(topping.price)}</span>
-                      </label>
+
+                        <div className="flex items-center gap-3">
+                          {isChecked && (
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-0.5 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleToppingQuantityChange(topping.name, -1)
+                                }}
+                                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                                aria-label="Giảm topping"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-5 text-center text-xs font-extrabold text-slate-900 dark:text-white">
+                                {toppingQty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleToppingQuantityChange(topping.name, 1)
+                                }}
+                                disabled={!canIncrease}
+                                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                                aria-label="Tăng topping"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="text-right min-w-[70px]">
+                            <span className="text-xs font-bold text-primary block">
+                              +{formatPrice(topping.price * toppingQty)}
+                            </span>
+                            {toppingQty > 1 && (
+                              <span className="text-[10px] text-slate-400 block">
+                                ({formatPrice(topping.price)}/suất)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>

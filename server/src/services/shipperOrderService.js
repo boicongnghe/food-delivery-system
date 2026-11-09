@@ -492,6 +492,44 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
       role: byRole,
       ...DELIVERED_BY[byRole],
     });
+
+    // Thông báo realtime tới cả Khách hàng và Chủ nhà hàng khi đơn hoàn thành
+    try {
+      const orderNumber =
+        deliveredOrder.orderCode ||
+        deliveredOrder.orderNumber ||
+        order.orderCode ||
+        order.orderNumber ||
+        String(deliveredOrder._id).slice(-6);
+
+      // 1. Thông báo cho Khách hàng
+      const customerId = deliveredOrder.customer || order.customer;
+      if (customerId) {
+        await sendRealtimeNotification(customerId, {
+          title: 'Giao hàng thành công 🎉',
+          message: `Đơn hàng #${orderNumber} đã được giao thành công! Chúc bạn có một bữa ăn ngon miệng.`,
+          type: 'order',
+          orderId: deliveredOrder._id,
+          link: `/orders/${deliveredOrder._id}`,
+        });
+      }
+
+      // 2. Thông báo cho Chủ nhà hàng
+      const restaurantId = deliveredOrder.restaurant || order.restaurant;
+      const restaurantDoc = await Restaurant.findById(restaurantId).select('owner name').lean();
+      if (restaurantDoc?.owner) {
+        await sendRealtimeNotification(restaurantDoc.owner, {
+          title: 'Đơn hàng đã hoàn thành 🍽️',
+          message: `Đơn hàng #${orderNumber} của quán "${restaurantDoc.name}" đã được giao thành công đến khách hàng.`,
+          type: 'order',
+          orderId: deliveredOrder._id,
+          link: `/restaurant/orders`,
+        });
+      }
+    } catch (notifErr) {
+      console.warn('Failed to send delivered notification in completeDelivery:', notifErr?.message);
+    }
+
     return { order: deliveredOrder, payout };
   } finally {
     await session.endSession();

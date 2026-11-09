@@ -120,19 +120,44 @@ const resolveItemOptions = (menuItem, selected = []) => {
 
   const chosen = [];
   for (const group of menuItem.optionGroups) {
-    const names = [...new Set(selected.filter((choice) => choice.groupName === group.name).map((choice) => choice.name))];
-    if (group.isRequired && names.length === 0) {
+    const choicesForGroup = selected.filter((choice) => choice.groupName === group.name);
+    const totalCount = choicesForGroup.reduce(
+      (sum, choice) => sum + (Number(choice.quantity) > 0 ? Number(choice.quantity) : 1),
+      0
+    );
+
+    if (group.isRequired && totalCount === 0) {
       throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
     }
-    if (names.length > group.maxSelect) {
+    if (group.isRequired && totalCount > group.maxSelect) {
       throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
     }
-    for (const name of names) {
-      const option = group.options.find((candidate) => candidate.name === name);
+
+    for (const choice of choicesForGroup) {
+      const option = group.options.find((candidate) => candidate.name === choice.name);
       if (!option) {
-        throw invalidItem(`Lựa chọn "${name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
+        throw invalidItem(`Lựa chọn "${choice.name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
       }
-      chosen.push({ groupName: group.name, name: option.name, price: option.price });
+      const qty = Number(choice.quantity) > 0 ? Number(choice.quantity) : 1;
+      const currentStock = option.stock !== undefined ? option.stock : 50;
+      if (currentStock <= 0) {
+        throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" hiện đã hết hàng`);
+      }
+      if (qty > currentStock) {
+        throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" chỉ còn lại ${currentStock} phần (bạn đang chọn ${qty})`);
+      }
+
+      const existing = chosen.find((c) => c.groupName === group.name && c.name === option.name);
+      if (existing) {
+        existing.quantity = (existing.quantity || 1) + qty;
+      } else {
+        chosen.push({
+          groupName: group.name,
+          name: option.name,
+          price: option.price,
+          quantity: qty,
+        });
+      }
     }
   }
   return chosen;
@@ -209,7 +234,7 @@ const buildOrderItem = async (restaurantId, item) => {
   const options = Array.isArray(menuItem.optionGroups) && menuItem.optionGroups.length > 0
     ? resolveItemOptions(menuItem, item.options)
     : [];
-  const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price, 0);
+  const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price * (option.quantity || 1), 0);
   return {
     menuItem: menuItem._id,
     name: menuItem.name,
@@ -265,10 +290,12 @@ export const createOrder = async (userId, data) => {
   // Shipping fee calculation based on GPS distance
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
-  if (restLat == null || restLng == null) {
+  // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
     const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
+    Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
   let destLat = deliveryAddress.location?.lat;
@@ -392,6 +419,60 @@ export const createOrder = async (userId, data) => {
 
   // Bắn thông báo Realtime cho Nhà hàng và Khách hàng
   const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
+
+  // Trừ số lượng tồn kho topping và cảnh báo nhà hàng nếu số lượng còn lại <= 5
+  try {
+    for (const snapshot of snapshotItems) {
+      if (!snapshot.menuItem || !Array.isArray(snapshot.options) || snapshot.options.length === 0) continue;
+
+      const menuItemDoc = await MenuItem.findById(snapshot.menuItem);
+      if (!menuItemDoc || !Array.isArray(menuItemDoc.optionGroups)) continue;
+
+      let modified = false;
+      const lowStockAlerts = [];
+
+      for (const chosenOpt of snapshot.options) {
+        const optQty = (chosenOpt.quantity || 1) * snapshot.quantity;
+        for (const group of menuItemDoc.optionGroups) {
+          if (group.name !== chosenOpt.groupName) continue;
+          const targetOpt = group.options.find((o) => o.name === chosenOpt.name);
+          if (targetOpt) {
+            const prevStock = targetOpt.stock !== undefined ? targetOpt.stock : 50;
+            const newStock = Math.max(0, prevStock - optQty);
+            targetOpt.stock = newStock;
+            modified = true;
+
+            // Cảnh báo khi số lượng còn lại <= 5
+            if (newStock <= 5) {
+              lowStockAlerts.push({
+                name: targetOpt.name,
+                stock: newStock,
+                dishName: menuItemDoc.name,
+              });
+            }
+          }
+        }
+      }
+
+      if (modified) {
+        await menuItemDoc.save();
+
+        if (restaurant?.owner && lowStockAlerts.length > 0) {
+          for (const alert of lowStockAlerts) {
+            await sendRealtimeNotification(restaurant.owner, {
+              title: 'Cảnh báo topping sắp hết ⚠️',
+              message: `Topping "${alert.name}" của món "${alert.dishName}" chỉ còn lại ${alert.stock} phần! Vui lòng chuẩn bị thêm.`,
+              type: 'system',
+              orderId: order._id,
+              link: '/restaurant/menu',
+            });
+          }
+        }
+      }
+    }
+  } catch (stockErr) {
+    console.warn('Failed to update topping stock:', stockErr?.message);
+  }
 
   if (restaurant?.owner) {
     sendRealtimeNotification(restaurant.owner, {
@@ -554,6 +635,34 @@ export const receiveOrder = async (orderId, userId) => {
     changedByRole: 'customer',
   });
 
+  // Thông báo realtime tới cả Khách hàng và Chủ nhà hàng khi khách xác nhận đã nhận hàng
+  try {
+    const orderNumber = order.orderCode || order.orderNumber || String(order._id).slice(-6);
+
+    // 1. Khách hàng
+    await sendRealtimeNotification(order.customer, {
+      title: 'Đã nhận hàng thành công 🎉',
+      message: `Đơn hàng #${orderNumber} đã được bạn xác nhận nhận hàng thành công! Chúc bạn ngon miệng.`,
+      type: 'order',
+      orderId: order._id,
+      link: `/orders/${order._id}`,
+    });
+
+    // 2. Chủ nhà hàng
+    const restaurantDoc = await Restaurant.findById(order.restaurant).select('owner name').lean();
+    if (restaurantDoc?.owner) {
+      await sendRealtimeNotification(restaurantDoc.owner, {
+        title: 'Đơn hàng đã hoàn thành 🍽️',
+        message: `Đơn hàng #${orderNumber} của quán "${restaurantDoc.name}" đã được khách hàng xác nhận nhận hàng thành công.`,
+        type: 'order',
+        orderId: order._id,
+        link: `/restaurant/orders`,
+      });
+    }
+  } catch (notifErr) {
+    console.warn('Failed to send delivered notification in confirmDeliveredByCustomer:', notifErr?.message);
+  }
+
   return order;
 };
 
@@ -610,10 +719,12 @@ export const estimateShipping = async (userId, params) => {
 
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
-  if (restLat == null || restLng == null) {
+  // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
     const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
+    Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
   let destLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : null;
