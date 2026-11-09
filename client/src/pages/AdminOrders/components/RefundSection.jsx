@@ -57,7 +57,17 @@ export default function RefundSection({ order, onResolved }) {
     <AdminSection title="Hoàn tiền" aside={<AdminBadge tone={status.tone}>{status.label}</AdminBadge>}>
       <AdminInfoRow label="Số tiền cần hoàn">{formatCurrency(refund.amount)}</AdminInfoRow>
       {refund.requestedAt && <AdminInfoRow label="Yêu cầu lúc">{formatDateTime(refund.requestedAt)}</AdminInfoRow>}
-      {refund.reference && <AdminInfoRow label="Mã giao dịch">{refund.reference}</AdminInfoRow>}
+      {refund.reference && (
+        <AdminInfoRow label={refund.reference === 'WALLET_REFUND' ? 'Phương thức hoàn' : 'Mã giao dịch'}>
+          {refund.reference === 'WALLET_REFUND' ? (
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
+              💳 Đã hoàn tự động vào ví ảo của khách hàng
+            </span>
+          ) : (
+            refund.reference
+          )}
+        </AdminInfoRow>
+      )}
       {refund.completedAt && <AdminInfoRow label="Hoàn tất lúc">{formatDateTime(refund.completedAt)}</AdminInfoRow>}
       {refund.note && <AdminInfoRow label="Ghi chú">{refund.note}</AdminInfoRow>}
 

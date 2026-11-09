@@ -11,6 +11,7 @@ import FormLabel from './FormLabel.jsx'
 import MenuImagePicker from './MenuImagePicker.jsx'
 import OptionGroupEditor from './OptionGroupEditor.jsx'
 import StatusChoice from './StatusChoice.jsx'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 const inputClass =
   'w-full rounded-md border border-brand-soft bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15'
@@ -104,9 +105,9 @@ export default function MenuItemFormModal({ item, categories, defaultCategoryId,
     unsavedUploadRef.current = null
   }
 
-  const requestClose = () => {
+  const requestClose = async () => {
     if (saving) return
-    if (isDirty && !window.confirm('Bạn có thay đổi chưa lưu. Đóng biểu mẫu?')) return
+    if (isDirty && !(await confirmToast('Bạn có thay đổi chưa lưu. Đóng biểu mẫu?', { confirmLabel: 'Đóng, bỏ thay đổi', danger: true }))) return
     if (pendingImage) URL.revokeObjectURL(pendingImage.previewUrl)
     discardUnsavedUpload()
     onClose()

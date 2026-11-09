@@ -1,24 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const addressSchema = new mongoose.Schema(
-  {
-    title: { type: String, default: 'Nhà riêng', trim: true },
-    receiverName: { type: String, default: '', trim: true },
-    receiverPhone: { type: String, default: '', trim: true },
-    street: { type: String, required: true, trim: true },
-    ward: { type: String, default: '', trim: true },
-    district: { type: String, default: '', trim: true },
-    city: { type: String, default: 'TP.HCM', trim: true },
-    isDefault: { type: Boolean, default: false },
-    location: {
-      lat: { type: Number, default: null },
-      lng: { type: Number, default: null },
-    },
-  },
-  { _id: true, timestamps: true }
-);
-
 const userSchema = new mongoose.Schema(
   {
     fullName: {
@@ -76,9 +58,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
     },
-    addresses: {
-      type: [addressSchema],
-      default: [],
+    walletBalance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Số dư ví không thể âm'],
     },
     isActive: {
       type: Boolean,
@@ -145,6 +128,13 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
     return false;
   }
 };
+
+// Virtual populate for addresses
+userSchema.virtual('addresses', {
+  ref: 'Address',
+  localField: '_id',
+  foreignField: 'user',
+});
 
 const User = mongoose.model('User', userSchema, 'users');
 

@@ -32,7 +32,15 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '25mb' }));
+app.use(
+  express.json({
+    limit: '25mb',
+    // Webhooks are verified on the exact bytes that were signed (see middlewares/verifyPayoutSignature.js)
+    verify: (req, res, buffer) => {
+      if (req.originalUrl.startsWith('/api/webhooks/')) req.rawBody = buffer;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 

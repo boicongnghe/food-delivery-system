@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom'
 import { Landmark } from 'lucide-react'
 
-// Masked bank account that receives the weekly transfer (full number only on the profile page)
+// Masked bank account that receives the wallet withdrawals (set and shown in full in the wallet tab)
 export default function PayoutAccountInfo({ account }) {
   if (!account.isSet) {
     return (
       <p className="flex flex-wrap items-center gap-1 text-xs text-amber-800">
         <Landmark className="h-4 w-4" aria-hidden="true" />
         Chưa có tài khoản nhận tiền.
-        <Link to="/restaurant/profile" className="font-bold underline">
-          Thêm trong Hồ sơ quán
+        <Link to="/restaurant/revenue?tab=wallet" className="font-bold underline">
+          Thêm trong Ví & rút tiền
         </Link>
       </p>
     )

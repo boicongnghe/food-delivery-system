@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { UtensilsCrossed, House, LogOut, ChefHat, Store, User } from 'lucide-react'
+import { UtensilsCrossed, House, LogOut, ChefHat, Store, Wallet } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import NotificationBell from '../NotificationBell/NotificationBell.jsx'
 
@@ -12,9 +12,21 @@ import NotificationBell from '../NotificationBell/NotificationBell.jsx'
  * @param {Array<{ to: string, label: string }>} navItems - main navigation links
  * @param {{ label: string, isOpen: boolean } | null} status - optional status pill
  * @param {string} hotline - support phone number
+ * @param {string} accountImage - picture of the account button (restaurant portal: the restaurant logo)
+ * @param {string} accountName - name on the account button (restaurant portal: the restaurant name)
  */
-export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], status = null, hotline = '1900 6868' }) {
+export default function Header({
+  subtitle = 'Kênh Quán Ăn',
+  navItems = [],
+  status = null,
+  hotline = '1900 6868',
+  accountImage = '',
+  accountName = '',
+}) {
   const { user, logout } = useAuth()
+  // Restaurant portal (accountName given): the account IS the restaurant, so only its logo is shown
+  const avatarSrc = accountName ? accountImage : accountImage || user?.avatar || ''
+  const displayName = accountName || user?.fullName || 'Chủ quán'
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -67,11 +79,11 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
           <Link
             to="/"
             id="back-to-homepage-btn"
-            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full border border-orange-200 hover:border-primary/50 bg-orange-50/70 hover:bg-orange-100 text-slate-700 hover:text-primary text-xs font-bold transition-all shadow-xs"
-            title="Chuyển về Trang chủ FoodDelivery"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-orange-200 hover:border-primary/50 bg-orange-50/70 hover:bg-orange-100 text-primary transition-all shadow-xs"
+            title="Về Trang chủ FoodDelivery"
+            aria-label="Về Trang chủ"
           >
-            <House className="w-3.5 h-3.5 text-primary" />
-            <span>Trang Chủ</span>
+            <House className="w-4 h-4" />
           </Link>
 
           {status && (
@@ -93,26 +105,26 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
             <button
               type="button"
               onClick={() => setMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 p-1 pr-2.5 rounded-full hover:bg-orange-50 border border-slate-200 hover:border-orange-200 transition-all focus:outline-none"
-              aria-label="Tài khoản"
+              className="flex items-center rounded-full p-0.5 border border-slate-200 hover:border-orange-200 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label={`Tài khoản: ${displayName}`}
+              title={displayName}
             >
-              {user?.avatar ? (
+              {avatarSrc ? (
                 <img
-                  src={user.avatar}
-                  alt={user.fullName}
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/30"
+                  src={avatarSrc}
+                  alt={displayName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
+                  }}
+                  className="w-9 h-9 rounded-full object-cover ring-2 ring-primary/30"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-orange-400 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                  {user?.fullName?.charAt(0)?.toUpperCase() || 'Q'}
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-orange-400 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <div className="hidden sm:block text-left">
-                <p className="text-xs font-bold text-slate-800 leading-tight">
-                  {user?.fullName || 'Chủ quán'}
-                </p>
-                <span className="text-[10px] font-bold text-primary">Kênh Quán</span>
-              </div>
             </button>
 
             {menuOpen && (
@@ -122,12 +134,19 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
                 <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150">
                   {user && (
                     <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center text-primary font-bold text-xs">
-                        {user.fullName?.charAt(0)?.toUpperCase() || 'Q'}
-                      </div>
+                      {avatarSrc ? (
+                        <img src={avatarSrc} alt="" className="w-9 h-9 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-9 h-9 shrink-0 rounded-full bg-orange-100 flex items-center justify-center text-primary font-bold text-xs">
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="truncate">
-                        <p className="text-sm font-bold text-slate-900 truncate">{user.fullName}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
+                        {accountName && <p className="text-xs text-slate-600 truncate">Chủ quán: {user.fullName}</p>}
+                        {user.email && !user.email.startsWith('fb_') && (
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -147,7 +166,15 @@ export default function Header({ subtitle = 'Kênh Quán Ăn', navItems = [], st
                       className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
                     >
                       <Store className="w-4 h-4 text-primary" />
-                      Hồ sơ quán ăn
+                      Hồ sơ quán · đổi logo
+                    </Link>
+                    <Link
+                      to="/restaurant/revenue?tab=wallet"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-primary rounded-lg transition-colors font-medium"
+                    >
+                      <Wallet className="w-4 h-4 text-primary" />
+                      Ví & rút tiền
                     </Link>
                     <Link
                       to="/"

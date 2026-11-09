@@ -1,7 +1,9 @@
 import Order from '../models/Order.js';
+import Payment from '../models/Payment.js';
 import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { refundRequestFields } from './orderPolicy.js';
+import { creditWalletRefund } from './walletService.js';
 
 /**
  * Cancel an order on behalf of the platform: timeout rules (TO-03, TO-07) and the admin (TO-05).
@@ -21,8 +23,8 @@ export const cancelOrderBySystem = async (order, { reason, note, action, extraFi
   // findOneAndUpdate skips the model hook: write the legacy fields of the customer screens too
   const legacyUpdate = {
     ...legacyPaymentFromCanonical(
-      { method: order.payment?.method || order.paymentMethod || 'cod', status: isPaid ? 'paid' : 'cancelled', refundAmount: 0 },
-      isPaid ? { status: 'pending', amount } : null,
+      { method: order.payment?.method || order.paymentMethod || 'cod', status: isPaid ? 'refunded' : 'cancelled', refundAmount: isPaid ? amount : 0 },
+      isPaid ? { status: 'succeeded', amount } : null,
     ),
     ...legacyCancellationFromCanonical(cancellation),
   };
@@ -42,13 +44,23 @@ export const cancelOrderBySystem = async (order, { reason, note, action, extraFi
   );
   if (!cancelled) return null;
 
+  if (isPaid && cancelled.customer) {
+    await creditWalletRefund({
+      userId: cancelled.customer,
+      orderId: cancelled._id,
+      orderCode: cancelled.orderCode || cancelled.orderNumber,
+      amount,
+    });
+    await Payment.updateMany({ order: cancelled._id, status: 'success' }, { $set: { status: 'refunded' } });
+  }
+
   await recordStatusChange({
     orderId: cancelled._id,
     fromStatus: order.status,
     toStatus: 'cancelled',
     role: 'system',
-    action: isPaid ? `${action} - chờ hoàn tiền` : action,
-    note: note + (isPaid ? ` · Sẽ hoàn ${amount.toLocaleString('vi-VN')}đ` : ''),
+    action: isPaid ? `${action} - đã hoàn vào ví ảo` : action,
+    note: note + (isPaid ? ` · Đã hoàn ${amount.toLocaleString('vi-VN')}đ vào ví ảo` : ''),
   });
   return { order: cancelled, isPaid, amount };
 };

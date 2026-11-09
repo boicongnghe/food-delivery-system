@@ -345,101 +345,74 @@ export default function Login() {
     <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
       {/* Main Full-Width 2-Column Content */}
       <div className="w-full flex-1 px-4 sm:px-8 lg:px-12 2xl:px-16 py-8 sm:py-12 flex items-center justify-center">
-        <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
+        <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-stretch">
           {/* ================================================================
-              CỘT TRÁI (5 CỘT) — VISUAL BRAND SHOWCASE
+              CỘT TRÁI (5 CỘT) — POSTER SHOWCASE CAO CẤP VỚI ĐỘ BÓNG NỀN
               ================================================================ */}
-          <div className="hidden lg:flex lg:col-span-5 flex-col gap-6 relative">
-            {/* Ambient Glow */}
-            <div className="absolute -top-16 -left-16 w-80 h-80 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-16 -right-16 w-72 h-72 rounded-full bg-amber-400/20 blur-3xl pointer-events-none" />
+          <div className="hidden lg:flex lg:col-span-5 flex-col relative w-full h-full min-h-[620px] justify-center">
+            {/* Ambient Glows tỏa sáng phía sau lưng ảnh */}
+            <div className="absolute -top-12 -left-12 w-80 h-80 rounded-full bg-primary/25 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-80 h-80 rounded-full bg-amber-400/25 blur-3xl pointer-events-none" />
 
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-100 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 text-xs font-bold text-primary w-fit shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-              <span>Nền tảng giao món nóng chuẩn vị số #1</span>
-            </div>
+            {/* Poster Card */}
+            <div className="relative w-full h-full min-h-[620px] rounded-3xl overflow-hidden shadow-2xl shadow-orange-500/15 border border-slate-200/80 dark:border-slate-800 group transition-all duration-500 flex flex-col justify-between">
+              {/* Background Image */}
+              <img
+                src="/login-banner.jpg"
+                alt="FoodDelivery Giao Món Nóng Hổi"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
 
-            <h1 className="text-3xl xl:text-4xl 2xl:text-5xl font-black text-slate-900 dark:text-white leading-[1.18] tracking-tight">
-              Thưởng thức món ngon <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] via-[#FF416C] to-[#FFB800] animate-gradient-text">
-                nóng hổi tận cửa nhà
-              </span>
-            </h1>
+              {/* Glossy gradient overlays: tạo chiều sâu, độ bóng và giúp chữ nổi bật */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-slate-950/40 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-black/50 via-transparent to-white/10 pointer-events-none" />
 
-            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed max-w-md">
-              Hơn 1.200 quán ăn đối tác tuyển chọn, giao nhanh 20 phút, ưu đãi mã giảm giá và hoàn tiền mỗi ngày dành riêng cho bạn.
-            </p>
-
-            {/* Member Benefit Cards */}
-            <div className="space-y-3.5 pt-2">
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-orange-300 transition-all duration-300 group">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF4B2B] to-[#FF416C] text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20 group-hover:scale-105 transition-transform">
-                  <Truck className="w-6 h-6" />
+              {/* Top Floating Glass Badges */}
+              <div className="relative z-10 p-5 flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-black/60 backdrop-blur-md border border-white/50 dark:border-white/10 shadow-lg shadow-black/10">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-black text-slate-900 dark:text-white tracking-wide">
+                    Giao nhanh 15–20 phút tận cửa
+                  </span>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                    Freeship 0đ đơn đầu tiên
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/60 text-primary border border-orange-200 dark:border-orange-800">
-                      Voucher 15k
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Giao nhanh 15-25 phút, tài xế nhận đơn ngay lập tức
-                  </p>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-orange-500 to-[#FF4B2B] text-white backdrop-blur-md shadow-lg shadow-orange-500/30 text-xs font-black">
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  <span>Nóng hổi 100%</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-amber-300 transition-all duration-300 group">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
-                  <Coins className="w-6 h-6" />
+              {/* Bottom Content & Stats Bar */}
+              <div className="relative z-10 p-6 sm:p-8 flex flex-col gap-3 text-white">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/25 text-[11px] font-extrabold tracking-wider uppercase w-fit shadow-xs">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Món Ngon Nóng Hổi</span>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                    Tích điểm hoàn tiền đến 15%
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                      FoodPoint
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Đổi điểm lấy đồ uống miễn phí hoặc giảm trừ trực tiếp
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-[#181A20] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-pink-300 transition-all duration-300 group">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-pink-500/20 group-hover:scale-105 transition-transform">
-                  <Gift className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                    Ưu đãi sinh nhật độc quyền
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Tặng voucher giảm 50.000đ và quà tặng tráng miệng đặc biệt
-                  </p>
-                </div>
-              </div>
-            </div>
+                <h2 className="text-2xl xl:text-3xl font-black leading-tight tracking-tight drop-shadow-md">
+                  Thưởng thức trọn vị, <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF4B2B] via-[#FF8533] to-[#FFB800]">
+                    giao ngay tận cửa nhà
+                  </span>
+                </h2>
 
-            {/* Social Proof Stats */}
-            <div className="flex items-center gap-6 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <div>
-                <p className="text-xl font-black text-slate-900 dark:text-white">50K+</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Khách hàng tin dùng</p>
-              </div>
-              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-              <div>
-                <p className="text-xl font-black text-slate-900 dark:text-white">1.200+</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Quán ăn đối tác</p>
-              </div>
-              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-              <div className="flex items-center gap-1.5">
-                <div className="flex text-amber-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  ))}
+                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed drop-shadow-xs">
+                  Hơn 1.200 quán ăn đối tác tuyển chọn tại Hòa Lạc, nhận món đúng giờ, chuẩn vị và an tâm tuyệt đối.
+                </p>
+
+                {/* Rating & Social Proof */}
+                <div className="mt-2 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-black">
+                    <div className="flex text-amber-400">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <span className="text-white text-xs font-black ml-1">4.9/5</span>
+                  </div>
+                  <span className="text-slate-200 text-xs font-semibold">
+                    50K+ khách hàng tin dùng
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">4.9/5</span>
               </div>
             </div>
           </div>

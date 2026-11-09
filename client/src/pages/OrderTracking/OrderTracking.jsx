@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
+import toast from 'react-hot-toast'
 
+// Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
 const STATUS_STEPS = [
-  { key: 'pending', label: 'Chờ xác nhận', icon: '📝' },
-  { key: 'confirmed', label: 'Quán xác nhận', icon: '👨‍🍳' },
-  { key: 'preparing', label: 'Đang chuẩn bị', icon: '🍳' },
+  { key: 'pending', label: 'Chờ quán xác nhận', icon: '📝' },
+  { key: 'confirmed', label: 'Quán nhận · tìm shipper', icon: '🔎' },
+  { key: 'preparing', label: 'Có shipper · đang nấu', icon: '🍳' },
+  { key: 'ready_for_pickup', label: 'Món xong · chờ lấy', icon: '🥡' },
   { key: 'delivering', label: 'Đang giao hàng', icon: '🛵' },
   { key: 'delivered', label: 'Đã nhận hàng', icon: '🎉' },
 ]
@@ -45,7 +48,7 @@ function OrderTracking() {
       setActionMsg(res.data.message || 'Đã hủy đơn hàng thành công')
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
+      toast.error(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
     } finally {
       setCancelling(false)
     }
@@ -59,7 +62,7 @@ function OrderTracking() {
       setActionMsg('Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi khi xác nhận nhận hàng')
+      toast.error(err.response?.data?.message || 'Lỗi khi xác nhận nhận hàng')
     }
   }
 
@@ -69,7 +72,7 @@ function OrderTracking() {
       await orderApi.progressOrder(id, { status: nextStatus })
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi cập nhật tiến độ')
+      toast.error(err.response?.data?.message || 'Lỗi cập nhật tiến độ')
     }
   }
 
@@ -125,7 +128,7 @@ function OrderTracking() {
             </span>
           ) : (
             <span className="badge badge-preparing" style={{ fontSize: '0.9rem', padding: '8px 14px' }}>
-              Đang thực hiện ({order.status})
+              {STATUS_STEPS.find((step) => step.key === order.status)?.label || 'Đang thực hiện'}
             </span>
           )}
         </div>
@@ -302,37 +305,78 @@ function OrderTracking() {
             </p>
 
             {/* Refund Info */}
-            {order.refundStatus === 'refunded' ? (
-              <div style={{
-                background: '#ffffff',
-                border: '1px solid var(--secondary)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px',
-                display: 'inline-block',
-                color: '#065f46',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-              }}>
-                💰 Trạng thái hoàn tiền: Đã hoàn lại {order.refundAmount?.toLocaleString('vi-VN')}đ về tài khoản ngân hàng của bạn.
-              </div>
-            ) : order.refundStatus === 'pending' ? (
-              <div style={{
-                background: '#ffffff',
-                border: '1px solid #f59e0b',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px',
-                display: 'inline-block',
-                color: '#92400e',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-              }}>
-                ⏳ Trạng thái hoàn tiền: Đang xử lý hoàn {order.refundAmount?.toLocaleString('vi-VN')}đ. Bạn sẽ nhận thông báo khi tiền được chuyển trả.
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Đơn hàng chưa thanh toán - Chưa phát sinh chi phí.
-              </div>
-            )}
+            {(() => {
+              const refundAmount = order.refund?.amount || order.refundAmount || order.payment?.refundAmount || order.total || order.totalPrice || 0;
+              const isRefunded = order.refundStatus === 'refunded' || order.refund?.status === 'succeeded' || order.payment?.status === 'refunded';
+              const isRefundPending = order.refundStatus === 'pending' || order.refund?.status === 'pending';
+
+              if (isRefunded) {
+                return (
+                  <div style={{
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '14px 18px',
+                    display: 'inline-block',
+                    color: '#166534',
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    textAlign: 'center',
+                    maxWidth: 520,
+                    margin: '0 auto',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6, fontWeight: 700, fontSize: '1rem', color: '#15803d' }}>
+                      <span>💰</span>
+                      <span>Hoàn tiền thành công</span>
+                    </div>
+                    <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: '#166534', lineHeight: 1.5 }}>
+                      Đã hoàn lại <strong>{refundAmount.toLocaleString('vi-VN')}đ</strong> vào <strong>Ví ảo</strong> của bạn. Bạn có thể kiểm tra số dư hoặc yêu cầu rút về tài khoản ngân hàng bất kỳ lúc nào.
+                    </p>
+                    <Link
+                      to="/wallet"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 16px',
+                        background: '#16a34a',
+                        color: '#ffffff',
+                        borderRadius: 8,
+                        fontSize: '0.88rem',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                      }}
+                    >
+                      <span>👛</span> Xem số dư Ví ảo & Rút tiền ➔
+                    </Link>
+                  </div>
+                );
+              }
+
+              if (isRefundPending) {
+                return (
+                  <div style={{
+                    background: '#ffffff',
+                    border: '1px solid #f59e0b',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '12px 16px',
+                    display: 'inline-block',
+                    color: '#92400e',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                  }}>
+                    ⏳ Trạng thái hoàn tiền: Đang xử lý hoàn {refundAmount.toLocaleString('vi-VN')}đ vào ví ảo của bạn.
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Đơn hàng chưa thanh toán - Chưa phát sinh chi phí.
+                </div>
+              );
+            })()}
           </div>
         )}
 

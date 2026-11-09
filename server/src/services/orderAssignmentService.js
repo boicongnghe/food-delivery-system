@@ -9,7 +9,16 @@ import { recordStatusChange } from './orderHistoryService.js';
  * Every write is conditional on the status and shipper just read, so it never touches an order that moved on.
  */
 
-export const SHIPPER_ACTIVE_STATUSES = ['ready_for_pickup', 'delivering'];
+/**
+ * Order flow (docs/order-flow.md): pending -> confirmed (restaurant accepted, looking for a shipper)
+ * -> preparing (a shipper accepted: the kitchen starts cooking) -> ready_for_pickup -> delivering -> delivered.
+ */
+// Statuses in which a shipper holds the order (one at a time per shipper)
+export const SHIPPER_ACTIVE_STATUSES = ['preparing', 'ready_for_pickup', 'delivering'];
+// Held by a shipper who has not picked the food up yet: can still go back to the pool
+export const NOT_PICKED_UP_STATUSES = ['preparing', 'ready_for_pickup'];
+// Shown to shippers when nobody holds them: a confirmed order, or one given back to the pool
+export const SHIPPER_POOL_STATUSES = ['confirmed', ...NOT_PICKED_UP_STATUSES];
 
 // The shipper may take a new order again (one active order per shipper, see shipperOrderService)
 export const freeShipperSlot = (shipperId, orderId) =>
@@ -19,13 +28,13 @@ const codeOf = (order) => order.orderCode || order.orderNumber;
 
 /**
  * Give an order the shipper has not picked up yet back to the pool, so another shipper can take it.
- * The no-shipper timeout rules (TO-06, TO-07) count again from now, not from readyAt.
+ * The kitchen keeps its status (it may already be cooking). The no-shipper rules (TO-06, TO-07) count again from now.
  * @returns {Promise<object | null>} updated order, null when it lost the race
  */
 export const releaseOrderToPool = async (order, { note }) => {
   const now = new Date();
   const released = await Order.findOneAndUpdate(
-    { _id: order._id, status: 'ready_for_pickup', shipper: order.shipper },
+    { _id: order._id, status: { $in: NOT_PICKED_UP_STATUSES }, shipper: order.shipper },
     {
       $set: {
         shipper: null,
@@ -44,8 +53,8 @@ export const releaseOrderToPool = async (order, { note }) => {
   await freeShipperSlot(order.shipper, order._id);
   await recordStatusChange({
     orderId: order._id,
-    fromStatus: 'ready_for_pickup',
-    toStatus: 'ready_for_pickup',
+    fromStatus: released.status,
+    toStatus: released.status,
     role: 'admin',
     action: 'Đổi shipper',
     note: 'Đơn đang được tìm shipper khác',
@@ -65,7 +74,7 @@ export const releaseOrderToPool = async (order, { note }) => {
 };
 
 /**
- * Cancel an order a shipper holds (ready_for_pickup or delivering) on behalf of the platform.
+ * Cancel an order a shipper holds (preparing, ready_for_pickup or delivering) on behalf of the platform.
  * Paid orders get a refund request (R06); the shipper's slot is freed.
  * @returns {Promise<{ order, isPaid, amount } | null>} null when it lost the race
  */

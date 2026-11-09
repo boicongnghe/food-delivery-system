@@ -17,6 +17,7 @@ import {
   TicketPercent,
   Timer,
   UtensilsCrossed,
+  HandCoins,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
 import useTheme from '../hooks/useTheme.js'
@@ -29,6 +30,7 @@ const NAV_LINKS = [
   { to: '/admin/restaurants', label: 'Nhà hàng', icon: Store },
   { to: '/admin/shippers', label: 'Shipper', icon: Bike },
   { to: '/admin/orders', label: 'Đơn hàng toàn sàn', icon: Receipt },
+  { to: '/admin/withdrawals', label: 'Yêu cầu rút tiền', icon: HandCoins },
   { to: '/admin/complaints', label: 'Xử lý khiếu nại', icon: MessageSquareWarning },
   { to: '/admin/reviews', label: 'Kiểm duyệt đánh giá', icon: MessageSquareText },
   { to: '/admin/delivery-issues', label: 'Sự cố giao hàng', icon: Siren },

@@ -6,6 +6,7 @@ import AdminFieldError from '../../../components/AdminFieldError/AdminFieldError
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
 import { ADMIN_BUTTON, ADMIN_INPUT, ADMIN_LABEL } from '../../../utils/adminClassNames.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 // Same rule as the server (adminOrderService.cancelOrderAsAdmin): the food is not on its way yet.
 // A shipper may have accepted the order but not picked it up; after pickup the delivery issue flow handles it.
@@ -42,12 +43,13 @@ export default function AdminCancelSection({ order, onCancelled }) {
 
   const { prepEscalatedAt, shipperAlertedAt, pickupAlertedAt } = order.timeouts || {}
   const canCancel = CANCELLABLE_STATUSES.includes(order.status)
-  const canRelease = order.status === 'ready_for_pickup' && Boolean(order.shipper)
+  // Held by a shipper who has not picked the food up yet (kitchen cooking or food ready)
+  const canRelease = ['preparing', 'ready_for_pickup'].includes(order.status) && Boolean(order.shipper)
   if (!canCancel && !prepEscalatedAt && !shipperAlertedAt && !pickupAlertedAt) return null
 
   const run = async (type) => {
     const action = ACTIONS[type]
-    if (!window.confirm(action.confirm)) return
+    if (!(await confirmToast(action.confirm, { danger: type === 'cancel' }))) return
     setSaving(type)
     try {
       const response = await action.request(order._id, { note })
@@ -71,9 +73,9 @@ export default function AdminCancelSection({ order, onCancelled }) {
           thay khách. Quán không được bù.
         </Warning>
       )}
-      {shipperAlertedAt && order.status === 'ready_for_pickup' && !order.shipper && (
+      {shipperAlertedAt && ['confirmed', 'preparing', 'ready_for_pickup'].includes(order.status) && !order.shipper && (
         <Warning>
-          Món đã sẵn sàng nhưng chưa có shipper nhận (báo lúc {formatDateTime(shipperAlertedAt)}). Hãy điều phối shipper; đơn sẽ tự hủy
+          Đơn đang chờ shipper nhưng chưa có ai nhận (báo lúc {formatDateTime(shipperAlertedAt)}). Hãy điều phối shipper; đơn sẽ tự hủy
           khi hết thời hạn.
         </Warning>
       )}

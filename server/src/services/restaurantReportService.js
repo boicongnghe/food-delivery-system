@@ -2,7 +2,7 @@ import CommissionRule from '../models/CommissionRule.js';
 import Complaint from '../models/Complaint.js';
 import Order from '../models/Order.js';
 import Review from '../models/Review.js';
-import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { addDays, mondayOf, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { maskPhone } from '../utils/maskPhone.js';
 import { toPage } from '../utils/pagination.js';
@@ -13,7 +13,8 @@ import { RESTAURANT_FAULT_REASONS, VISIBLE_TO_RESTAURANT_FILTER, isRestaurantFau
  * Revenue report of the owner's restaurant. Same rules as the admin report (UC44) so both show the same numbers:
  * - orders belong to the Vietnam day they were placed; online orders never paid are not orders
  * - revenue and commission only count delivered orders
- * - platform fee = round(subtotal x commission rate of that day); packaging and shipping fees are not commissioned
+ * - platform fee = round((subtotal - restaurant voucher) x commission rate of that day); packaging and shipping fees
+ *   are not commissioned, nor is the part of the food the restaurant gave away with its own voucher
  * - platform vouchers are paid by the platform: the restaurant still receives the full subtotal
  * See docs/restaurant-report.md.
  */
@@ -72,20 +73,22 @@ const tabOf = (status, cancellation) => {
 const loadCommissionRules = (restaurantId) =>
   CommissionRule.find({ target: 'restaurant', $or: [{ restaurant: null }, { restaurant: restaurantId }] }).lean();
 
-// ---------- Weekly settlement (simulated, no payment gateway): Monday-Sunday, paid the next Monday
+// ---------- Settlement into the wallet (docs/restaurant-wallet.md)
+// The money of a day enters the wallet after the end-of-day reconciliation: days before today are credited
+// ("settled"), today's orders wait ("pending"). The owner withdraws from the wallet; weeks only group the statement.
 
-const dayOfWeek = (day) => new Date(`${day}T00:00:00.000Z`).getUTCDay(); // 0 = Sunday
+const creditStatusOf = (day, today) => (day < today ? 'settled' : 'pending');
 
 export const getSettlementCycle = (day, today = vietnamDateString()) => {
-  const from = addDays(day, -((dayOfWeek(day) + 6) % 7));
-  const payoutDate = addDays(from, 7);
-  return { from, to: addDays(from, 6), payoutDate, status: today >= payoutDate ? 'settled' : 'pending' };
+  const from = mondayOf(day);
+  const to = addDays(from, 6);
+  return { from, to, status: to < today ? 'settled' : 'pending' };
 };
 
 // "0123456789" -> "**** 6789": enough for the owner to recognise the account on screen and on paper
 const maskAccountNumber = (accountNumber = '') => (accountNumber ? `**** ${accountNumber.slice(-4)}` : '');
 
-const toPayoutAccountView = (payoutAccount = {}) => ({
+export const toPayoutAccountView = (payoutAccount = {}) => ({
   isSet: Boolean(payoutAccount.accountNumber),
   bankName: payoutAccount.bankName || '',
   accountNumber: maskAccountNumber(payoutAccount.accountNumber),
@@ -106,6 +109,7 @@ const emptyDay = (day) => ({
   packagingFee: 0,
   rate: 0,
   platformFee: 0,
+  restaurantVoucher: 0,
 });
 
 const loadDailyStats = async (restaurantId, from, to, rules) => {
@@ -123,6 +127,7 @@ const loadDailyStats = async (restaurantId, from, to, rules) => {
         subtotal: { $sum: '$subtotal' },
         toppingRevenue: { $sum: TOPPINGS_EXPR },
         packagingFee: { $sum: '$packagingFee' },
+        restaurantVoucher: { $sum: { $ifNull: ['$restaurantVoucher.discountAmount', 0] } },
       },
     },
   ]);
@@ -137,13 +142,14 @@ const loadDailyStats = async (restaurantId, from, to, rules) => {
       stats.subtotal += group.subtotal;
       stats.toppingRevenue += group.toppingRevenue;
       stats.packagingFee += group.packagingFee || 0;
+      stats.restaurantVoucher += group.restaurantVoucher || 0;
     }
     days.set(day, stats);
   }
   // Rounded once per day, exactly like the admin report (one group per day and restaurant)
   for (const stats of days.values()) {
     stats.rate = resolveRate(rules, 'restaurant', restaurantId, stats.day);
-    stats.platformFee = percentOf(stats.subtotal, stats.rate);
+    stats.platformFee = percentOf(stats.subtotal - stats.restaurantVoucher, stats.rate);
   }
   return days;
 };
@@ -151,7 +157,7 @@ const loadDailyStats = async (restaurantId, from, to, rules) => {
 // Money of one day (or a sum of days) as shown to the owner
 const toMoney = (stats) => {
   const grossRevenue = stats.subtotal + stats.packagingFee;
-  const restaurantVoucher = 0; // vouchers are platform-funded for now (PromotionRule has no restaurant)
+  const restaurantVoucher = stats.restaurantVoucher; // restaurant-funded vouchers; platform vouchers cost it nothing
   return {
     foodRevenue: stats.subtotal - stats.toppingRevenue,
     toppingRevenue: stats.toppingRevenue,
@@ -166,7 +172,7 @@ const toMoney = (stats) => {
 const sumDays = (days) => {
   const total = emptyDay(null);
   for (const stats of days) {
-    for (const key of ['totalOrders', 'delivered', 'in_progress', 'cancelled', 'rejected', 'subtotal', 'toppingRevenue', 'packagingFee', 'platformFee']) {
+    for (const key of ['totalOrders', 'delivered', 'in_progress', 'cancelled', 'rejected', 'subtotal', 'toppingRevenue', 'packagingFee', 'platformFee', 'restaurantVoucher']) {
       total[key] += stats[key];
     }
   }
@@ -187,7 +193,7 @@ const summarize = (days) => {
     completionRate: share(total.delivered, total.totalOrders),
     rejectRate: share(total.rejected, total.totalOrders),
     // Weighted over the period: the rate may change in the middle of it
-    commissionRate: share(total.platformFee, total.subtotal),
+    commissionRate: share(total.platformFee, total.subtotal - total.restaurantVoucher),
   };
 };
 
@@ -361,7 +367,8 @@ const toOrderRow = (order, rules, restaurantId) => {
   const day = vietnamDateString(order.createdAt);
   const rate = isDelivered ? resolveRate(rules, 'restaurant', restaurantId, day) : 0;
   // Per order the fee is an estimate: the settlement rounds once per day
-  const platformFee = isDelivered ? percentOf(order.subtotal, rate) : 0;
+  const restaurantVoucher = isDelivered ? order.restaurantVoucher?.discountAmount || 0 : 0;
+  const platformFee = isDelivered ? percentOf(order.subtotal - restaurantVoucher, rate) : 0;
   const recipient = order.delivery?.recipientName || order.deliveryAddress?.recipientName || '';
   const phone = order.delivery?.phone || order.deliveryAddress?.phone || '';
   return {
@@ -379,15 +386,16 @@ const toOrderRow = (order, rules, restaurantId) => {
     packagingFee,
     grossRevenue: order.subtotal + packagingFee,
     commissionRate: rate,
+    restaurantVoucher,
     platformFee,
-    netRevenue: isDelivered ? order.subtotal + packagingFee - platformFee : 0,
+    netRevenue: isDelivered ? order.subtotal + packagingFee - restaurantVoucher - platformFee : 0,
     payment: { method: order.payment?.method, status: order.payment?.status },
     cancellation: order.status === 'cancelled' ? { by: order.cancellation?.by || null, reason: order.cancellation?.reason || '' } : null,
   };
 };
 
 const ORDER_ROW_FIELDS =
-  'orderCode orderNumber createdAt status statusHistory delivery.recipientName delivery.phone deliveryAddress.recipientName deliveryAddress.phone items.name items.quantity subtotal packagingFee payment.method payment.status cancellation.by cancellation.reason';
+  'orderCode orderNumber createdAt status statusHistory delivery.recipientName delivery.phone deliveryAddress.recipientName deliveryAddress.phone items.name items.quantity subtotal packagingFee restaurantVoucher.discountAmount payment.method payment.status cancellation.by cancellation.reason';
 
 const buildOrderFilter = (restaurantId, { from, to, status, keyword }) => {
   const filter = { restaurant: restaurantId, createdAt: createdBetween(from, to), ...VISIBLE_TO_RESTAURANT_FILTER };
@@ -554,8 +562,8 @@ export const getSettlements = async (restaurant, { from, to }) => {
       subtotal: stats.subtotal,
       commissionRate: stats.rate,
       ...toMoney(stats),
-      cycle: { from: cycle.from, to: cycle.to, payoutDate: cycle.payoutDate },
-      status: cycle.status,
+      cycle: { from: cycle.from, to: cycle.to },
+      status: creditStatusOf(stats.day, today),
     };
   });
 
@@ -598,4 +606,23 @@ export const getSettlements = async (restaurant, { from, to }) => {
     days,
     hasCommissionRules: rules.length > 0,
   };
+};
+
+/**
+ * What the restaurant has earned for its wallet: net revenue of the delivered orders, with the same daily
+ * figures and rounding as the statement (tab "Chi tiết hoa hồng"), so the wallet always matches it.
+ * @returns {Promise<{ credited: number, pending: number }>} credited = days before today, pending = today
+ */
+export const getWalletEarnings = async (restaurantId, today = vietnamDateString()) => {
+  const first = await Order.findOne({ restaurant: restaurantId, status: 'delivered' }).sort({ createdAt: 1 }).select('createdAt').lean();
+  if (!first) return { credited: 0, pending: 0 };
+
+  const rules = await loadCommissionRules(restaurantId);
+  const dailyStats = await loadDailyStats(restaurantId, vietnamDateString(first.createdAt), today, rules);
+  const earnings = { credited: 0, pending: 0 };
+  for (const stats of dailyStats.values()) {
+    if (stats.delivered === 0) continue;
+    earnings[creditStatusOf(stats.day, today) === 'settled' ? 'credited' : 'pending'] += toMoney(stats).netRevenue;
+  }
+  return earnings;
 };

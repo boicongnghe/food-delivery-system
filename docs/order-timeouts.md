@@ -13,8 +13,8 @@ Bộ rule do BA chốt sau khi benchmark ShopeeFood, GrabFood và SePay. Mã `TO
 | TO-03 | Quán chưa nhận đơn sau `acceptTimeout` | Tự hủy, báo khách và quán, tính vào tỉ lệ từ chối của quán | Hệ thống | Hoàn 100% (tạo yêu cầu hoàn tiền) | **Đã làm** |
 | TO-04 | Quán nấu quá `prepTime` đã khai báo | Cảnh báo quán, báo khách món sẽ chậm | Hệ thống | – | **Đã làm** |
 | TO-05 | Quá `prepTime + prepGrace` | Không tự hủy. Chuyển cho admin (tab "Cần xử lý"); admin hủy thay khách nếu cần (D3) | Admin | Nếu hủy: hoàn khách 100%, quán không được bù | **Đã làm** |
-| TO-06 | Chưa có shipper sau `shipperRemind` | Báo admin để điều phối | Admin | – | **Đã làm** |
-| TO-07 | Chưa có shipper sau `shipperTimeout` | Tự hủy, báo khách và quán, không tính lỗi cho quán | Hệ thống | Hoàn khách 100%; bù cho quán ngoài phạm vi (D2) | **Đã làm** |
+| TO-06 | Chưa có shipper sau `shipperRemind` (tính từ lúc quán nhận đơn) | Báo admin để điều phối | Admin | – | **Đã làm** |
+| TO-07 | Chưa có shipper sau `shipperTimeout` (tính từ lúc quán nhận đơn) | Tự hủy, báo khách và quán, không tính lỗi cho quán. Bếp chưa nấu nên quán không mất món | Hệ thống | Hoàn khách 100%; bù cho quán ngoài phạm vi (D2) | **Đã làm** |
 | TO-08 | Shipper đã đến quán nhưng chờ quá `pickupWait` | Shipper báo cáo và hủy, không bị tính lỗi | Admin | Hoàn khách 100%, quán không được bù | Module shipper (cần thêm bước "đã đến quán") |
 | TO-08b | Shipper đã nhận đơn nhưng quá `pickupWait` vẫn chưa lấy hàng | Không tự động. Báo admin (tab "Cần xử lý"); admin liên hệ shipper, **đổi shipper** (trả đơn về hàng chờ) hoặc hủy thay khách | Admin | Nếu hủy: hoàn khách 100% | **Đã làm** |
 | TO-09 | Quán chưa khai báo lịch | Lịch rỗng hoặc lỗi = đóng cửa; không hiện trên trang chủ; admin không duyệt được | Hệ thống | – | **Đã làm** |
@@ -59,7 +59,9 @@ Ràng buộc khi lưu: `acceptTimeout > acceptRemind` và `shipperTimeout > ship
 ## Cách hệ thống chạy
 
 - `services/orderTimeoutService.js` chạy mỗi phút trong tiến trình server (`startOrderTimeoutJobs` trong `server.js`), theo thứ tự TO-02 → TO-07 rồi TO-08b. Bước nhắc luôn chạy trước bước tự động mà nó báo trước.
-- Đơn admin trả về hàng chờ (đổi shipper) ghi `timeouts.releasedAt`: TO-06 và TO-07 tính lại từ mốc này thay vì `readyAt`, để đơn không bị tự hủy ngay sau khi đổi shipper.
+- Luồng mới ([order-flow.md](order-flow.md)): bếp chỉ nấu khi shipper đã nhận đơn, nên TO-06/TO-07 tính từ `acceptedAt` của đơn `confirmed`. TO-04/TO-05 tính từ `kitchenDueAt`, được đặt lúc shipper nhận đơn.
+- Đơn shipper tự trả hoặc admin trả về hàng chờ (đổi shipper) ghi `timeouts.releasedAt`: TO-06 và TO-07 tính lại từ mốc này, để đơn không bị tự hủy ngay sau khi đổi shipper. Đơn cũ `ready_for_pickup` chưa có shipper vẫn tính từ `readyAt`.
+- Cảnh báo shipper chưa lấy hàng (`pickupWait`) tính từ mốc muộn hơn giữa lúc shipper nhận và lúc món xong, vì shipper giờ nhận đơn trước khi bếp nấu.
 - Mỗi lệnh ghi đều có điều kiện theo trạng thái vừa đọc. Hai lần chạy chồng nhau (hoặc 2 server) không làm một việc hai lần; quán bấm nhận đúng lúc job hủy thì chỉ một bên thắng. Mỗi bước nhắc đóng dấu `order.timeouts.*` nên chỉ chạy một lần cho mỗi đơn.
 - Đơn online tính thời gian chờ từ lúc **đã thanh toán** (`payment.paidAt`), vì đó là lúc quán mới thấy đơn. Đơn COD tính từ lúc đặt.
 - Hủy bởi hệ thống ghi `cancellation.by = 'system'` với `reason`:

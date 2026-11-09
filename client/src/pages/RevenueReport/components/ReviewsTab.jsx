@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { MessageSquareText } from 'lucide-react'
 import reportApi from '../../../api/reportApi.js'
 import Pagination from '../../../components/Pagination/Pagination.jsx'
@@ -13,7 +14,8 @@ const RATING_FILTERS = [null, 5, 4, 3, 2, 1]
 
 // "Đánh giá khách hàng" tab: visible reviews of the period (names shortened, hidden reviews never shown)
 export default function ReviewsTab({ range }) {
-  const [rating, setRating] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rating = RATING_FILTERS.includes(Number(searchParams.get('rating'))) ? Number(searchParams.get('rating')) : null
   const [page, setPage] = useState(1)
   const request = useKeyedRequest(
     `${range.from}_${range.to}_${rating}_${page}`,
@@ -27,7 +29,15 @@ export default function ReviewsTab({ range }) {
   const loading = !request.isCurrent
 
   const changeRating = (value) => {
-    setRating(value)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set('rating', String(value))
+        else next.delete('rating')
+        return next
+      },
+      { replace: true },
+    )
     setPage(1)
   }
 

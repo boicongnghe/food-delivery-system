@@ -3,6 +3,7 @@ import MenuCategory from '../models/MenuCategory.js';
 import MenuItem from '../models/MenuItem.js';
 import Restaurant from '../models/Restaurant.js';
 import ApiError from '../utils/ApiError.js';
+import { getVoucherHighlights } from './restaurantVoucherService.js';
 
 /**
  * Public storefront (no login). The dishes customers see and order are the restaurant's own menu
@@ -10,7 +11,7 @@ import ApiError from '../utils/ApiError.js';
  * Only whitelisted restaurant fields leave the server: never legal documents, payout account or admin data.
  */
 export const PUBLIC_RESTAURANT_FIELDS =
-  'name description address location phone categories logo coverImage openingHours rating ratingCount';
+  'name description address location phone categories logo coverImage openingHours isAcceptingOrders rating ratingCount';
 
 // Same case-insensitive comparison as the category unique index
 const NAME_COLLATION = { locale: 'vi', strength: 2 };
@@ -77,4 +78,9 @@ export const getFoodById = async (id) => {
   return toPublicDish(dish);
 };
 
-export const getRestaurants = () => Restaurant.find(LISTED_RESTAURANT_FILTER).select(PUBLIC_RESTAURANT_FIELDS).lean();
+// Listed restaurants + the label of their best running voucher (storefront badge)
+export const getRestaurants = async () => {
+  const restaurants = await Restaurant.find(LISTED_RESTAURANT_FILTER).select(PUBLIC_RESTAURANT_FIELDS).lean();
+  const highlights = await getVoucherHighlights(restaurants.map((restaurant) => restaurant._id));
+  return restaurants.map((restaurant) => ({ ...restaurant, voucherLabel: highlights.get(String(restaurant._id)) || '' }));
+};

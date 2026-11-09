@@ -34,13 +34,13 @@ const ORDER_ACTION_HINTS = {
  * UC45 - handle a delivery issue report, optionally penalizing one party. The parent owns the state.
  * @param {{ decision, hasPenalty, target, action, fineAmount, note, orderAction }} form
  * @param {{ shipper: number, restaurant: number, customer: number }} violationCounts - earlier penalties
- * @param {'ready_for_pickup' | 'delivering' | null} heldOrderStatus - order status while the reporting shipper
+ * @param {'preparing' | 'ready_for_pickup' | 'delivering' | null} heldOrderStatus - order status while the reporting shipper
  *   still holds it (null: the order moved on, nothing to do with it here)
  */
 export default function ResolveIssueForm({ formId, form, errors, violationCounts, heldOrderStatus, disabled, onChange, onSubmit }) {
   // After pickup the food is with the shipper: it can no longer go back to the pool
   const orderActions = Object.keys(ISSUE_ORDER_ACTION_LABELS).filter(
-    (value) => value !== 'release' || heldOrderStatus === 'ready_for_pickup',
+    (value) => value !== 'release' || ['preparing', 'ready_for_pickup'].includes(heldOrderStatus),
   )
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">

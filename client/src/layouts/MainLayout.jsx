@@ -1,5 +1,5 @@
 import { Outlet, Link } from 'react-router-dom'
-import { UtensilsCrossed, Phone, Mail, MapPin, ShieldCheck, Heart, ArrowUpRight } from 'lucide-react'
+import { UtensilsCrossed, Phone, Mail, MapPin, Heart, ArrowUpRight } from 'lucide-react'
 import Navbar from '../components/Navbar/Navbar.jsx'
 import ChatBox from '../components/ChatBox/ChatBox.jsx'
 
@@ -21,8 +21,8 @@ function MainLayout() {
       <footer className="w-full bg-slate-900 text-slate-300 dark:bg-[#0B0C0E] border-t border-slate-800 transition-colors">
         <div className="w-full px-4 sm:px-8 lg:px-12 2xl:px-16 pt-16 pb-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8 pb-12 border-b border-slate-800">
-            {/* Col 1: Brand & Bio (4 cols) */}
-            <div className="lg:col-span-4 space-y-4">
+            {/* Col 1: Brand & Bio (5 cols) */}
+            <div className="lg:col-span-5 space-y-4">
               <Link to="/" className="inline-flex items-center gap-2.5 group">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF4B2B] via-[#FF416C] to-[#FFB800] flex items-center justify-center text-white shadow-lg shadow-orange-500/25 group-hover:scale-105 transition-transform">
                   <UtensilsCrossed className="w-5 h-5" />
@@ -32,7 +32,7 @@ function MainLayout() {
                 </span>
               </Link>
 
-              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-sm">
+              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-md">
                 Nền tảng giao đồ ăn thần tốc 20 phút hàng đầu. Kết nối hơn 1.200 nhà hàng đối tác uy tín với hàng triệu tín đồ ẩm thực mỗi ngày.
               </p>
 
@@ -47,13 +47,13 @@ function MainLayout() {
                 </p>
                 <p className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary shrink-0" />
-                  <span>Tòa nhà Innovation Hub, Quận 1, TP. Hồ Chí Minh</span>
+                  <span>Đại học FPT, Hòa Lạc, Hà Nội</span>
                 </p>
               </div>
             </div>
 
-            {/* Col 2: Danh Mục Nổi Bật (2 cols) */}
-            <div className="lg:col-span-2 space-y-3">
+            {/* Col 2: Danh Mục Nổi Bật (3 cols) */}
+            <div className="lg:col-span-3 space-y-3">
               <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
                 Khám Phá
               </h4>
@@ -86,8 +86,8 @@ function MainLayout() {
               </ul>
             </div>
 
-            {/* Col 3: Hợp Tác & Cơ Hội (3 cols) */}
-            <div className="lg:col-span-3 space-y-3">
+            {/* Col 3: Hợp Tác & Cơ Hội (4 cols) */}
+            <div className="lg:col-span-4 space-y-3">
               <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
                 Gia Nhập FoodDelivery
               </h4>
@@ -113,38 +113,6 @@ function MainLayout() {
                   </Link>
                 </li>
               </ul>
-            </div>
-
-            {/* Col 4: Tải App & Thanh Toán (3 cols) */}
-            <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
-                Tải Ứng Dụng FoodDelivery
-              </h4>
-              <p className="text-xs text-slate-400">
-                Đặt món mượt mà hơn với ứng dụng điện thoại. Nhận ngay voucher giảm 50% cho đơn hàng đầu tiên!
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                <div className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors border border-slate-700 flex items-center gap-2 cursor-pointer">
-                  <span className="text-xl"></span>
-                  <div className="text-left">
-                    <p className="text-[9px] text-slate-400 uppercase">Tải trên</p>
-                    <p className="text-xs font-bold text-white">App Store</p>
-                  </div>
-                </div>
-                <div className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors border border-slate-700 flex items-center gap-2 cursor-pointer">
-                  <span className="text-xl">▶</span>
-                  <div className="text-left">
-                    <p className="text-[9px] text-slate-400 uppercase">Tải trên</p>
-                    <p className="text-xs font-bold text-white">Google Play</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center gap-2 text-xs text-emerald-400 font-semibold">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>Bảo mật chuẩn thanh toán PCI-DSS & SSL 256-bit</span>
-              </div>
             </div>
           </div>
 

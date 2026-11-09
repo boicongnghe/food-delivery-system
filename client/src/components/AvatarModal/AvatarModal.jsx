@@ -122,6 +122,11 @@ export default function AvatarModal({ isOpen, onClose }) {
               <img
                 src={avatar || 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'}
                 alt="Avatar"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.onerror = null
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80'
+                }}
                 className={`w-20 h-20 rounded-2xl object-cover ring-4 shadow-md ${
                   isRestaurant ? 'ring-amber-400/30' : 'ring-emerald-500/30'
                 }`}

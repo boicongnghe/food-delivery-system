@@ -26,7 +26,7 @@ export default function PrintableSettlement({ settlement, restaurantName, printe
         <b>thực nhận {formatCurrency(totals.netRevenue)}</b>
       </p>
       <p style={{ margin: '2px 0 10px' }}>
-        Đến hạn chuyển khoản {formatCurrency(totals.settledAmount)} · chưa đến kỳ {formatCurrency(totals.pendingAmount)}
+        Đã vào ví {formatCurrency(totals.settledAmount)} · chờ đối soát {formatCurrency(totals.pendingAmount)}
       </p>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -69,8 +69,8 @@ export default function PrintableSettlement({ settlement, restaurantName, printe
       </table>
 
       <p style={{ marginTop: 10, fontSize: 9 }}>
-        Chu kỳ quyết toán Thứ Hai – Chủ Nhật, chuyển khoản dự kiến Thứ Hai tuần sau. Bản sao kê ước tính theo lịch, không phải
-        chứng từ đã chuyển tiền. Phí giao hàng thuộc shipper, không nằm trong doanh thu của quán. In lúc {formatDateTime(printedAt)}.
+        Thực nhận được cộng vào ví sau đối soát cuối ngày; quán rút về ngân hàng từ ví. Bản sao kê không phải chứng từ chuyển
+        tiền (xem lịch sử rút tiền trong ví). Phí giao hàng thuộc shipper, không nằm trong doanh thu của quán. In lúc {formatDateTime(printedAt)}.
       </p>
     </div>
   )
