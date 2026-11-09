@@ -731,43 +731,56 @@ export default function Home() {
                 <span>🧀 Phô mai • 🍅 Cà chua • 🌿 Húng quế</span>
               </div>
 
-              {/* Main Dish Showcase Card with 3D Tilt */}
-              <div
-                className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-slate-900 group cursor-pointer transition-transform duration-200 preserve-3d"
-                style={{
-                  transform: `perspective(1000px) rotateX(${heroTilt.x}deg) rotateY(${heroTilt.y}deg)`,
-                }}
-                onClick={() => handleDishClick(allDishes[0])}
-              >
-                <img
-                  src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80"
-                  alt="Món ăn đặc sắc"
-                  className="w-full h-96 sm:h-[440px] object-cover group-hover:scale-108 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+              {/* Main Dish Showcase Card with 3D Tilt (Dynamic from top DB dish) */}
+              {(() => {
+                const featuredDish = allDishes[0]
+                const featuredImg =
+                  featuredDish?.image ||
+                  'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80'
+                const featuredName = featuredDish?.name || 'Món ngon nổi bật'
+                const featuredRest = featuredDish?.restaurant || 'Quán ăn đối tác'
+                const featuredRating = featuredDish?.rating || 4.9
+                const featuredReviews = featuredDish?.reviewsCount || 382
 
-                {/* Card Bottom Info Overlay */}
-                <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-white/95 dark:bg-[#181A20]/95 backdrop-blur-xl text-slate-900 dark:text-white shadow-xl flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-primary border border-orange-200">
-                      🔥 Bán chạy nhất hôm nay
-                    </span>
-                    <h3 className="text-sm sm:text-base font-black truncate max-w-[200px] sm:max-w-[240px] mt-1">
-                      Cơm Tấm Sườn Bì Chả Ba Ghiền
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Đã bán 2.4k+ suất • 4.9 ★ (382 đánh giá)
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-xs font-extrabold shadow-md shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all shrink-0"
+                return (
+                  <div
+                    className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-slate-900 group cursor-pointer transition-transform duration-200 preserve-3d"
+                    style={{
+                      transform: `perspective(1000px) rotateX(${heroTilt.x}deg) rotateY(${heroTilt.y}deg)`,
+                    }}
+                    onClick={() => featuredDish && handleDishClick(featuredDish)}
                   >
-                    Đặt ngay
-                  </button>
-                </div>
-              </div>
+                    <img
+                      src={featuredImg}
+                      alt={featuredName}
+                      className="w-full h-96 sm:h-[440px] object-cover group-hover:scale-108 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+
+                    {/* Card Bottom Info Overlay */}
+                    <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-white/95 dark:bg-[#181A20]/95 backdrop-blur-xl text-slate-900 dark:text-white shadow-xl flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-primary border border-orange-200">
+                          🔥 Bán chạy nhất hôm nay
+                        </span>
+                        <h3 className="text-sm sm:text-base font-black truncate max-w-[200px] sm:max-w-[240px] mt-1">
+                          {featuredName}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {featuredRest} • {featuredRating} ★ ({featuredReviews} đánh giá)
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-xs font-extrabold shadow-md shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all shrink-0"
+                      >
+                        Đặt ngay
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
