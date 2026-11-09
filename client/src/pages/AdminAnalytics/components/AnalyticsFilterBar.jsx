@@ -30,7 +30,7 @@ export default function AnalyticsFilterBar({
               value={customRange.from}
               max={customRange.to || today}
               onChange={(event) => onCustomRangeChange({ from: event.target.value })}
-              className={`${ADMIN_INPUT} w-40 [color-scheme:dark]`}
+              className={`${ADMIN_INPUT} w-40`}
             />
             <span className="text-slate-500">→</span>
             <input
@@ -40,7 +40,7 @@ export default function AnalyticsFilterBar({
               min={customRange.from}
               max={today}
               onChange={(event) => onCustomRangeChange({ to: event.target.value })}
-              className={`${ADMIN_INPUT} w-40 [color-scheme:dark]`}
+              className={`${ADMIN_INPUT} w-40`}
             />
             <button type="submit" className={ADMIN_BUTTON.primary}>
               Xem báo cáo

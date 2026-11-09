@@ -153,7 +153,11 @@ export default function AdminPromotions() {
       <ConfirmDialog
         open={Boolean(deletingPromotion)}
         title="Xóa mã khuyến mãi?"
-        message={`Mã ${deletingPromotion?.code} chưa được sử dụng và sẽ bị xóa vĩnh viễn.`}
+        message={
+          deletingPromotion?.usedCount > 0
+            ? `Mã ${deletingPromotion.code} đã được dùng ${deletingPromotion.usedCount} lần và sẽ bị xóa vĩnh viễn. Các đơn đã áp dụng mã vẫn giữ nguyên mức giảm.`
+            : `Mã ${deletingPromotion?.code} chưa được sử dụng và sẽ bị xóa vĩnh viễn.`
+        }
         confirmLabel="Xóa mã"
         loading={deleting}
         onConfirm={handleDelete}
