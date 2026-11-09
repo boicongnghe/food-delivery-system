@@ -3,6 +3,8 @@ import { Camera, Phone, RefreshCw, ShieldAlert } from 'lucide-react'
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import orderApi from '../../../api/orderApi.js'
 import uploadApi from '../../../api/uploadApi.js'
+import useAuth from '../../../hooks/useAuth.js'
+import { connectSocket } from '../../../services/socket.js'
 
 const ISSUE_TYPES = [
   ['customer_unreachable', 'Không liên lạc được với khách'],
@@ -27,6 +29,7 @@ function getErrorMessage(error) {
 }
 
 function DeliveryOrders({ onOrderChanged }) {
+  const { token } = useAuth()
   const [availableOrders, setAvailableOrders] = useState([])
   const [availablePagination, setAvailablePagination] = useState(EMPTY_PAGINATION)
   const [availablePage, setAvailablePage] = useState(1)
@@ -78,7 +81,9 @@ function DeliveryOrders({ onOrderChanged }) {
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => refreshOrders(), 0)
-    const refreshTimer = window.setInterval(() => refreshOrders(true), 5 * 60 * 1000)
+    const refreshTimer = window.setInterval(() => {
+      if (!document.hidden) refreshOrders(true)
+    }, 60 * 1000)
     const clockTimer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => {
       window.clearTimeout(initialRefresh)
@@ -86,6 +91,43 @@ function DeliveryOrders({ onOrderChanged }) {
       window.clearInterval(clockTimer)
     }
   }, [refreshOrders])
+
+  useEffect(() => {
+    if (!token) return undefined
+
+    const socket = connectSocket(token)
+    if (!socket) return undefined
+
+    const refreshIfVisible = () => {
+      if (!document.hidden) refreshOrders(true)
+    }
+    const handleOrderNotification = notification => {
+      if (notification?.orderId) refreshIfVisible()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshOrders(true)
+    }
+
+    socket.on('connect', refreshIfVisible)
+    socket.on('new_pickup_order', refreshIfVisible)
+    socket.on('new_notification', handleOrderNotification)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      socket.off('connect', refreshIfVisible)
+      socket.off('new_pickup_order', refreshIfVisible)
+      socket.off('new_notification', handleOrderNotification)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [token, refreshOrders])
+
+  // While the kitchen cooks the shipper's order, check often so "Xác nhận đã lấy" unlocks soon after it is ready
+  const hasCookingOrder = activeOrders.some(order => order.status === 'preparing')
+  useEffect(() => {
+    if (!hasCookingOrder) return undefined
+    const cookingTimer = window.setInterval(() => refreshOrders(true), 15 * 1000)
+    return () => window.clearInterval(cookingTimer)
+  }, [hasCookingOrder, refreshOrders])
 
   const runOrderAction = async (orderId, action) => {
     setBusyOrderId(orderId)

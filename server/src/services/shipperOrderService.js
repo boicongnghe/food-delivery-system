@@ -4,6 +4,7 @@ import Order from '../models/Order.js';
 import Shipper from '../models/Shipper.js';
 import ApiError from '../utils/ApiError.js';
 import { getDeliveryArea } from '../utils/deliveryArea.js';
+import { broadcastRealtimeNotification } from '../socket.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
@@ -213,6 +214,10 @@ export const cancelAcceptance = async (shipperId, orderId) => {
     { userId: shipperId, activeOrderId: orderId },
     { $set: { activeOrderId: null } },
   );
+  broadcastRealtimeNotification('shipper', 'new_pickup_order', {
+    orderId: released._id,
+    orderCode: codeOf(released),
+  });
   return { orderId, released: true };
 };
 
