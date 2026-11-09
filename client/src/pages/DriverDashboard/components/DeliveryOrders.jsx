@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Camera, Phone, RefreshCw, ShieldAlert } from 'lucide-react'
+import { Camera, MapPin, Package, Phone, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react'
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import orderApi from '../../../api/orderApi.js'
 import uploadApi from '../../../api/uploadApi.js'
-import { confirmToast } from '../../../utils/confirmToast.jsx'
+import useAuth from '../../../hooks/useAuth.js'
+import { connectSocket } from '../../../services/socket.js'
 
 const ISSUE_TYPES = [
   ['customer_unreachable', 'Không liên lạc được với khách'],
@@ -17,25 +18,73 @@ const ISSUE_TYPES = [
 const AVAILABLE_ORDERS_PAGE_SIZE = 50
 const EMPTY_PAGINATION = { page: 1, limit: AVAILABLE_ORDERS_PAGE_SIZE, totalItems: 0, totalPages: 0 }
 
+// Identify error categories from HTTP response
+const ERROR_CATEGORY = {
+  OFFLINE: 'offline',          // 409 "Hãy chuyển trạng thái sang Đang trực"
+  NOT_APPROVED: 'not_approved',// 403 from requireApprovedShipper
+  OTHER: 'other',
+}
+
 const formatMoney = amount => `${Number(amount || 0).toLocaleString('vi-VN')}đ`
 const formatAddress = order =>
   order.delivery?.address || order.deliveryAddress?.addressLine || 'Chưa có địa chỉ giao hàng'
 const recipientPhone = order => order.delivery?.phone || order.deliveryAddress?.phone || ''
 const hasWaitingRequirement = type => ['customer_unreachable', 'customer_refused'].includes(type)
-// The kitchen cooks once a shipper takes the order (pending -> confirmed -> preparing -> ready_for_pickup)
 const POOL_STATUS_LABELS = {
   confirmed: 'Quán đã nhận · chờ bạn để nấu',
   preparing: 'Bếp đang nấu',
   ready_for_pickup: 'Sẵn sàng lấy hàng',
 }
 const AT_RESTAURANT_STATUSES = ['preparing', 'ready_for_pickup']
-const formatTime = value => (value ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '')
+const formatTime = value => (value
+  ? new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  : '')
 
 function getErrorMessage(error) {
   return error.response?.data?.message || error.message || 'Không thể thực hiện thao tác.'
 }
 
+function categorizeError(error) {
+  const status = error?.response?.status
+  const message = error?.response?.data?.message || ''
+  if (status === 403 || message.includes('chưa được duyệt') || message.includes('bị đình chỉ') || message.includes('chưa có hồ sơ')) {
+    return ERROR_CATEGORY.NOT_APPROVED
+  }
+  if (status === 409 && (message.includes('Đang trực') || message.includes('trực tuyến') || message.includes('online'))) {
+    return ERROR_CATEGORY.OFFLINE
+  }
+  return ERROR_CATEGORY.OTHER
+}
+
+// --- Status banner shown when shipper can't see orders ---
+function StatusBanner({ category, errorMessage }) {
+  if (category === ERROR_CATEGORY.OFFLINE) {
+    return (
+      <div className="delivery-status-banner delivery-status-banner--offline" role="alert">
+        <WifiOff size={22} />
+        <div>
+          <strong>Bạn đang ở trạng thái Ngoại tuyến</strong>
+          <p>Hãy bật công tắc <strong>Đang trực</strong> ở thanh điều hướng phía trên để bắt đầu nhận đơn.</p>
+        </div>
+      </div>
+    )
+  }
+  if (category === ERROR_CATEGORY.NOT_APPROVED) {
+    return (
+      <div className="delivery-status-banner delivery-status-banner--warn" role="alert">
+        <ShieldAlert size={22} />
+        <div>
+          <strong>Tài khoản chưa đủ điều kiện nhận đơn</strong>
+          <p>{errorMessage || 'Hồ sơ tài xế chưa được Admin duyệt hoặc đang bị tạm đình chỉ. Vui lòng liên hệ quản trị viên.'}</p>
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+
 function DeliveryOrders({ onOrderChanged }) {
+  const { token } = useAuth()
   const [availableOrders, setAvailableOrders] = useState([])
   const [availablePagination, setAvailablePagination] = useState(EMPTY_PAGINATION)
   const [availablePage, setAvailablePage] = useState(1)
@@ -45,6 +94,7 @@ function DeliveryOrders({ onOrderChanged }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [errorCategory, setErrorCategory] = useState(ERROR_CATEGORY.OTHER)
   const [actionError, setActionError] = useState('')
   const [busyOrderId, setBusyOrderId] = useState('')
   const [issueOrder, setIssueOrder] = useState(null)
@@ -59,6 +109,8 @@ function DeliveryOrders({ onOrderChanged }) {
     if (silent) setRefreshing(true)
     else setLoading(true)
     setError('')
+    setErrorCategory(ERROR_CATEGORY.OTHER)
+
     const activeResult = await Promise.allSettled([orderApi.getShipperActiveOrders()])
     if (activeResult[0].status === 'fulfilled') {
       setActiveOrders(activeResult[0].value.data || [])
@@ -77,9 +129,17 @@ function DeliveryOrders({ onOrderChanged }) {
       const lastPage = Math.max(1, pagination.totalPages)
       if (availablePage > lastPage) setAvailablePage(lastPage)
     } else {
+      const err = availableResult[0].reason
       setAvailableOrders([])
       setAvailablePagination(EMPTY_PAGINATION)
-      setError(getErrorMessage(availableResult[0].reason))
+      const cat = categorizeError(err)
+      setErrorCategory(cat)
+      // Only set error text for non-status-banner errors
+      if (cat === ERROR_CATEGORY.OTHER) {
+        setError(getErrorMessage(err))
+      } else {
+        setError(getErrorMessage(err))
+      }
     }
     setLoading(false)
     setRefreshing(false)
@@ -87,7 +147,9 @@ function DeliveryOrders({ onOrderChanged }) {
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => refreshOrders(), 0)
-    const refreshTimer = window.setInterval(() => refreshOrders(true), 5 * 60 * 1000)
+    const refreshTimer = window.setInterval(() => {
+      if (!document.hidden) refreshOrders(true)
+    }, 60 * 1000)
     const clockTimer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => {
       window.clearTimeout(initialRefresh)
@@ -95,6 +157,35 @@ function DeliveryOrders({ onOrderChanged }) {
       window.clearInterval(clockTimer)
     }
   }, [refreshOrders])
+
+  useEffect(() => {
+    if (!token) return undefined
+
+    const socket = connectSocket(token)
+    if (!socket) return undefined
+
+    const refreshIfVisible = () => {
+      if (!document.hidden) refreshOrders(true)
+    }
+    const handleOrderNotification = notification => {
+      if (notification?.orderId) refreshIfVisible()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshOrders(true)
+    }
+
+    socket.on('connect', refreshIfVisible)
+    socket.on('new_pickup_order', refreshIfVisible)
+    socket.on('new_notification', handleOrderNotification)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      socket.off('connect', refreshIfVisible)
+      socket.off('new_pickup_order', refreshIfVisible)
+      socket.off('new_notification', handleOrderNotification)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [token, refreshOrders])
 
   // While the kitchen cooks the shipper's order, check often so "Xác nhận đã lấy" unlocks soon after it is ready
   const hasCookingOrder = activeOrders.some(order => order.status === 'preparing')
@@ -244,12 +335,15 @@ function DeliveryOrders({ onOrderChanged }) {
     setIssueFiles(validFiles.slice(0, 3))
   }
 
+  // Determine if the error prevents showing orders (offline / not approved)
+  const isStatusError = errorCategory === ERROR_CATEGORY.OFFLINE || errorCategory === ERROR_CATEGORY.NOT_APPROVED
+
   return (
     <div className="delivery-orders-page">
       <div className="delivery-orders-heading">
         <div>
           <h1>Quản lý đơn giao hàng</h1>
-          <p>Danh sách đơn nhà hàng đã chuẩn bị xong và đang chờ tài xế nhận.</p>
+          <p>Nhận đơn nhà hàng đã xác nhận; bếp sẽ bắt đầu chuẩn bị sau khi có tài xế.</p>
         </div>
         <button
           type="button"
@@ -262,135 +356,22 @@ function DeliveryOrders({ onOrderChanged }) {
         </button>
       </div>
 
-      {error && <div className="delivery-alert" role="alert">{error}</div>}
+      {/* Status banners: offline / not approved */}
+      {!loading && isStatusError && (
+        <StatusBanner category={errorCategory} errorMessage={error} />
+      )}
+
+      {/* General error (network or unexpected) */}
+      {!loading && error && !isStatusError && (
+        <div className="delivery-alert" role="alert">{error}</div>
+      )}
+
       {actionError && <div className="delivery-alert" role="alert">{actionError}</div>}
       {loading && <div className="dashboard-message" role="status">Đang tải đơn giao hàng…</div>}
 
       {!loading && (
         <>
-          <section className="delivery-orders-section">
-            <header className="delivery-section-heading">
-              <div>
-                <h2>Đơn có thể nhận</h2>
-                <p>Bước 1 · Chọn đơn quán đã nhận. Bếp bắt đầu nấu ngay khi bạn nhận đơn</p>
-              </div>
-              <span className="delivery-count">{availablePagination.totalItems}</span>
-            </header>
-            {availableOrders.length === 0 ? (
-              <div className="delivery-empty">Hiện chưa có đơn nào chờ shipper nhận.</div>
-            ) : (
-              <>
-                <div className="delivery-order-grid">
-                  {availableOrders.map(order => (
-                  <article className="delivery-order-card" key={order._id}>
-                    <div className="delivery-order-card-top">
-                      <strong>{order.orderCode}</strong>
-                      <span className="delivery-status ready">{POOL_STATUS_LABELS[order.status] || 'Chờ shipper'}</span>
-                    </div>
-                    <h3>{order.restaurant.name}</h3>
-                    <p className="delivery-address">{order.restaurant.address}</p>
-                    <div className="delivery-order-facts">
-                      <span>Điểm giao: {order.delivery.area}</span>
-                      <span>Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong></span>
-                      <span>{order.itemCount} món</span>
-                    </div>
-                    {selectedDetails === order._id && order.detail && (
-                      <div className="delivery-detail-box">
-                        <strong>Bước 2 · Xem chi tiết đơn</strong>
-                        <p>Điểm nhận: {order.detail.restaurant?.address || order.restaurant.address}</p>
-                        <p>Khu vực giao: {order.detail.delivery?.area || order.delivery.area}</p>
-                        <p>Tiền thu hộ COD: {formatMoney(order.amountToCollect)}</p>
-                        <p>Thu nhập chuyến dự kiến: {formatMoney(order.estimatedPay)}</p>
-                        <button
-                          type="button"
-                          className="delivery-primary-button"
-                          disabled={Boolean(activeOrders.length)}
-                          onClick={() => setAcceptConfirmId(order._id)}
-                        >
-                          Tiếp tục nhận đơn
-                        </button>
-                      </div>
-                    )}
-                    <div className="delivery-card-actions">
-                      <button
-                        type="button"
-                        className="delivery-secondary-button"
-                        disabled={busyOrderId === order._id}
-                        onClick={() => handleShowDetails(order._id)}
-                      >
-                        {selectedDetails === order._id ? 'Thu gọn' : 'Chi tiết'}
-                      </button>
-                    </div>
-                    {acceptConfirmId === order._id && (
-                      <div className="delivery-confirm-box">
-                        <strong>Bước 3 · Xác nhận nhận đơn</strong>
-                        <p>Bạn sẽ phụ trách lấy đơn tại {order.restaurant.name}, giao đến {order.delivery.area}.</p>
-                        <p>Sau khi nhận, bạn cần hoàn tất đơn hiện tại trước khi nhận đơn khác.</p>
-                        <div className="delivery-card-actions">
-                          <button
-                            type="button"
-                            className="delivery-secondary-button"
-                            onClick={() => setAcceptConfirmId('')}
-                          >
-                            Quay lại chi tiết
-                          </button>
-                          <button
-                            type="button"
-                            className="delivery-primary-button"
-                            disabled={Boolean(activeOrders.length) || busyOrderId === order._id}
-                            onClick={() => runOrderAction(order._id, () =>
-                              orderApi.acceptDeliveryOrder(order._id),
-                            )}
-                          >
-                            {busyOrderId === order._id ? 'Đang nhận đơn…' : 'Xác nhận nhận đơn'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {activeOrders.length > 0 && (
-                      <p className="delivery-muted-note">Hoàn tất đơn đang giao trước khi nhận đơn mới.</p>
-                    )}
-                  </article>
-                  ))}
-                </div>
-                {availablePagination.totalPages > 1 && (
-                  <nav className="delivery-pagination" aria-label="Phân trang danh sách đơn có thể nhận">
-                    <button
-                      type="button"
-                      className="delivery-secondary-button"
-                      disabled={availablePage <= 1 || refreshing}
-                      onClick={() => {
-                        setSelectedDetails('')
-                        setAcceptConfirmId('')
-                        setLoading(true)
-                        setAvailablePage(page => Math.max(1, page - 1))
-                      }}
-                    >
-                      Trang trước
-                    </button>
-                    <span>
-                      Trang {availablePagination.page} / {availablePagination.totalPages}
-                      {' · '}Tổng {availablePagination.totalItems} đơn
-                    </span>
-                    <button
-                      type="button"
-                      className="delivery-secondary-button"
-                      disabled={availablePage >= availablePagination.totalPages || refreshing}
-                      onClick={() => {
-                        setSelectedDetails('')
-                        setAcceptConfirmId('')
-                        setLoading(true)
-                        setAvailablePage(page => Math.min(availablePagination.totalPages, page + 1))
-                      }}
-                    >
-                      Trang sau
-                    </button>
-                  </nav>
-                )}
-              </>
-            )}
-          </section>
-
+          {/* ── ACTIVE ORDERS ── */}
           <section className="delivery-orders-section">
             <header className="delivery-section-heading">
               <div>
@@ -422,7 +403,11 @@ function DeliveryOrders({ onOrderChanged }) {
                       <div className="delivery-order-card-top">
                         <strong>{order.orderCode}</strong>
                         <span className={`delivery-status ${order.status === 'delivering' ? 'transit' : 'ready'}`}>
-                          {order.status === 'delivering' ? 'Bước 2 · Đang giao' : isCooking ? 'Bước 1 · Bếp đang nấu' : 'Bước 1 · Chờ lấy hàng'}
+                          {order.status === 'delivering'
+                            ? 'Bước 2 · Đang giao'
+                            : isCooking
+                              ? 'Bước 1 · Bếp đang nấu'
+                              : 'Bước 1 · Chờ lấy hàng'}
                         </span>
                       </div>
                         <div className="delivery-stepper" aria-label="Tiến độ giao hàng">
@@ -461,7 +446,7 @@ function DeliveryOrders({ onOrderChanged }) {
                             <button
                               type="button"
                               className="delivery-secondary-button"
-                              disabled={busyOrderId === order._id}
+                              disabled={busyOrderId === order._id || isCooking}
                               onClick={() => runOrderAction(order._id, () =>
                                 orderApi.cancelDeliveryAcceptance(order._id),
                               )}
@@ -472,7 +457,7 @@ function DeliveryOrders({ onOrderChanged }) {
                           <button
                             type="button"
                             className="delivery-primary-button"
-                            disabled={busyOrderId === order._id || isCooking}
+                            disabled={busyOrderId === order._id}
                             onClick={() => runOrderAction(order._id, () =>
                               orderApi.confirmDeliveryPickup(order._id),
                             )}
@@ -516,8 +501,8 @@ function DeliveryOrders({ onOrderChanged }) {
                             type="button"
                             className="delivery-primary-button"
                             disabled={busyOrderId === order._id}
-                            onClick={() => runOrderAction(order._id, async () => {
-                              if (!(await confirmToast('Xác nhận đã giao đơn cho khách hàng?', { confirmLabel: 'Đã giao' }))) return
+                            onClick={() => runOrderAction(order._id, () => {
+                              if (!window.confirm('Xác nhận đã giao đơn cho khách hàng?')) return Promise.resolve()
                               return orderApi.confirmDeliveryDelivered(order._id)
                             })}
                           >
@@ -620,6 +605,150 @@ function DeliveryOrders({ onOrderChanged }) {
                   )
                 })}
               </div>
+            )}
+          </section>
+
+          {/* ── AVAILABLE ORDERS ── show even when offline so the section heading is visible */}
+          <section className="delivery-orders-section">
+            <header className="delivery-section-heading">
+              <div>
+                <h2>Đơn có thể nhận</h2>
+                <p>Bước 1 · Chọn đơn quán đã nhận. Bếp bắt đầu nấu ngay khi bạn nhận đơn</p>
+              </div>
+              {!isStatusError && (
+                <span className="delivery-count">{availablePagination.totalItems}</span>
+              )}
+            </header>
+
+            {/* When offline / not approved, don't attempt to show the empty list */}
+            {isStatusError ? (
+              <div className="delivery-empty delivery-empty--hint">
+                {errorCategory === ERROR_CATEGORY.OFFLINE
+                  ? '⚡ Bật trạng thái Đang trực để xem và nhận đơn hàng.'
+                  : '🔒 Tài khoản chưa đủ điều kiện. Liên hệ Admin để được hỗ trợ.'}
+              </div>
+            ) : availableOrders.length === 0 ? (
+              <div className="delivery-empty">Hiện chưa có đơn nào chờ shipper nhận.</div>
+            ) : (
+              <>
+                <div className="delivery-order-grid">
+                  {availableOrders.map(order => (
+                  <article className="delivery-order-card" key={order._id}>
+                    <div className="delivery-order-card-top">
+                      <strong>{order.orderCode}</strong>
+                      <span className="delivery-status ready">{POOL_STATUS_LABELS[order.status] || 'Chờ shipper'}</span>
+                    </div>
+                    <h3>{order.restaurant.name}</h3>
+                    <p className="delivery-address">{order.restaurant.address}</p>
+                    <div className="delivery-order-facts">
+                      <span><MapPin size={12} /> Điểm giao: {order.delivery.area}</span>
+                      <span><Package size={12} /> {order.itemCount} món</span>
+                      <span className="delivery-pay-highlight">
+                        Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong>
+                      </span>
+                      {order.status === 'preparing' && order.kitchenDueAt && (
+                        <span>Bếp dự kiến xong lúc {formatTime(order.kitchenDueAt)}</span>
+                      )}
+                      {order.amountToCollect > 0 && (
+                        <span className="delivery-cod-tag">
+                          Thu hộ COD: <strong>{formatMoney(order.amountToCollect)}</strong>
+                        </span>
+                      )}
+                    </div>
+                    {selectedDetails === order._id && order.detail && (
+                      <div className="delivery-detail-box">
+                        <strong>Bước 2 · Xem chi tiết đơn</strong>
+                        <p>Điểm nhận: {order.detail.restaurant?.address || order.restaurant.address}</p>
+                        <p>Khu vực giao: {order.detail.delivery?.area || order.delivery.area}</p>
+                        <p>Tiền thu hộ COD: {formatMoney(order.amountToCollect)}</p>
+                        <p>Thu nhập chuyến dự kiến: {formatMoney(order.estimatedPay)}</p>
+                        <button
+                          type="button"
+                          className="delivery-primary-button"
+                          disabled={Boolean(activeOrders.length)}
+                          onClick={() => setAcceptConfirmId(order._id)}
+                        >
+                          Tiếp tục nhận đơn
+                        </button>
+                      </div>
+                    )}
+                    <div className="delivery-card-actions">
+                      <button
+                        type="button"
+                        className="delivery-secondary-button"
+                        disabled={busyOrderId === order._id}
+                        onClick={() => handleShowDetails(order._id)}
+                      >
+                        {selectedDetails === order._id ? 'Thu gọn' : 'Chi tiết'}
+                      </button>
+                    </div>
+                    {acceptConfirmId === order._id && (
+                      <div className="delivery-confirm-box">
+                        <strong>Bước 3 · Xác nhận nhận đơn</strong>
+                        <p>Bạn sẽ phụ trách lấy đơn tại {order.restaurant.name}, giao đến {order.delivery.area}.</p>
+                        <p>Sau khi nhận, bạn cần hoàn tất đơn hiện tại trước khi nhận đơn khác.</p>
+                        <div className="delivery-card-actions">
+                          <button
+                            type="button"
+                            className="delivery-secondary-button"
+                            onClick={() => setAcceptConfirmId('')}
+                          >
+                            Quay lại chi tiết
+                          </button>
+                          <button
+                            type="button"
+                            className="delivery-primary-button"
+                            disabled={Boolean(activeOrders.length) || busyOrderId === order._id}
+                            onClick={() => runOrderAction(order._id, () =>
+                              orderApi.acceptDeliveryOrder(order._id),
+                            )}
+                          >
+                            {busyOrderId === order._id ? 'Đang nhận đơn…' : 'Xác nhận nhận đơn'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {activeOrders.length > 0 && (
+                      <p className="delivery-muted-note">Hoàn tất đơn đang giao trước khi nhận đơn mới.</p>
+                    )}
+                  </article>
+                  ))}
+                </div>
+                {availablePagination.totalPages > 1 && (
+                  <nav className="delivery-pagination" aria-label="Phân trang danh sách đơn có thể nhận">
+                    <button
+                      type="button"
+                      className="delivery-secondary-button"
+                      disabled={availablePage <= 1 || refreshing}
+                      onClick={() => {
+                        setSelectedDetails('')
+                        setAcceptConfirmId('')
+                        setLoading(true)
+                        setAvailablePage(page => Math.max(1, page - 1))
+                      }}
+                    >
+                      Trang trước
+                    </button>
+                    <span>
+                      Trang {availablePagination.page} / {availablePagination.totalPages}
+                      {' · '}Tổng {availablePagination.totalItems} đơn
+                    </span>
+                    <button
+                      type="button"
+                      className="delivery-secondary-button"
+                      disabled={availablePage >= availablePagination.totalPages || refreshing}
+                      onClick={() => {
+                        setSelectedDetails('')
+                        setAcceptConfirmId('')
+                        setLoading(true)
+                        setAvailablePage(page => Math.min(availablePagination.totalPages, page + 1))
+                      }}
+                    >
+                      Trang sau
+                    </button>
+                  </nav>
+                )}
+              </>
             )}
           </section>
         </>

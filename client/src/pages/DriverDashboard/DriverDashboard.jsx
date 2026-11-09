@@ -74,7 +74,10 @@ function SupportCenter() {
 function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [theme, setTheme] = useState(() => (
-    window.localStorage.getItem('shipper-dashboard-theme') === 'dark' ? 'dark' : 'light'
+    window.localStorage.getItem('theme') === 'dark' ||
+    window.localStorage.getItem('shipper-dashboard-theme') === 'dark'
+      ? 'dark'
+      : 'light'
   ))
   const [mobilePreview, setMobilePreview] = useState(false)
   const [period, setPeriod] = useState('today')
@@ -120,6 +123,7 @@ function DriverDashboard() {
 
   useEffect(() => {
     window.localStorage.setItem('shipper-dashboard-theme', theme)
+    window.localStorage.setItem('theme', theme)
   }, [theme])
 
   const handleOnlineToggle = async (isOnline) => {
@@ -184,7 +188,7 @@ function DriverDashboard() {
           <button type="button" onClick={() => setMobilePreview(false)}>Thoát xem trước</button>
         </div>
       )}
-      <Navbar />
+      <Navbar theme={theme} onThemeChange={setTheme} />
       <div className="driver-home-banner">
         <div className="driver-home-banner-inner">
           <span className="driver-home-banner-message">
@@ -408,8 +412,6 @@ function DriverDashboard() {
             {activeTab === 'settings' && (
               <DriverSettings
                 onProfileUpdated={handleProfileUpdated}
-                theme={theme}
-                onThemeChange={setTheme}
                 mobilePreview={mobilePreview}
                 onMobilePreviewChange={setMobilePreview}
               />
