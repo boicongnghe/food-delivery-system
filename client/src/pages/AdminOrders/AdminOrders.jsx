@@ -118,7 +118,7 @@ export default function AdminOrders() {
                 max={filters.to || undefined}
                 onChange={(event) => changeFilters({ from: event.target.value })}
                 aria-label="Đặt từ ngày"
-                className={`${ADMIN_INPUT} dark:[color-scheme:dark] lg:w-40`}
+                className={`${ADMIN_INPUT} lg:w-40`}
               />
               <span className="text-xs text-slate-500">đến</span>
               <input
@@ -127,7 +127,7 @@ export default function AdminOrders() {
                 min={filters.from || undefined}
                 onChange={(event) => changeFilters({ to: event.target.value })}
                 aria-label="Đặt đến ngày"
-                className={`${ADMIN_INPUT} dark:[color-scheme:dark] lg:w-40`}
+                className={`${ADMIN_INPUT} lg:w-40`}
               />
             </div>
             {hasFilters && (

@@ -34,15 +34,13 @@ Admin sửa ở **Cấu hình vận hành** (`/admin/settings`). Lưu trong coll
 
 | Tham số | Mặc định | Căn cứ | Đang dùng |
 | --- | --- | --- | --- |
-| `payTimeout` | 15 phút | Giả định: đủ thời gian để khách mở app ngân hàng | Chờ module thanh toán |
+| `payTimeout` | 15 phút | Giả định: đủ thời gian để khách mở app ngân hàng | Chưa; giữ sẵn cho module thanh toán |
 | `acceptRemind` / `acceptTimeout` | 2 / 5 phút | Giả định; ShopeeFood có mốc này nhưng không công bố số | Có |
 | `prepTime` (quán khai báo) / `defaultPrepTime` | 15 phút | Ngưỡng 15 phút của Grab | Có |
 | `prepGrace` | 15 phút | Giả định | Có |
 | `shipperRemind` / `shipperTimeout` | 10 / 20 phút | ShopeeFood hủy ở mốc 20 phút | Có |
 | `pickupWait` | 30 phút | Ngưỡng hỗ trợ tài xế của Grab | Có (TO-08b); TO-08 chờ module shipper |
 | `closingCutoff` | 30 phút | Giả định, nên ≥ thời gian chuẩn bị tối đa | Có |
-| `reconInterval` | 15 phút | SePay khuyến nghị 15–30 phút | Chờ module thanh toán |
-| `refundSlaHours` | 24 giờ | Giả định | Chờ module thanh toán |
 
 Ràng buộc khi lưu: `acceptTimeout > acceptRemind` và `shipperTimeout > shipperRemind`.
 

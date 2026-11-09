@@ -207,7 +207,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
               min={isStarted ? undefined : today}
               value={form.effectiveFrom}
               onChange={(event) => update({ effectiveFrom: event.target.value })}
-              className={`${ADMIN_INPUT} [color-scheme:dark]`}
+              className={`${ADMIN_INPUT}`}
             />
             <AdminFieldError message={errors.effectiveFrom} />
           </div>
@@ -230,7 +230,7 @@ export default function CommissionRuleFormModal({ rule, today, onClose, onSaved 
               min={isStarted ? today : form.effectiveFrom}
               value={form.effectiveTo}
               onChange={(event) => update({ effectiveTo: event.target.value })}
-              className={`${ADMIN_INPUT} [color-scheme:dark] sm:w-1/2`}
+              className={`${ADMIN_INPUT} sm:w-1/2`}
             />
           )}
           <AdminFieldError message={errors.effectiveTo} />
