@@ -45,8 +45,8 @@ const getPartnerStatus = (partner) => {
 const DEFAULT_PARTNERS = [
   {
     id: 'res-1',
-    name: 'Cơm Tấm Ba Ghiền - Sài Gòn',
-    address: '84 Đặng Văn Ngữ, P. 10, Q. Phú Nhuận, TP. HCM',
+    name: 'Cơm Tấm Ba Ghiền – Hòa Lạc',
+    address: 'Cổng số 1 ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
     category: 'Cơm tấm sườn bì chả, Đặc sản Sài Gòn',
     rating: 4.9,
     reviewsCount: 1420,
@@ -61,8 +61,8 @@ const DEFAULT_PARTNERS = [
   },
   {
     id: 'res-2',
-    name: 'Phở Thìn Lò Đúc Hà Nội',
-    address: '13 Lò Đúc, P. Phạm Đình Hổ, Q. Hai Bà Trưng, Hà Nội',
+    name: 'Phở Thìn Lò Đúc – Hòa Lạc',
+    address: 'Tái định cư Bắc Phú Cát, Thạch Hòa, Thạch Thất, Hà Nội',
     category: 'Phở bò tái lăn, Quẩy giòn gia truyền',
     rating: 4.8,
     reviewsCount: 980,

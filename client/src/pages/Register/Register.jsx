@@ -256,7 +256,7 @@ export default function Register() {
         role: 'restaurant_owner',
         agreeTerms: true,
         restaurantName: 'Bếp Cơm Niêu & Trà Thảo Mộc Sài Gòn',
-        restaurantAddress: 'Số 128 Đường Hai Bà Trưng, Phường Đa Kao, Quận 1, TP.HCM',
+        restaurantAddress: 'Số 128 Đường Hòa Lạc, Xã Thạch Hòa, Thạch Thất, Hà Nội',
         businessItems: 'Cơm niêu cá kho tộ, Cơm tấm sườn nướng, Canh chua, Trà thảo mộc',
         ownerCitizenId: '079198005432',
         businessLicense: {
