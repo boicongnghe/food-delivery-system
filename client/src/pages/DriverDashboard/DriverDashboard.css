@@ -1801,6 +1801,66 @@
   background: #fff0eb;
   font-size: 12px;
 }
+
+/* Status banner: offline / not approved */
+.delivery-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.delivery-status-banner strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.delivery-status-banner p { margin: 0; opacity: 0.9; }
+.delivery-status-banner--offline {
+  border: 1.5px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+}
+.delivery-status-banner--warn {
+  border: 1.5px solid #fde68a;
+  background: #fefce8;
+  color: #92400e;
+}
+.driver-shell[data-theme="dark"] .delivery-status-banner--offline {
+  border-color: #1e3a5f;
+  background: #172b45;
+  color: #93c5fd;
+}
+.driver-shell[data-theme="dark"] .delivery-status-banner--warn {
+  border-color: #452a04;
+  background: #382d17;
+  color: #fcd34d;
+}
+
+/* Hint text in empty available list */
+.delivery-empty--hint {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Pay / COD tags on order cards */
+.delivery-pay-highlight strong { color: var(--brand-dark); }
+.delivery-cod-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--amber-bg);
+  border: 1px solid #fde68a;
+  color: var(--amber);
+  font-size: 11px;
+  font-weight: 600;
+}
 .delivery-orders-section {
   padding: 16px;
   border: 1px solid var(--border);
