@@ -380,7 +380,7 @@ export default function Home() {
   }
 
   // Quick Add to cart from dish or restaurant chips
-  const handleQuickAddToCart = (e, dish) => {
+  const handleQuickAddToCart = async (e, dish) => {
     e.stopPropagation()
     if (!isAuthenticated) {
       toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
@@ -413,7 +413,7 @@ export default function Home() {
       return
     }
 
-    addToCart(dish, 1, '')
+    if (!(await addToCart(dish, 1, ''))) return
     toast.success(`Đã thêm "${dish.name}" vào giỏ hàng!`, {
       icon: '🛒',
       duration: 2500,
@@ -1252,7 +1252,7 @@ export default function Home() {
             isRestaurantClosed={!isOpen}
             openingHoursText={hoursText}
             onClose={() => setActiveDish(null)}
-            onOrderSuccess={(orderData) => {
+            onOrderSuccess={async (orderData) => {
               if (!isAuthenticated) {
                 toast.error('Vui lòng đăng nhập với vai trò Khách hàng để chọn món!', {
                   icon: '🔒',
@@ -1288,7 +1288,7 @@ export default function Home() {
                 selectedToppings: orderData.selectedToppings,
               }
 
-              addToCart(customizedFood, orderData.quantity, orderData.note)
+              if (!(await addToCart(customizedFood, orderData.quantity, orderData.note))) return
               toast.success(`Đã thêm ${orderData.quantity}x "${customizedFood.name}" vào giỏ hàng!`, {
                 icon: '🛒',
               })

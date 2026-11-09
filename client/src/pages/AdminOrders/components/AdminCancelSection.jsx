@@ -6,6 +6,7 @@ import AdminFieldError from '../../../components/AdminFieldError/AdminFieldError
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
 import { ADMIN_BUTTON, ADMIN_INPUT, ADMIN_LABEL } from '../../../utils/adminClassNames.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 // Same rule as the server (adminOrderService.cancelOrderAsAdmin): the food is not on its way yet.
 // A shipper may have accepted the order but not picked it up; after pickup the delivery issue flow handles it.
@@ -48,7 +49,7 @@ export default function AdminCancelSection({ order, onCancelled }) {
 
   const run = async (type) => {
     const action = ACTIONS[type]
-    if (!window.confirm(action.confirm)) return
+    if (!(await confirmToast(action.confirm, { danger: type === 'cancel' }))) return
     setSaving(type)
     try {
       const response = await action.request(order._id, { note })

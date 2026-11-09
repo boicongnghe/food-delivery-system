@@ -10,6 +10,7 @@ import { orderApi } from '../../api/orderApi.js'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 import { cartLineKey } from '../../utils/cartLineKey.js'
+import { confirmToast } from '../../utils/confirmToast.jsx'
 
 function Checkout() {
   const { user } = useAuth()
@@ -315,7 +316,7 @@ function Checkout() {
   // Xóa địa chỉ khỏi sổ
   const handleDeleteAddress = async (e, addressId) => {
     e.stopPropagation()
-    if (!window.confirm('Bạn có chắc muốn xóa địa chỉ này khỏi danh bạ?')) return
+    if (!(await confirmToast('Bạn có chắc muốn xóa địa chỉ này khỏi danh bạ?', { confirmLabel: 'Xóa', danger: true }))) return
     try {
       await addressApi.deleteAddress(addressId)
       const updated = addresses.filter((a) => a._id !== addressId)

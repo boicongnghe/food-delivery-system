@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { Landmark, Pencil } from 'lucide-react'
 import walletApi from '../../../api/walletApi.js'
 import { BANK_OPTIONS } from '../constants.js'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 const inputClass =
   'w-full rounded-md border border-transparent bg-brand-light px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand/15'
@@ -61,7 +62,7 @@ export default function PayoutAccountCard({ account, maskedAccount, locked, onSa
       return
     }
     // Changing where the money goes deserves an explicit confirmation
-    if (isSet && !window.confirm('Đổi tài khoản nhận tiền? Các lệnh rút từ bây giờ sẽ chuyển về tài khoản mới.')) return
+    if (isSet && !(await confirmToast('Đổi tài khoản nhận tiền? Các lệnh rút từ bây giờ sẽ chuyển về tài khoản mới.', { confirmLabel: 'Đổi tài khoản' }))) return
 
     setSaving(true)
     try {

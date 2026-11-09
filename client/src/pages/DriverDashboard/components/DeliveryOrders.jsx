@@ -3,6 +3,7 @@ import { Camera, Phone, RefreshCw, ShieldAlert } from 'lucide-react'
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import orderApi from '../../../api/orderApi.js'
 import uploadApi from '../../../api/uploadApi.js'
+import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 const ISSUE_TYPES = [
   ['customer_unreachable', 'Không liên lạc được với khách'],
@@ -515,8 +516,8 @@ function DeliveryOrders({ onOrderChanged }) {
                             type="button"
                             className="delivery-primary-button"
                             disabled={busyOrderId === order._id}
-                            onClick={() => runOrderAction(order._id, () => {
-                              if (!window.confirm('Xác nhận đã giao đơn cho khách hàng?')) return Promise.resolve()
+                            onClick={() => runOrderAction(order._id, async () => {
+                              if (!(await confirmToast('Xác nhận đã giao đơn cho khách hàng?', { confirmLabel: 'Đã giao' }))) return
                               return orderApi.confirmDeliveryDelivered(order._id)
                             })}
                           >

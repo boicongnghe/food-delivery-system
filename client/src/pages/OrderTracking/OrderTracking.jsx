@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
+import toast from 'react-hot-toast'
 
 // Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
 const STATUS_STEPS = [
@@ -47,7 +48,7 @@ function OrderTracking() {
       setActionMsg(res.data.message || 'Đã hủy đơn hàng thành công')
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
+      toast.error(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
     } finally {
       setCancelling(false)
     }
@@ -61,7 +62,7 @@ function OrderTracking() {
       setActionMsg('Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi khi xác nhận nhận hàng')
+      toast.error(err.response?.data?.message || 'Lỗi khi xác nhận nhận hàng')
     }
   }
 
@@ -71,7 +72,7 @@ function OrderTracking() {
       await orderApi.progressOrder(id, { status: nextStatus })
       fetchOrderDetails()
     } catch (err) {
-      alert(err.response?.data?.message || 'Lỗi cập nhật tiến độ')
+      toast.error(err.response?.data?.message || 'Lỗi cập nhật tiến độ')
     }
   }
 

@@ -18,7 +18,7 @@ export default function DishCardInChat({ dish }) {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num)
   }
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.stopPropagation()
     if (!isAuthenticated) {
       toast.error('Vui lòng đăng nhập để thêm vào giỏ hàng!', { icon: '🔒', duration: 3000 })
@@ -31,7 +31,7 @@ export default function DishCardInChat({ dish }) {
     }
     if (!addToCart) return
 
-    addToCart(dish, 1)
+    if (!(await addToCart(dish, 1))) return
     setAdded(true)
     toast.success(`Đã thêm ${dish.name} vào giỏ!`, { icon: '🛒', duration: 2200 })
     setTimeout(() => setAdded(false), 1800)
