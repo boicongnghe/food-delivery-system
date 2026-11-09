@@ -17,6 +17,7 @@ export const STATUS_TABS = [
 export const PAGE_SIZE = 10
 export const NAME_MAX_LENGTH = 80
 export const DESCRIPTION_MAX_LENGTH = 250
-export const MAX_OPTION_GROUPS = 10
-export const MAX_OPTIONS_PER_GROUP = 20
+// Extras are one optional list (stored on the server as a single option group)
+export const TOPPING_GROUP_NAME = 'Topping'
+export const MAX_TOPPINGS = 20
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB, same as server

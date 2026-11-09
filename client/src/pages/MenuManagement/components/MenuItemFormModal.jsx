@@ -5,16 +5,38 @@ import menuApi from '../../../api/menuApi.js'
 import uploadApi from '../../../api/uploadApi.js'
 import { createKey } from '../../../utils/createKey.js'
 import { formatNumber, parseNumberInput } from '../../../utils/formatCurrency.js'
-import { DESCRIPTION_MAX_LENGTH, MENU_TAGS, NAME_MAX_LENGTH } from '../constants.js'
+import { DESCRIPTION_MAX_LENGTH, MENU_TAGS, NAME_MAX_LENGTH, TOPPING_GROUP_NAME } from '../constants.js'
 import FieldError from './FieldError.jsx'
 import FormLabel from './FormLabel.jsx'
 import MenuImagePicker from './MenuImagePicker.jsx'
-import OptionGroupEditor from './OptionGroupEditor.jsx'
-import StatusChoice from './StatusChoice.jsx'
+import ToppingEditor from './ToppingEditor.jsx'
 import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 const inputClass =
   'w-full rounded-md border border-brand-soft bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/15'
+
+// The server stores extras as option groups; the form keeps ONE topping list. An older item with several
+// groups shows all their options in that list (same name kept once, first price wins).
+const toToppings = (optionGroups = []) => {
+  const seen = new Set()
+  return optionGroups
+    .flatMap((group) => group.options)
+    .filter((option) => !seen.has(option.name) && seen.add(option.name))
+    .map((option) => ({ _key: createKey(), name: option.name, price: option.price || 0 }))
+}
+
+// One optional group: the customer picks any number of toppings, none is required
+const toOptionGroups = (toppings) =>
+  toppings.length === 0
+    ? []
+    : [
+        {
+          name: TOPPING_GROUP_NAME,
+          isRequired: false,
+          maxSelect: toppings.length,
+          options: toppings.map(({ name, price }) => ({ name: name.trim(), price })),
+        },
+      ]
 
 // Form values are kept as strings for number inputs ('' = empty)
 function toFormState(item, defaultCategoryId) {
@@ -28,24 +50,20 @@ function toFormState(item, defaultCategoryId) {
     description: item?.description || '',
     image: item?.image || '',
     tags: item?.tags || [],
+    // No longer edited here (switches on the menu list), but always sent back: the server would reset
+    // a missing value to true and show again a dish the owner marked sold out / hidden
     isAvailable: item?.isAvailable ?? true,
     isVisible: item?.isVisible ?? true,
     // _key: stable React key so removing a row in the middle keeps the other inputs intact
-    optionGroups: (item?.optionGroups || []).map((group) => ({
-      ...group,
-      _key: createKey(),
-      options: group.options.map((option) => ({ ...option, _key: createKey() })),
-    })),
+    toppings: toToppings(item?.optionGroups),
   }
 }
 
 function toPayload(form) {
+  const { toppings, ...fields } = form
   return {
-    ...form,
-    optionGroups: form.optionGroups.map(({ _key, options, ...group }) => ({
-      ...group,
-      options: options.map(({ _key: _optionKey, ...option }) => option),
-    })),
+    ...fields,
+    optionGroups: toOptionGroups(toppings),
     sku: form.sku.trim(),
     sortOrder: form.sortOrder ? Number(form.sortOrder) : null,
     price: form.price ? Number(form.price) : null,
@@ -53,7 +71,7 @@ function toPayload(form) {
   }
 }
 
-// API errors: [{ field: 'optionGroups.0.options.1.name', message }] -> { optionGroups: message }
+// API errors: [{ field: 'optionGroups.0.options.1.name', message }] -> { optionGroups: message } (shown under toppings)
 function toFieldErrors(apiErrors = []) {
   return apiErrors.reduce((result, { field, message }) => {
     const key = field.split('.')[0]
@@ -368,33 +386,13 @@ export default function MenuItemFormModal({ item, categories, defaultCategoryId,
             </div>
           </div>
 
-          {/* Right column: sections 10-11 */}
+          {/* Right column: section 10 */}
           <div className="space-y-5">
-            <OptionGroupEditor
-              groups={form.optionGroups}
+            <ToppingEditor
+              toppings={form.toppings}
               error={errors.optionGroups}
-              onChange={(groups) => setField('optionGroups', groups)}
+              onChange={(toppings) => setField('toppings', toppings)}
             />
-
-            <section className="space-y-3 rounded-lg border border-brand-soft/70 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-800">11. Thiết lập tình trạng bán hàng</p>
-              <StatusChoice
-                title="Tình trạng phục vụ của bếp"
-                description="Bật để nhận đơn ngay, tắt khi hết nguyên liệu trong ca"
-                value={form.isAvailable}
-                onChange={(value) => setField('isAvailable', value)}
-                onLabel="Còn món"
-                offLabel="Hết món"
-              />
-              <StatusChoice
-                title="Hiển thị trên ứng dụng khách"
-                description="Cho phép khách hàng nhìn thấy và thêm vào giỏ hàng"
-                value={form.isVisible}
-                onChange={(value) => setField('isVisible', value)}
-                onLabel="Hiển thị"
-                offLabel="Ẩn món"
-              />
-            </section>
           </div>
         </div>
 
