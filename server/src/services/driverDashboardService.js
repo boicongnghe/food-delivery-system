@@ -52,10 +52,8 @@ const emptyDashboardPeriod = () => ({
   earningsByHour: [],
   forecast: [],
   trips: [],
-  missions: [],
   reviews: [],
   badges: [],
-  hotspots: [],
 });
 
 const withoutEarningAddOns = (entries = []) => entries.map((entry) => {

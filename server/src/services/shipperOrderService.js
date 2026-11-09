@@ -49,19 +49,15 @@ const DASHBOARD_PERIOD_FIELDS = [
   'earningsByHour',
   'forecast',
   'trips',
-  'missions',
   'reviews',
   'badges',
-  'hotspots',
 ];
 const DASHBOARD_ARRAY_FIELDS = new Set([
   'earningsByHour',
   'forecast',
   'trips',
-  'missions',
   'reviews',
   'badges',
-  'hotspots',
 ]);
 const DASHBOARD_STRING_FIELDS = new Set(['tier', 'payoutBank']);
 

@@ -59,7 +59,7 @@ Mongoose stores documents in the `driverdashboards` collection. The `_id` used
 in `userId` must be the same ObjectId as the `id` claim in the driver's JWT.
 Create a record using the `DriverDashboard` model so schema validation runs.
 Each selected period should include numeric summary fields and arrays for
-charts, trips, missions, reviews, badges, and hotspots. Monetary amounts are
+charts, trips, reviews, and badges. Monetary amounts are
 integer VND.
 
 Example shape (replace the placeholder ObjectId and values with real data):
@@ -95,10 +95,8 @@ Example shape (replace the placeholder ObjectId and values with real data):
       earningsByHour: [],
       forecast: [],
       trips: [],
-      missions: [],
       reviews: [],
-      badges: [],
-      hotspots: []
+      badges: []
     },
     week: { /* same fields as today */ },
     month: { /* same fields as today */ }
@@ -111,10 +109,8 @@ Array item fields:
 - `earningsByHour`: `{ hour, base, surge }`
 - `forecast`: `{ hour, demand }` where `demand` is from 0 to 100
 - `trips`: `{ id, time, restaurant, address, distance, baseFare, status, surge }`
-- `missions`: `{ id, title, reward, current, target, status }`
 - `reviews`: `{ id, quote, customer, stars }`
 - `badges`: `{ id, icon, label, count }`
-- `hotspots`: `{ id, name, district, level, demand, orders, pin, zone }`; `level` is `hot`, `med`, or `low`, and `pin` uses percentage `top`/`left` strings when shown on the map.
 
 Configure Atlas using the connection string from **Connect → Drivers** in
 `server/.env` as `MONGO_URI`. The Atlas console URL is not a connection string.

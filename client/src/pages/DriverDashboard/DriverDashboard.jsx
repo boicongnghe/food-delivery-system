@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CircleAlert, Headphones, Landmark, ReceiptText, Settings, Wallet, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
@@ -13,9 +13,7 @@ import SectionCard from './components/SectionCard.jsx'
 import StatCards from './components/StatCards'
 import EarningsChart from './components/EarningsChart'
 import TripLedger from './components/TripLedger'
-import DailyMissions from './components/DailyMissions'
 import CustomerPraise from './components/CustomerPraise'
-import HotspotMap from './components/HotspotMap'
 import DriverSettings from './components/DriverSettings'
 import DeliveryOrders from './components/DeliveryOrders'
 
@@ -91,7 +89,9 @@ function SupportCenter() {
 function DriverDashboard() {
   // The open section comes from the URL (/shipper/orders): survives F5, Back works, header links highlight it
   const { tab } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const isEmbedded = window.self !== window.top
   const activeTab = SHIPPER_TABS.includes(tab) ? tab : 'dashboard'
   const setActiveTab = (nextTab) => navigate(`/shipper/${nextTab}`)
   const [mobilePreview, setMobilePreview] = useState(false)
@@ -193,6 +193,22 @@ function DriverDashboard() {
     if (activeTab === 'wallet') loadPayoutAccounts()
   }, [activeTab, reloadCount, loadPayoutAccounts])
 
+  useEffect(() => {
+    if (!mobilePreview) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') setMobilePreview(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [mobilePreview])
+
   const periodLabel = DATE_TABS.find(tab => tab.id === period)?.label || DATE_TABS[0].label
   const profile = dashboard?.profile
   const summary = dashboard || {}
@@ -201,19 +217,7 @@ function DriverDashboard() {
     : ''
 
   return (
-    <div
-      className={`flex min-h-screen flex-col bg-cream ${
-        mobilePreview ? 'mx-auto max-w-[430px] border-x border-brand-soft shadow-2xl' : ''
-      }`}
-    >
-      {mobilePreview && (
-        <div className="sticky top-0 z-50 flex items-center justify-between gap-2 bg-slate-900 px-4 py-2 text-xs font-semibold text-white">
-          <span>Đang xem trước giao diện mobile</span>
-          <button type="button" onClick={() => setMobilePreview(false)} className="rounded bg-white/15 px-2 py-1 hover:bg-white/25">
-            Thoát xem trước
-          </button>
-        </div>
-      )}
+    <div className="flex min-h-screen flex-col bg-cream">
       <Header
         subtitle="Kênh Tài Xế"
         navItems={SHIPPER_NAV_ITEMS}
@@ -290,13 +294,11 @@ function DriverDashboard() {
                     <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
                   </div>
                   <div className="space-y-6">
-                    <DailyMissions missions={summary.missions || []} />
                     <CustomerPraise
                       reviews={summary.reviews || []}
                       badges={summary.badges || []}
                       rating={summary.rating}
                     />
-                    <HotspotMap hotspots={summary.hotspots || []} />
                   </div>
                 </div>
               </>
@@ -347,14 +349,11 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'ranking' && (
-              <div className="grid items-start gap-6 lg:grid-cols-2">
-                <DailyMissions missions={summary.missions || []} />
-                <CustomerPraise
-                  reviews={summary.reviews || []}
-                  badges={summary.badges || []}
-                  rating={summary.rating}
-                />
-              </div>
+              <CustomerPraise
+                reviews={summary.reviews || []}
+                badges={summary.badges || []}
+                rating={summary.rating}
+              />
             )}
 
             {activeTab === 'support' && <SupportCenter />}
@@ -369,6 +368,7 @@ function DriverDashboard() {
                 onOpenWallet={() => setActiveTab('wallet')}
                 mobilePreview={mobilePreview}
                 onMobilePreviewChange={setMobilePreview}
+                showMobilePreview={!isEmbedded}
               />
             )}
           </>
@@ -376,6 +376,47 @@ function DriverDashboard() {
       </main>
 
       <Footer subtitle="Cổng đối tác tài xế giao hàng" />
+
+      {mobilePreview && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4"
+          onClick={() => setMobilePreview(false)}
+          role="presentation"
+        >
+          <section
+            aria-label="Xem trước giao diện tài xế trên điện thoại"
+            aria-modal="true"
+            className="flex max-h-full w-full max-w-[430px] flex-col items-center gap-3"
+            onClick={event => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="flex w-full items-center justify-between gap-3 text-sm font-semibold text-white">
+              <span>Xem trước trên điện thoại</span>
+              <button
+                type="button"
+                onClick={() => setMobilePreview(false)}
+                className="rounded-md bg-white/15 px-3 py-2 hover:bg-white/25"
+              >
+                Đóng
+              </button>
+            </div>
+            <div
+              className="max-h-[calc(100dvh-6rem)] overflow-hidden rounded-[2rem] border-[6px] border-slate-800 bg-white shadow-2xl"
+              style={{
+                width: 'min(390px, calc(100vw - 2rem))',
+                height: 'min(844px, calc(100dvh - 6rem))',
+              }}
+            >
+              <iframe
+                key={`${location.pathname}${location.search}${location.hash}`}
+                title="Giao diện tài xế trên màn hình điện thoại"
+                src={`${location.pathname}${location.search}${location.hash}`}
+                className="h-full w-full border-0 bg-cream"
+              />
+            </div>
+          </section>
+        </div>
+      )}
 
       {showPayoutNotice && (
         <div
