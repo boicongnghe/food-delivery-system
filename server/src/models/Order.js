@@ -295,6 +295,7 @@ orderSchema.pre('validate', function () {
 
 orderSchema.index({ restaurant: 1, status: 1, createdAt: 1 });
 orderSchema.index({ status: 1, shipper: 1, readyAt: 1 });
+orderSchema.index({ shipper: 1, status: 1, payoutCreditedAt: -1 });
 orderSchema.index({ status: 1, createdAt: 1 }); // timeout job: pending orders by age
 orderSchema.index({ status: 1, kitchenDueAt: 1 }); // timeout job: orders past their prep time
 orderSchema.index({ 'restaurantVoucher.voucher': 1, customer: 1 }); // voucher usage (total and per customer)

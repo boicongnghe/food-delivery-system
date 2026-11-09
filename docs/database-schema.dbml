@@ -294,7 +294,7 @@ Table driverdashboards [headercolor: #3498DB] {
   updatedAt date
   Note: '''Shipper dashboard. Each period = { totalEarnings, baseFare, bonus, tips, completedTrips, tripGoal,
 walletBalance, pendingBalance, weeklyEarnings, rating, tier, ratingCount, consecutiveFiveStarTrips, payoutBank,
-earningsByHour[], forecast[], trips[], missions[], reviews[], badges[], hotspots[] }'''
+earningsByHour[], forecast[], trips[], reviews[], badges[] }'''
 }
 
 // ===================== RESTAURANT & MENU =====================

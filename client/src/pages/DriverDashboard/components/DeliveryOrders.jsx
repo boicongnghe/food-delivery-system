@@ -534,10 +534,7 @@ function DeliveryOrders({ onOrderChanged }) {
                             type="button"
                             className={`${primaryButtonClass} w-full`}
                             disabled={busyOrderId === order._id}
-                            onClick={() => runOrderAction(order._id, () => {
-                              if (!window.confirm('Xác nhận đã giao đơn cho khách hàng?')) return Promise.resolve()
-                              return orderApi.confirmDeliveryDelivered(order._id)
-                            })}
+                            onClick={() => runOrderAction(order._id, () => orderApi.confirmDeliveryDelivered(order._id))}
                           >
                             {busyOrderId === order._id ? 'Đang hoàn tất…' : 'Xác nhận đã giao'}
                           </button>

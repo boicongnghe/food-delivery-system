@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
 import DriverDashboard from '../models/DriverDashboard.js';
+import Order from '../models/Order.js';
 import Review from '../models/Review.js';
 import Shipper from '../models/Shipper.js';
 import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
-import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { addDays, mondayOf, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
 import { getUserDefaultAccount, maskAccountNumber } from './payoutAccountService.js';
 
@@ -13,6 +14,27 @@ import { getUserDefaultAccount, maskAccountNumber } from './payoutAccountService
 const payoutBankLabel = (account) => (account ? `${account.bankName} · ${maskAccountNumber(account.accountNumber)}` : 'Chưa thiết lập');
 
 const VALID_PERIODS = new Set(['today', 'week', 'month']);
+
+const getNextMonth = (date) => {
+  const nextMonth = new Date(`${date}T00:00:00.000Z`);
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  return nextMonth.toISOString().slice(0, 10);
+};
+
+const getPeriodRange = (period, today = vietnamDateString()) => {
+  if (period === 'today') {
+    return { from: today, to: addDays(today, 1) };
+  }
+  if (period === 'week') {
+    const from = mondayOf(today);
+    return { from, to: addDays(from, 7) };
+  }
+  const from = `${today.slice(0, 7)}-01`;
+  return { from, to: getNextMonth(from) };
+};
+
+const getDeliveredAt = (order) => order.payoutCreditedAt
+  || (order.statusHistory || []).filter((entry) => entry.status === 'delivered').at(-1)?.at;
 
 const getWithdrawalLimits = async (shipperId) => {
   const day = vietnamDateString();
@@ -52,10 +74,8 @@ const emptyDashboardPeriod = () => ({
   earningsByHour: [],
   forecast: [],
   trips: [],
-  missions: [],
   reviews: [],
   badges: [],
-  hotspots: [],
 });
 
 const withoutEarningAddOns = (entries = []) => entries.map((entry) => {
@@ -100,13 +120,54 @@ const getOrCreateDashboard = async (userId) => {
 
 const getDashboard = async (userId, period) => {
   validatePeriod(period);
+  const { from, to } = getPeriodRange(period);
+  const periodDates = {
+    $gte: startOfVietnamDay(from),
+    $lt: startOfVietnamDay(to),
+  };
 
-  const [dashboard, user, shipper, ratingCount, withdrawalLimits] = await Promise.all([
+  const [dashboard, user, shipper, ratingSummary, withdrawalLimits, orders, reviews] = await Promise.all([
     getOrCreateDashboard(userId),
     User.findById(userId).select('fullName phone avatar').lean(),
-    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status rating').lean(),
-    Review.countDocuments({ shipper: userId, isHidden: false, shipperRating: { $ne: null } }),
+    Shipper.findOne({ user: userId }).select('citizenId vehicleInfo status').lean(),
+    Review.aggregate([
+      {
+        $match: {
+          shipper: new mongoose.Types.ObjectId(userId),
+          isHidden: false,
+          shipperRating: { $ne: null },
+          createdAt: periodDates,
+        },
+      },
+      { $group: { _id: null, average: { $avg: '$shipperRating' }, count: { $sum: 1 } } },
+    ]),
     getWithdrawalLimits(userId),
+    Order.find({
+      shipper: userId,
+      status: 'delivered',
+      $or: [
+        { payoutCreditedAt: periodDates },
+        {
+          payoutCreditedAt: null,
+          statusHistory: { $elemMatch: { status: 'delivered', at: periodDates } },
+        },
+      ],
+    })
+      .select('orderCode orderNumber delivery.address shippingFee payoutCreditedAt statusHistory')
+      .populate('restaurant', 'name')
+      .sort({ payoutCreditedAt: -1 })
+      .lean(),
+    Review.find({
+      shipper: userId,
+      isHidden: false,
+      shipperRating: { $ne: null },
+      createdAt: periodDates,
+    })
+      .select('shipperComment shipperRating createdAt')
+      .populate('customer', 'fullName')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean(),
   ]);
   const defaultAccount = await getUserDefaultAccount(userId);
   if (!dashboard.periods?.[period]) {
@@ -115,12 +176,59 @@ const getDashboard = async (userId, period) => {
 
   const { bankAccountNumber, ...dashboardProfile } = dashboard.profile;
   const periodData = dashboard.isDemo ? emptyDashboardPeriod() : dashboard.periods[period];
+  const tripEntries = orders.map((order) => {
+    const deliveredAt = getDeliveredAt(order);
+    return {
+      id: order.orderCode || order.orderNumber || order._id.toString(),
+      time: deliveredAt.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      }),
+      restaurant: order.restaurant?.name || 'Quán ăn',
+      address: order.delivery?.address || '',
+      distance: '',
+      baseFare: Number(order.shippingFee || 0),
+      bonus: 0,
+      status: 'Đã giao',
+      surge: false,
+    };
+  });
+  const earningsByHour = orders.reduce((entries, order) => {
+    const deliveredAt = getDeliveredAt(order);
+    const hour = `${new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      hourCycle: 'h23',
+      timeZone: 'Asia/Ho_Chi_Minh',
+    }).format(deliveredAt)}:00`;
+    const existing = entries.get(hour) || 0;
+    entries.set(hour, existing + Number(order.shippingFee || 0));
+    return entries;
+  }, new Map());
+  const hourlyEarnings = [...earningsByHour]
+    .map(([hour, base]) => ({ hour, base, bonus: 0, surge: false }))
+    .sort((left, right) => left.hour.localeCompare(right.hour));
+  const reviewEntries = reviews.map((review) => ({
+    id: review._id.toString(),
+    quote: review.shipperComment || '',
+    customer: review.customer?.fullName || 'Khách hàng',
+    stars: review.shipperRating,
+  }));
+  const periodRating = ratingSummary[0]?.average || 0;
+  const periodRatingCount = ratingSummary[0]?.count || 0;
   periodData.totalEarnings = (periodData.baseFare || 0) + (periodData.bonus || 0);
   periodData.weeklyEarnings = dashboard.isDemo
     ? 0
     : (dashboard.periods.week?.baseFare || 0) + (dashboard.periods.week?.bonus || 0);
-  periodData.earningsByHour = withoutEarningAddOns(periodData.earningsByHour);
-  periodData.trips = withoutEarningAddOns(periodData.trips);
+  periodData.earningsByHour = hourlyEarnings;
+  periodData.trips = tripEntries;
+  periodData.completedTrips = orders.length;
+  periodData.baseFare = tripEntries.reduce((total, trip) => total + trip.baseFare, 0);
+  periodData.bonus = 0;
+  periodData.totalEarnings = periodData.baseFare;
+  periodData.reviews = reviewEntries;
+  periodData.rating = Math.round(periodRating * 100) / 100;
+  periodData.ratingCount = periodRatingCount;
   if (dashboard.walletBalance == null || (dashboard.isDemo && dashboard.walletBalance !== 0)) {
     dashboard.walletBalance = dashboard.isDemo
       ? 0
@@ -149,8 +257,8 @@ const getDashboard = async (userId, period) => {
     walletBalance: dashboard.walletBalance,
     withdrawalLimits,
     ...(shipper && {
-      rating: shipper.rating,
-      ratingCount,
+      rating: periodData.rating,
+      ratingCount: periodRatingCount,
     }),
     payoutBank: payoutBankLabel(defaultAccount),
   };
