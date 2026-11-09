@@ -198,6 +198,8 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
 | `restaurant_vouchers` | `RestaurantVoucher.js` | Voucher quán tự chạy, quán chịu tiền: `code` (unique theo quán), `discountType`, `discountValue`, `maxDiscount`, `minOrderValue`, `startAt`/`endAt`, `usageLimit`, `perCustomerLimit`, `isActive`. Đơn lưu bản sao ở `orders.restaurantVoucher`. Xem [restaurant-voucher.md](restaurant-voucher.md) |
+| `users.payoutAccounts` | (trong `User.js`) | Tài khoản ngân hàng nhận tiền rút của customer và shipper, cùng quy tắc với quán (tối đa 5, một mặc định). API `/api/wallet/payout-accounts` |
+| `restaurants.payoutAccounts` | (trong `Restaurant.js`) | Tối đa 5 tài khoản ngân hàng nhận tiền rút `{ bankName, accountNumber, accountHolder, isDefault }`; `restaurants.payoutAccount` là bản sao của tài khoản mặc định |
 | `restaurant_wallets` | `RestaurantWallet.js` | Ví của quán (mỗi quán một document): `withdrawnTotal`, `weekStart`/`weekCount` (giới hạn 3 lần rút/tuần), `version` (compare-and-set). Số dư tính từ đơn, xem [restaurant-wallet.md](restaurant-wallet.md) |
 | `restaurant_withdrawals` | `RestaurantWithdrawal.js` | Lệnh rút tiền `RT-0001`: `amount`, bản sao `bankAccount`, `status` `processing → succeeded \| failed`, `providerRef`, `idempotencyKey` (unique theo quán) |
 

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Camera, ChevronRight, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
+import walletApi from '../../api/walletApi.js'
+import PayoutAccountsCard from '../../components/PayoutAccountsCard/PayoutAccountsCard.jsx'
 import AvatarModal from '../../components/AvatarModal/AvatarModal.jsx'
 import Navbar from '../../components/Navbar/Navbar.jsx'
 import DriverTopNav from './components/DriverTopNav'
@@ -15,6 +17,13 @@ import HotspotMap from './components/HotspotMap'
 import DriverSettings from './components/DriverSettings'
 import DeliveryOrders from './components/DeliveryOrders'
 import './DriverDashboard.css'
+
+// Bank accounts of the shipper (same card and rules as the restaurant / customer wallets)
+const USER_ACCOUNT_API = {
+  add: walletApi.addMyPayoutAccount,
+  setDefault: walletApi.setMyDefaultPayoutAccount,
+  remove: walletApi.removeMyPayoutAccount,
+}
 
 const DATE_TABS = [
   { id: 'today', label: 'Hôm nay' },
@@ -91,6 +100,15 @@ function DriverDashboard() {
   const [withdrawalAmount, setWithdrawalAmount] = useState('')
   const [withdrawalError, setWithdrawalError] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
+  const [payoutAccounts, setPayoutAccounts] = useState(null) // { accounts, maxAccounts } once loaded
+
+  const loadPayoutAccounts = useCallback(() => {
+    walletApi
+      .getMyPayoutAccounts()
+      .then(response => setPayoutAccounts(response.data))
+      .catch(() => setPayoutAccounts(current => current || { accounts: [], maxAccounts: 5 }))
+  }, [])
+  const defaultPayoutAccount = payoutAccounts?.accounts?.find(account => account.isDefault) || null
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   useEffect(() => {
@@ -147,6 +165,7 @@ function DriverDashboard() {
   }
 
   const openWithdrawalDialog = () => {
+    loadPayoutAccounts() // the dialog shows where the money goes
     setWithdrawalAmount('')
     setWithdrawalError('')
     setShowPayoutNotice(true)
@@ -168,6 +187,10 @@ function DriverDashboard() {
       setWithdrawing(false)
     }
   }
+
+  useEffect(() => {
+    if (activeTab === 'wallet') loadPayoutAccounts()
+  }, [activeTab, reloadCount, loadPayoutAccounts])
 
   const periodLabel = DATE_TABS.find(tab => tab.id === period)?.label || DATE_TABS[0].label
   const profile = dashboard?.profile
@@ -352,6 +375,7 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'wallet' && (
+              <div className="grid items-start gap-5 lg:grid-cols-2">
               <section className="section-card wallet-overview">
                 <div className="section-card-header">
                   <h1 className="section-card-title">
@@ -373,7 +397,7 @@ function DriverDashboard() {
                     <strong>{Number(summary.weeklyEarnings || 0).toLocaleString('vi-VN')}đ</strong>
                   </div>
                   <div className="wallet-overview-row">
-                    <span>Tài khoản nhận tiền</span>
+                    <span>Tài khoản nhận tiền (mặc định)</span>
                     <strong>{summary.payoutBank || 'Chưa thiết lập'}</strong>
                   </div>
                   <button
@@ -388,6 +412,13 @@ function DriverDashboard() {
                   </p>
                 </div>
               </section>
+              <PayoutAccountsCard
+                accounts={payoutAccounts?.accounts || []}
+                maxAccounts={payoutAccounts?.maxAccounts}
+                api={USER_ACCOUNT_API}
+                onChanged={() => setReloadCount(count => count + 1)}
+              />
+              </div>
             )}
 
             {activeTab === 'ranking' && (
@@ -412,6 +443,7 @@ function DriverDashboard() {
             {activeTab === 'settings' && (
               <DriverSettings
                 onProfileUpdated={handleProfileUpdated}
+                onOpenWallet={() => setActiveTab('wallet')}
                 mobilePreview={mobilePreview}
                 onMobilePreviewChange={setMobilePreview}
               />
@@ -471,6 +503,18 @@ function DriverDashboard() {
                 type="number"
                 value={withdrawalAmount}
               />
+              {defaultPayoutAccount ? (
+                <p className="wallet-integration-note">
+                  Tiền chuyển về tài khoản mặc định:{' '}
+                  <strong>
+                    {defaultPayoutAccount.bankName} {defaultPayoutAccount.accountNumber} – {defaultPayoutAccount.accountHolder}
+                  </strong>
+                </p>
+              ) : (
+                <p className="payout-error" role="alert">
+                  Chưa có tài khoản nhận tiền. Hãy thêm tài khoản ngân hàng trong tab Ví trước khi rút.
+                </p>
+              )}
               {withdrawalError && <p className="payout-error" role="alert">{withdrawalError}</p>}
               <p className="wallet-integration-note">
                 Yêu cầu được ghi nhận và trừ vào ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
@@ -479,6 +523,7 @@ function DriverDashboard() {
                 className="cta-btn"
                 disabled={
                   withdrawing
+                  || !defaultPayoutAccount
                   || !summary.walletBalance
                   || !summary.withdrawalLimits?.dailyRemaining
                   || summary.walletBalance < (summary.withdrawalLimits?.minimum || Infinity)

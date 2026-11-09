@@ -124,6 +124,12 @@ export default function WithdrawForm({ wallet, onDone }) {
         </p>
       </div>
 
+      {payoutAccount.isSet && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          Tiền chuyển về tài khoản mặc định: <b>{payoutAccount.bankName}</b>{' '}
+          <span className="tabular-nums">{payoutAccount.accountNumber}</span> – {payoutAccount.accountHolder}
+        </p>
+      )}
       {blockedReason && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{blockedReason}</p>}
 
       <button

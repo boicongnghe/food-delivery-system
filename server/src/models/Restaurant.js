@@ -81,8 +81,24 @@ const restaurantSchema = new mongoose.Schema(
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
       at: { type: Date, default: null },
     },
-    // Bank account that receives the weekly settlement (shown masked in reports)
     payoutAccountChangedAt: { type: Date, default: null }, // last change from the wallet (audit)
+    // Bank accounts saved in the wallet (max 5); the default one receives the withdrawals
+    payoutAccounts: {
+      type: [
+        new mongoose.Schema(
+          {
+            bankName: { type: String, trim: true, required: true },
+            accountNumber: { type: String, trim: true, required: true },
+            accountHolder: { type: String, trim: true, required: true },
+            isDefault: { type: Boolean, default: false },
+            createdAt: { type: Date, default: Date.now },
+          },
+          { _id: true },
+        ),
+      ],
+      default: [],
+    },
+    // Copy of the DEFAULT account above, kept in sync by walletService: reports, statements and withdrawals read it
     payoutAccount: {
       bankName: { type: String, trim: true, default: '' },
       accountNumber: { type: String, trim: true, default: '' },

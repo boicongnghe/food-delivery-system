@@ -5,56 +5,41 @@ import {
   ArrowDownLeft,
   Clock,
   CheckCircle2,
-  XCircle,
   AlertCircle,
-  Building2,
-  CreditCard,
-  User,
   RefreshCw,
   Info,
-  ChevronRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import walletApi from '../../api/walletApi.js'
+import PayoutAccountsCard from '../../components/PayoutAccountsCard/PayoutAccountsCard.jsx'
 import useAuth from '../../hooks/useAuth.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
 import { formatDateTime } from '../../utils/formatDate.js'
+import CustomerWithdrawForm from './components/CustomerWithdrawForm.jsx'
 
-const POPULAR_BANKS = [
-  'Vietcombank (VCB)',
-  'MBBank (MB)',
-  'Techcombank (TCB)',
-  'VietinBank (CTG)',
-  'BIDV',
-  'ACB',
-  'VPBank',
-  'TPBank',
-  'Sacombank',
-  'HDBank',
-  'VIB',
-  'OCB',
-  'SHB',
-  'Ví MoMo',
-]
+const USER_ACCOUNT_API = {
+  add: walletApi.addMyPayoutAccount,
+  setDefault: walletApi.setMyDefaultPayoutAccount,
+  remove: walletApi.removeMyPayoutAccount,
+}
 
 export default function WalletPage() {
-  const { user, refreshUser } = useAuth()
+  const { refreshUser } = useAuth()
   const [loading, setLoading] = useState(true)
   const [walletData, setWalletData] = useState({
     balance: 0,
     transactions: [],
     withdrawals: [],
+    payoutAccounts: [],
+    maxPayoutAccounts: 5,
+    minWithdrawal: 10000,
   })
 
-  // Modal rút tiền state
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [formData, setFormData] = useState({
-    amount: '',
-    bankName: POPULAR_BANKS[0],
-    accountNumber: '',
-    accountHolder: '',
-  })
+  // After a withdrawal or an account change: fresh balance, history and accounts (+ the balance shown in the navbar)
+  const reload = async () => {
+    await fetchWallet()
+    if (typeof refreshUser === 'function') refreshUser()
+  }
 
   // Active tab: 'transactions' or 'withdrawals'
   const [activeTab, setActiveTab] = useState('transactions')
@@ -76,64 +61,6 @@ export default function WalletPage() {
   useEffect(() => {
     fetchWallet()
   }, [])
-
-  const handleOpenModal = () => {
-    setFormData({
-      amount: '',
-      bankName: POPULAR_BANKS[0],
-      accountNumber: '',
-      accountHolder: user?.fullName?.toUpperCase() || '',
-    })
-    setShowWithdrawModal(true)
-  }
-
-  const handleQuickAmount = (val) => {
-    setFormData((prev) => ({ ...prev, amount: String(val) }))
-  }
-
-  const handleWithdrawSubmit = async (e) => {
-    e.preventDefault()
-    const amountNum = Number(formData.amount)
-
-    if (!amountNum || amountNum < 10000) {
-      toast.error('Số tiền rút tối thiểu là 10.000đ')
-      return
-    }
-
-    if (amountNum > walletData.balance) {
-      toast.error('Số dư ví khả dụng không đủ')
-      return
-    }
-
-    if (!formData.bankName || !formData.accountNumber.trim() || !formData.accountHolder.trim()) {
-      toast.error('Vui lòng điền đầy đủ thông tin tài khoản ngân hàng')
-      return
-    }
-
-    try {
-      setSubmitting(true)
-      const res = await walletApi.requestWithdrawal({
-        amount: amountNum,
-        bankName: formData.bankName,
-        accountNumber: formData.accountNumber.trim(),
-        accountHolder: formData.accountHolder.trim().toUpperCase(),
-      })
-
-      if (res.success) {
-        toast.success(res.message || 'Yêu cầu rút tiền thành công!')
-        setShowWithdrawModal(false)
-        await fetchWallet()
-        if (typeof refreshUser === 'function') {
-          refreshUser()
-        }
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Có lỗi xảy ra khi tạo yêu cầu rút tiền'
-      toast.error(msg)
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0D0F12] py-8 px-4 sm:px-6 lg:px-8 text-slate-900 dark:text-slate-100 transition-colors">
@@ -185,17 +112,23 @@ export default function WalletPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleOpenModal}
-                disabled={walletData.balance < 10000}
-                className="flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-emerald-800 hover:bg-emerald-50 text-sm font-black shadow-lg shadow-black/10 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <ArrowUpRight className="w-4 h-4 text-emerald-700" />
-                Rút tiền về ngân hàng
-              </button>
-            </div>
           </div>
+        </div>
+
+        {/* Bank accounts (one default) + withdrawal, same layout as the restaurant wallet */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <PayoutAccountsCard
+            accounts={walletData.payoutAccounts || []}
+            maxAccounts={walletData.maxPayoutAccounts}
+            api={USER_ACCOUNT_API}
+            onChanged={reload}
+          />
+          <CustomerWithdrawForm
+            balance={walletData.balance}
+            minAmount={walletData.minWithdrawal || 10000}
+            defaultAccount={(walletData.payoutAccounts || []).find((account) => account.isDefault) || null}
+            onDone={reload}
+          />
         </div>
 
         {/* Tab Selector */}
@@ -368,149 +301,6 @@ export default function WalletPage() {
         )}
       </div>
 
-      {/* Modal Rút Tiền */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white dark:bg-[#16181D] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                  <ArrowUpRight className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Rút tiền về ngân hàng</h3>
-                  <p className="text-xs text-slate-500">Số dư hiện có: {formatCurrency(walletData.balance)}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowWithdrawModal(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleWithdrawSubmit} className="space-y-4">
-              {/* Số tiền rút */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Số tiền muốn rút (VNĐ) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="10000"
-                    max={walletData.balance}
-                    step="1000"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="VD: 50000 (Tối thiểu 10.000đ)"
-                    required
-                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    đ
-                  </span>
-                </div>
-
-                {/* Gợi ý số tiền nhanh */}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {[20000, 50000, 100000, 200000].map((quick) => (
-                    <button
-                      key={quick}
-                      type="button"
-                      disabled={quick > walletData.balance}
-                      onClick={() => handleQuickAmount(quick)}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400"
-                    >
-                      {formatCurrency(quick)}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAmount(walletData.balance)}
-                    className="px-2.5 py-1 text-xs font-bold rounded-lg border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100"
-                  >
-                    Rút tất cả
-                  </button>
-                </div>
-              </div>
-
-              {/* Ngân hàng */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Ngân hàng thụ hưởng <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                >
-                  {POPULAR_BANKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Số tài khoản */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Số tài khoản ngân hàng <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                  placeholder="Nhập số tài khoản ngân hàng"
-                  required
-                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                />
-              </div>
-
-              {/* Tên chủ tài khoản */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Tên chủ tài khoản (Viết in hoa không dấu) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.accountHolder}
-                  onChange={(e) => setFormData({ ...formData, accountHolder: e.target.value.toUpperCase() })}
-                  placeholder="VD: NGUYEN VAN A"
-                  required
-                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
-                <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>
-                  Admin sẽ duyệt và chuyển khoản theo số tài khoản bạn cung cấp. Nếu từ chối, số tiền sẽ được hoàn lại vào ví ảo.
-                </span>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowWithdrawModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  {submitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu rút tiền'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
