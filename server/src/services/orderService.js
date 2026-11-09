@@ -129,8 +129,9 @@ const resolveItemOptions = (menuItem, selected = []) => {
     if (group.isRequired && totalCount === 0) {
       throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
     }
-    if (totalCount > group.maxSelect) {
-      throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
+    const allowedMax = group.isRequired ? group.maxSelect : Math.max(group.maxSelect || 20, 20);
+    if (totalCount > allowedMax) {
+      throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${allowedMax}`);
     }
 
     for (const choice of choicesForGroup) {
@@ -139,6 +140,14 @@ const resolveItemOptions = (menuItem, selected = []) => {
         throw invalidItem(`Lựa chọn "${choice.name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
       }
       const qty = Number(choice.quantity) > 0 ? Number(choice.quantity) : 1;
+      const currentStock = option.stock !== undefined ? option.stock : 50;
+      if (currentStock <= 0) {
+        throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" hiện đã hết hàng`);
+      }
+      if (qty > currentStock) {
+        throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" chỉ còn lại ${currentStock} phần (bạn đang chọn ${qty})`);
+      }
+
       const existing = chosen.find((c) => c.groupName === group.name && c.name === option.name);
       if (existing) {
         existing.quantity = (existing.quantity || 1) + qty;
@@ -411,6 +420,60 @@ export const createOrder = async (userId, data) => {
 
   // Bắn thông báo Realtime cho Nhà hàng và Khách hàng
   const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
+
+  // Trừ số lượng tồn kho topping và cảnh báo nhà hàng nếu số lượng còn lại <= 5
+  try {
+    for (const snapshot of snapshotItems) {
+      if (!snapshot.menuItem || !Array.isArray(snapshot.options) || snapshot.options.length === 0) continue;
+
+      const menuItemDoc = await MenuItem.findById(snapshot.menuItem);
+      if (!menuItemDoc || !Array.isArray(menuItemDoc.optionGroups)) continue;
+
+      let modified = false;
+      const lowStockAlerts = [];
+
+      for (const chosenOpt of snapshot.options) {
+        const optQty = (chosenOpt.quantity || 1) * snapshot.quantity;
+        for (const group of menuItemDoc.optionGroups) {
+          if (group.name !== chosenOpt.groupName) continue;
+          const targetOpt = group.options.find((o) => o.name === chosenOpt.name);
+          if (targetOpt) {
+            const prevStock = targetOpt.stock !== undefined ? targetOpt.stock : 50;
+            const newStock = Math.max(0, prevStock - optQty);
+            targetOpt.stock = newStock;
+            modified = true;
+
+            // Cảnh báo khi số lượng còn lại <= 5
+            if (newStock <= 5) {
+              lowStockAlerts.push({
+                name: targetOpt.name,
+                stock: newStock,
+                dishName: menuItemDoc.name,
+              });
+            }
+          }
+        }
+      }
+
+      if (modified) {
+        await menuItemDoc.save();
+
+        if (restaurant?.owner && lowStockAlerts.length > 0) {
+          for (const alert of lowStockAlerts) {
+            await sendRealtimeNotification(restaurant.owner, {
+              title: 'Cảnh báo topping sắp hết ⚠️',
+              message: `Topping "${alert.name}" của món "${alert.dishName}" chỉ còn lại ${alert.stock} phần! Vui lòng chuẩn bị thêm.`,
+              type: 'system',
+              orderId: order._id,
+              link: '/restaurant/menu',
+            });
+          }
+        }
+      }
+    }
+  } catch (stockErr) {
+    console.warn('Failed to update topping stock:', stockErr?.message);
+  }
 
   if (restaurant?.owner) {
     sendRealtimeNotification(restaurant.owner, {

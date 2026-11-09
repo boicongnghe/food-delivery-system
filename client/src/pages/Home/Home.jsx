@@ -126,7 +126,8 @@ const toModalOptions = (optionGroups = []) => {
           name: option.name,
           price: option.price,
           groupName: group.name,
-          maxSelect: group.maxSelect || 10,
+          maxSelect: Math.max(group.maxSelect || 20, 20),
+          stock: option.stock !== undefined ? option.stock : 50,
         }))
       ),
   }

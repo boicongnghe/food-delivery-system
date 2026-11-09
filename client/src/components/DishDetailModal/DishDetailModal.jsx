@@ -17,11 +17,14 @@ export default function DishDetailModal({
   if (!dish) return null
 
   const handleToppingToggle = (topping) => {
+    const stock = topping.stock !== undefined ? topping.stock : 50
+    if (stock <= 0) return
+
     const existing = selectedToppings.find((t) => t.name === topping.name)
     if (existing) {
       setSelectedToppings(selectedToppings.filter((t) => t.name !== topping.name))
     } else {
-      const groupLimit = topping.maxSelect || 10
+      const groupLimit = Math.max(topping.maxSelect || 20, 20)
       const currentGroupCount = selectedToppings
         .filter((t) => (t.groupName || 'default') === (topping.groupName || 'default'))
         .reduce((sum, t) => sum + (t.quantity || 1), 0)
@@ -46,8 +49,13 @@ export default function DishDetailModal({
         return prev.filter((t) => t.name !== toppingName)
       }
 
+      const stock = target.stock !== undefined ? target.stock : 50
+      if (delta > 0 && currentQty >= stock) {
+        return prev // Cannot exceed available stock
+      }
+
       if (delta > 0) {
-        const groupLimit = target.maxSelect || 10
+        const groupLimit = Math.max(target.maxSelect || 20, 20)
         const currentGroupCount = prev
           .filter((t) => (t.groupName || 'default') === (target.groupName || 'default'))
           .reduce((sum, t) => sum + (t.quantity || 1), 0)
@@ -229,33 +237,57 @@ export default function DishDetailModal({
                     const selected = selectedToppings.find((t) => t.name === topping.name)
                     const isChecked = Boolean(selected)
                     const toppingQty = selected?.quantity || 1
-                    const groupLimit = topping.maxSelect || 10
+                    const stock = topping.stock !== undefined ? topping.stock : 50
+                    const isOutOfStock = stock <= 0
+                    const groupLimit = Math.max(topping.maxSelect || 20, 20)
                     const currentGroupCount = selectedToppings
                       .filter((t) => (t.groupName || 'default') === (topping.groupName || 'default'))
                       .reduce((sum, t) => sum + (t.quantity || 1), 0)
-                    const canIncrease = currentGroupCount < groupLimit
+                    const canIncrease = currentGroupCount < groupLimit && toppingQty < stock
 
                     return (
                       <div
                         key={idx}
                         className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-                          isChecked
-                            ? 'border-primary/60 bg-primary/5 dark:bg-primary/10 text-slate-900 dark:text-white ring-1 ring-primary/40'
-                            : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40'
+                          isOutOfStock
+                            ? 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 opacity-60'
+                            : isChecked
+                              ? 'border-primary/60 bg-primary/5 dark:bg-primary/10 text-slate-900 dark:text-white ring-1 ring-primary/40'
+                              : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/40'
                         }`}
                       >
                         <div
-                          className="flex items-center gap-3 cursor-pointer flex-1 select-none"
-                          onClick={() => handleToppingToggle(topping)}
+                          className={`flex items-center gap-3 flex-1 select-none ${
+                            isOutOfStock ? 'cursor-not-allowed' : 'cursor-pointer'
+                          }`}
+                          onClick={() => !isOutOfStock && handleToppingToggle(topping)}
                         >
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => handleToppingToggle(topping)}
+                            disabled={isOutOfStock}
+                            onChange={() => !isOutOfStock && handleToppingToggle(topping)}
                             onClick={(e) => e.stopPropagation()}
-                            className="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/20 w-4 h-4 accent-primary cursor-pointer"
+                            className="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/20 w-4 h-4 accent-primary cursor-pointer disabled:cursor-not-allowed"
                           />
-                          <span className="text-xs font-semibold">{topping.name}</span>
+                          <div className="flex items-center flex-wrap gap-1.5">
+                            <span className={`text-xs font-semibold ${isOutOfStock ? 'line-through text-slate-400' : ''}`}>
+                              {topping.name}
+                            </span>
+                            {isOutOfStock ? (
+                              <span className="text-[10px] text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-950/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                Hết hàng
+                              </span>
+                            ) : stock <= 5 ? (
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                Còn {stock} phần
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                (kho: {stock})
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-3">
