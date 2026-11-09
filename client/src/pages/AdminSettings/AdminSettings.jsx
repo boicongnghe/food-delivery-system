@@ -6,7 +6,7 @@ import AdminFieldError from '../../components/AdminFieldError/AdminFieldError.js
 import AdminPageHeader from '../../components/AdminPageHeader/AdminPageHeader.jsx'
 import { ADMIN_BUTTON, ADMIN_CARD, ADMIN_INPUT } from '../../utils/adminClassNames.js'
 import { formatDateTime } from '../../utils/formatDate.js'
-import { ACTIVE_FIELDS, PENDING_FIELDS } from './constants.js'
+import { SETTING_FIELDS } from './constants.js'
 
 // API errors look like [{ field: 'acceptTimeout', message }]
 const toFieldErrors = (apiErrors = []) => Object.fromEntries(apiErrors.map(({ field, message }) => [field, message]))
@@ -16,15 +16,9 @@ function SettingRow({ field, value, defaultValue, error, onChange }) {
     <div className="flex flex-col gap-2 border-b border-slate-100 py-3 last:border-0 dark:border-slate-800 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
         <label htmlFor={`setting-${field.key}`} className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500 dark:bg-slate-800">
-            {field.rule}
-          </span>
           {field.label}
         </label>
-        <p className="mt-0.5 text-xs text-slate-500">
-          Mặc định {defaultValue} {field.unit || 'phút'}
-          {field.owner && ` · chờ module ${field.owner} áp dụng`}
-        </p>
+        <p className="mt-0.5 text-xs text-slate-500">Mặc định {defaultValue} phút</p>
         <AdminFieldError message={error} />
       </div>
       <div className="flex items-center gap-2">
@@ -38,7 +32,7 @@ function SettingRow({ field, value, defaultValue, error, onChange }) {
           onChange={(event) => onChange(field.key, event.target.value === '' ? '' : Number(event.target.value))}
           className={`${ADMIN_INPUT} w-24 text-right tabular-nums`}
         />
-        <span className="w-8 text-xs text-slate-500">{field.unit || 'phút'}</span>
+        <span className="w-8 text-xs text-slate-500">phút</span>
       </div>
     </div>
   )
@@ -131,24 +125,7 @@ export default function AdminSettings() {
       ) : (
         <>
           <section className={`${ADMIN_CARD} p-5`}>
-            <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-slate-500">Đang áp dụng</h2>
-            {ACTIVE_FIELDS.map((field) => (
-              <SettingRow
-                key={field.key}
-                field={field}
-                value={form[field.key]}
-                defaultValue={settings.defaults[field.key]}
-                error={errors[field.key]}
-                onChange={change}
-              />
-            ))}
-          </section>
-
-          <section className={`${ADMIN_CARD} p-5`}>
-            <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-slate-500">
-              Lưu sẵn cho module thanh toán / shipper
-            </h2>
-            {PENDING_FIELDS.map((field) => (
+            {SETTING_FIELDS.map((field) => (
               <SettingRow
                 key={field.key}
                 field={field}
