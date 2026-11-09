@@ -24,15 +24,6 @@ export default function DishDetailModal({
     if (existing) {
       setSelectedToppings(selectedToppings.filter((t) => t.name !== topping.name))
     } else {
-      const groupLimit = Math.max(topping.maxSelect || 20, 20)
-      const currentGroupCount = selectedToppings
-        .filter((t) => (t.groupName || 'default') === (topping.groupName || 'default'))
-        .reduce((sum, t) => sum + (t.quantity || 1), 0)
-
-      if (currentGroupCount >= groupLimit) {
-        return
-      }
-
       setSelectedToppings([...selectedToppings, { ...topping, quantity: 1 }])
     }
   }
@@ -52,16 +43,6 @@ export default function DishDetailModal({
       const stock = target.stock !== undefined ? target.stock : 50
       if (delta > 0 && currentQty >= stock) {
         return prev // Cannot exceed available stock
-      }
-
-      if (delta > 0) {
-        const groupLimit = Math.max(target.maxSelect || 20, 20)
-        const currentGroupCount = prev
-          .filter((t) => (t.groupName || 'default') === (target.groupName || 'default'))
-          .reduce((sum, t) => sum + (t.quantity || 1), 0)
-        if (currentGroupCount >= groupLimit) {
-          return prev
-        }
       }
 
       return prev.map((t) => (t.name === toppingName ? { ...t, quantity: newQty } : t))
@@ -239,11 +220,7 @@ export default function DishDetailModal({
                     const toppingQty = selected?.quantity || 1
                     const stock = topping.stock !== undefined ? topping.stock : 50
                     const isOutOfStock = stock <= 0
-                    const groupLimit = Math.max(topping.maxSelect || 20, 20)
-                    const currentGroupCount = selectedToppings
-                      .filter((t) => (t.groupName || 'default') === (topping.groupName || 'default'))
-                      .reduce((sum, t) => sum + (t.quantity || 1), 0)
-                    const canIncrease = currentGroupCount < groupLimit && toppingQty < stock
+                    const canIncrease = toppingQty < stock
 
                     return (
                       <div

@@ -129,9 +129,8 @@ const resolveItemOptions = (menuItem, selected = []) => {
     if (group.isRequired && totalCount === 0) {
       throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
     }
-    const allowedMax = group.isRequired ? group.maxSelect : Math.max(group.maxSelect || 20, 20);
-    if (totalCount > allowedMax) {
-      throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${allowedMax}`);
+    if (group.isRequired && totalCount > group.maxSelect) {
+      throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
     }
 
     for (const choice of choicesForGroup) {
