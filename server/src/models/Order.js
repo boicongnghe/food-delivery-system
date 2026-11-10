@@ -158,6 +158,10 @@ const orderSchema = new mongoose.Schema(
         lng: { type: Number, default: null },
       },
     },
+    deliveryProof: {
+      imageUrl: { type: String, default: null },
+      confirmedAt: { type: Date, default: null },
+    },
     customerNote: { type: String, default: '' },
 
     payment: {

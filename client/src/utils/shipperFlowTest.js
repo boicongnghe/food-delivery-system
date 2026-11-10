@@ -4,6 +4,8 @@
 // Asks for a shipper's email and password, then: log in -> go online -> accept the oldest order of the
 // pickup pool -> pick up -> deliver. It changes real data of the database the server is connected to.
 import { createInterface } from 'node:readline/promises'
+import { readFile } from 'node:fs/promises'
+import { basename, extname } from 'node:path'
 import { stdin, stdout } from 'node:process'
 
 const API_URL = process.env.API_URL
@@ -19,6 +21,27 @@ const request = async (method, path, token, body) => {
   return json.data
 }
 
+const uploadDeliveryProof = async (filePath, token) => {
+  const mimeType = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  }[extname(filePath).toLowerCase()]
+  if (!mimeType) throw new Error('Ảnh chứng minh phải là JPG, PNG hoặc WEBP')
+
+  const formData = new FormData()
+  formData.append('image', new Blob([await readFile(filePath)], { type: mimeType }), basename(filePath))
+  const response = await fetch(`${API_URL}/uploads/images?folder=delivery-proofs`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(`POST /uploads/images -> ${response.status} ${json.message || ''}`)
+  return json.data.url
+}
+
 const main = async () => {
   if (!API_URL) throw new Error('Set API_URL, e.g. API_URL=http://localhost:5000/api')
 
@@ -32,7 +55,10 @@ const main = async () => {
   }
   const email = await ask('Shipper email: ')
   const password = await ask('Shipper password: ')
+  const proofPath = await ask('Delivery proof image path: ')
   rl.close()
+
+  if (!proofPath) throw new Error('Delivery proof image path is required')
 
   const { token } = await request('POST', '/auth/login', null, { email, password })
   stdout.write('OK  logged in\n')
@@ -52,7 +78,8 @@ const main = async () => {
   stdout.write(`OK  accepted ${order.orderCode}\n`)
   await request('PATCH', `/orders/${order._id}/shipper/picked-up`, token)
   stdout.write('OK  picked up\n')
-  const { payout } = await request('PATCH', `/orders/${order._id}/shipper/delivered`, token)
+  const deliveryProofUrl = await uploadDeliveryProof(proofPath, token)
+  const { payout } = await request('PATCH', `/orders/${order._id}/shipper/delivered`, token, { deliveryProofUrl })
   stdout.write(`OK  delivered, ${payout} VND credited\n`)
 }
 

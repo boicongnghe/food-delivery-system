@@ -12,7 +12,11 @@ const router = Router();
 router.use(protect);
 
 // Evidence photos: complaints are sent by customers, delivery issue reports by shippers
-const EVIDENCE_FOLDER_ROLES = { complaints: 'customer', 'delivery-issues': 'shipper' };
+const EVIDENCE_FOLDER_ROLES = {
+  complaints: 'customer',
+  'delivery-issues': 'shipper',
+  'delivery-proofs': 'shipper',
+};
 
 // Allow avatars for all roles, require restaurant_owner for restaurant/menu items
 const checkUploadPermission = (req, res, next) => {
@@ -32,7 +36,7 @@ const checkUploadPermission = (req, res, next) => {
   next();
 };
 
-// POST /api/uploads/images?folder=restaurants|menu-items|avatars - multipart/form-data, field "image"
+// POST /api/uploads/images?folder=... - multipart/form-data, field "image"
 // Response data: { url, publicId }
 router.post(
   '/images',

@@ -327,6 +327,22 @@ function OrderTracking() {
         )}
       </div>
 
+      {isDelivered && order.deliveryProof?.imageUrl && (
+        <section className="mb-6 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-3 text-xl font-bold text-slate-900">Ảnh chứng minh giao hàng</h2>
+          <img
+            className="max-h-[480px] w-full rounded-xl object-contain"
+            src={order.deliveryProof.imageUrl}
+            alt={`Ảnh chứng minh đơn hàng ${order.orderNumber} đã được giao`}
+          />
+          {order.deliveryProof.confirmedAt && (
+            <p className="mt-2 text-sm text-slate-500">
+              Xác nhận giao lúc {new Date(order.deliveryProof.confirmedAt).toLocaleString('vi-VN')}
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Order Details & Items Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md mb-6">
         <h2 className="text-xl font-bold mt-0 mb-4 mx-0">

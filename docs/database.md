@@ -93,6 +93,7 @@ TODO: nhóm chốt thiết kế.
 | `items` | Array | **Snapshot lúc đặt**: `{ menuItem, name, image, unitPrice, quantity, options: [{ groupName, name, price }], note, lineTotal }` |
 | `subtotal`, `packagingFee`, `shippingFee`, `discount`, `total` | Number | VND |
 | `delivery` | Object | `{ recipientName, phone, address, type: 'express' \| 'standard', expectedAt }` |
+| `deliveryProof` | Object | `{ imageUrl, confirmedAt }` – ảnh Cloudinary shipper bắt buộc tải lên khi xác nhận giao thành công |
 | `customerNote` | String | |
 | `payment` | Object | `{ method: 'cod' \| 'momo' \| 'vnpay', status: 'unpaid' \| 'paid' \| 'refunded' \| 'cancelled', paidAt, refundedAt, refundAmount }` |
 | `status` | String | xem bên dưới |
