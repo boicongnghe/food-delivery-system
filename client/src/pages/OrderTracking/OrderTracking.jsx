@@ -28,7 +28,7 @@ function OrderTracking() {
     try {
       setLoading(true)
       const res = await orderApi.getOrderById(id)
-      setOrder(res.data.data)
+      setOrder(res.data?.data || res.data)
     } catch (err) {
       console.error('Failed to load order', err)
     } finally {
@@ -62,8 +62,9 @@ function OrderTracking() {
     if (!order || ['delivered', 'cancelled'].includes(order.status)) return
     const interval = setInterval(() => {
       orderApi.getOrderById(id).then((res) => {
-        if (res.data?.data) {
-          setOrder(res.data.data)
+        const orderData = res.data?.data || res.data
+        if (orderData) {
+          setOrder(orderData)
         }
       }).catch(() => {})
     }, 5000)
@@ -75,9 +76,9 @@ function OrderTracking() {
     try {
       setCancelling(true)
       const res = await orderApi.cancelOrder(id, { reason: cancelReason })
-      setOrder({ ...order, ...res.data.data })
+      setOrder({ ...order, ...(res.data?.data || res.data) })
       setShowCancelModal(false)
-      setActionMsg(res.data.message || 'Đã hủy đơn hàng thành công')
+      setActionMsg(res.message || res.data?.message || 'Đã hủy đơn hàng thành công')
       fetchOrderDetails()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
@@ -90,7 +91,7 @@ function OrderTracking() {
   const handleReceiveOrder = async () => {
     try {
       const res = await orderApi.receiveOrder(id)
-      setOrder({ ...order, ...res.data.data })
+      setOrder({ ...order, ...(res.data?.data || res.data) })
       setActionMsg('Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
       toast.success('🎉 Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
       fetchOrderDetails()

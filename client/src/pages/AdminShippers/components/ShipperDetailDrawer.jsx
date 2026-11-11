@@ -12,6 +12,7 @@ import AdminPartnerStatusBadge from '../../../components/AdminPartnerStatusBadge
 import AdminRegistrationChecklist from '../../../components/AdminRegistrationChecklist/AdminRegistrationChecklist.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
 import { formatDateTime, formatDay } from '../../../utils/formatDate.js'
+import ShipperAvailabilityBadge from './ShipperAvailabilityBadge.jsx'
 
 const STATUS_EFFECTS = {
   approved: 'Tài xế được xem và nhận các đơn đang chờ giao.',
@@ -120,6 +121,15 @@ export default function ShipperDetailDrawer({ shipperId, onClose, onChanged }) {
         <>
           <AdminPartnerDecision status={detail.status} statusChange={detail.statusChange} />
 
+          <AdminSection title="Tình trạng nhận đơn">
+            <AdminInfoRow label="Công tắc nhận đơn">
+              <ShipperAvailabilityBadge availability={detail.availability} />
+            </AdminInfoRow>
+            <p className="mt-1 text-xs text-slate-500">
+              Tài xế tự bật / tắt trong ứng dụng; khi tắt không nhận được đơn mới. Đình chỉ hoặc từ chối hồ sơ sẽ tự tắt công tắc này.
+            </p>
+          </AdminSection>
+
           <AdminSection title="Đối chiếu hồ sơ đăng ký">
             <AdminRegistrationChecklist
               checks={detail.registrationChecks}
@@ -146,6 +156,15 @@ export default function ShipperDetailDrawer({ shipperId, onClose, onChanged }) {
               {insurance?.hasInsurance
                 ? `Đã có${insurance.insuranceInfo ? `: ${insurance.insuranceInfo}` : ''}`
                 : 'Bổ sung sau khi kích hoạt'}
+            </AdminInfoRow>
+            <AdminInfoRow label="Tiền cọc ký quỹ (500.000đ)">
+              {detail.deposit?.isPaid ? (
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  Đã nộp cọc {(detail.deposit.amount || 500000).toLocaleString('vi-VN')}đ {detail.deposit.transactionNote ? `(${detail.deposit.transactionNote})` : ''}
+                </span>
+              ) : (
+                <span className="font-bold text-amber-600 dark:text-amber-400">Chưa nộp tiền cọc</span>
+              )}
             </AdminInfoRow>
             <AdminInfoRow label="Số điện thoại">{detail.phone || '—'}</AdminInfoRow>
           </AdminSection>

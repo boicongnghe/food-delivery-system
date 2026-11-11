@@ -1,30 +1,32 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { MessageSquareWarning, RefreshCw } from 'lucide-react'
-import complaintApi from '../../api/complaintApi.js'
+import { RefreshCw } from 'lucide-react'
+import deliveryIssueApi from '../../api/deliveryIssueApi.js'
 import AdminEmptyState from '../../components/AdminEmptyState/AdminEmptyState.jsx'
 import AdminFilterTabs from '../../components/AdminFilterTabs/AdminFilterTabs.jsx'
-import AdminPageHeader from '../../components/AdminPageHeader/AdminPageHeader.jsx'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.jsx'
 import AdminSearchInput from '../../components/AdminSearchInput/AdminSearchInput.jsx'
 import useDebounce from '../../hooks/useDebounce.js'
 import { ADMIN_BUTTON, ADMIN_CARD, ADMIN_INPUT } from '../../utils/adminClassNames.js'
-import { COMPLAINT_CATEGORY_LABELS, COMPLAINT_STATUS_LABELS } from '../../utils/feedbackLabels.js'
-import { PAGE_SIZE } from './constants.js'
-import ComplaintDetailDrawer from './components/ComplaintDetailDrawer.jsx'
-import ComplaintTable from './components/ComplaintTable.jsx'
+import { DELIVERY_ISSUE_STATUSES, DELIVERY_ISSUE_TYPE_LABELS } from '../../utils/deliveryIssueLabels.js'
+import DeliveryIssueDetailDrawer from './components/DeliveryIssueDetailDrawer.jsx'
+import DeliveryIssueTable from './components/DeliveryIssueTable.jsx'
 
+const PAGE_SIZE = 10
 const EMPTY_LIST = {
   items: [],
   pagination: { page: 1, limit: PAGE_SIZE, totalItems: 0, totalPages: 0 },
   counts: {},
 }
 
-// UC42 - Handle complaints
-export default function AdminComplaints() {
+/**
+ * UC45 - Handle delivery issue reports. A tab of the "Khiếu nại & sự cố" page (AdminSupportCases).
+ * @param {(counts: object) => void} onCountsChange - status counts after every load, for the tab badge (keep it stable)
+ */
+export default function DeliveryIssuesPanel({ onCountsChange }) {
   const [data, setData] = useState(EMPTY_LIST)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: 'open', category: 'all', page: 1 })
+  const [filters, setFilters] = useState({ status: 'open', type: 'all', page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -33,13 +35,15 @@ export default function AdminComplaints() {
   useEffect(() => {
     let ignore = false
 
-    complaintApi
-      .getComplaints({ ...filters, keyword, limit: PAGE_SIZE })
+    deliveryIssueApi
+      .getDeliveryIssues({ ...filters, keyword, limit: PAGE_SIZE })
       .then((response) => {
-        if (!ignore) setData(response.data)
+        if (ignore) return
+        setData(response.data)
+        onCountsChange?.(response.data.counts)
       })
       .catch((error) => {
-        if (!ignore) toast.error(error.response?.data?.message || 'Không tải được danh sách khiếu nại')
+        if (!ignore) toast.error(error.response?.data?.message || 'Không tải được báo cáo sự cố')
       })
       .finally(() => {
         if (!ignore) setLoading(false)
@@ -48,7 +52,7 @@ export default function AdminComplaints() {
     return () => {
       ignore = true
     }
-  }, [filters, keyword, refreshKey])
+  }, [filters, keyword, refreshKey, onCountsChange])
 
   const changeFilters = (changes) => {
     setLoading(true)
@@ -66,41 +70,44 @@ export default function AdminComplaints() {
   }
 
   const tabs = [
-    ...Object.entries(COMPLAINT_STATUS_LABELS).map(([value, label]) => ({ value, label, count: data.counts[value] })),
+    ...Object.entries(DELIVERY_ISSUE_STATUSES).map(([value, status]) => ({
+      value,
+      label: status.label,
+      count: data.counts[value],
+    })),
     { value: 'all', label: 'Tất cả', count: data.counts.all },
   ]
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <AdminPageHeader
-        icon={MessageSquareWarning}
-        title="Xử lý khiếu nại"
-        description="Xác minh khiếu nại của khách hàng, phản hồi và hoàn tiền khi cần"
-        actions={
-          <button type="button" onClick={refresh} disabled={loading} className={ADMIN_BUTTON.secondary}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới
-          </button>
-        }
-      />
-
+    <>
       <div className={ADMIN_CARD}>
         <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-crave-border p-5 lg:flex-row lg:items-center lg:justify-between">
           <AdminFilterTabs options={tabs} value={filters.status} onChange={(status) => changeFilters({ status })} />
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
-              value={filters.category}
-              onChange={(event) => changeFilters({ category: event.target.value })}
-              aria-label="Lọc theo loại khiếu nại"
-              className={`${ADMIN_INPUT} sm:w-48`}
+              value={filters.type}
+              onChange={(event) => changeFilters({ type: event.target.value })}
+              aria-label="Lọc theo loại sự cố"
+              className={`${ADMIN_INPUT} sm:w-52`}
             >
-              <option value="all">Mọi loại vấn đề</option>
-              {Object.entries(COMPLAINT_CATEGORY_LABELS).map(([value, label]) => (
+              <option value="all">Mọi loại sự cố</option>
+              {Object.entries(DELIVERY_ISSUE_TYPE_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
               ))}
             </select>
-            <AdminSearchInput value={searchText} onChange={handleSearchChange} placeholder="Mã khiếu nại hoặc mã đơn" />
+            <AdminSearchInput value={searchText} onChange={handleSearchChange} placeholder="Mã sự cố hoặc mã đơn" />
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={loading}
+              title="Làm mới"
+              aria-label="Làm mới"
+              className={`${ADMIN_BUTTON.secondary} shrink-0 justify-center`}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
         </div>
 
@@ -110,15 +117,15 @@ export default function AdminComplaints() {
           </div>
         ) : data.items.length === 0 ? (
           <AdminEmptyState>
-            {filters.status === 'open' ? '🎉 Không còn khiếu nại nào chờ xử lý!' : 'Không có khiếu nại phù hợp.'}
+            {filters.status === 'open' ? '🎉 Không có sự cố nào chờ xử lý!' : 'Không có báo cáo phù hợp.'}
           </AdminEmptyState>
         ) : (
-          <ComplaintTable complaints={data.items} onSelect={setSelectedId} />
+          <DeliveryIssueTable issues={data.items} onSelect={setSelectedId} />
         )}
 
         <AdminPagination
           pagination={data.pagination}
-          unit="khiếu nại"
+          unit="báo cáo"
           onPageChange={(page) => {
             setLoading(true)
             setFilters((prev) => ({ ...prev, page }))
@@ -127,13 +134,13 @@ export default function AdminComplaints() {
       </div>
 
       {selectedId && (
-        <ComplaintDetailDrawer
+        <DeliveryIssueDetailDrawer
           key={selectedId}
-          complaintId={selectedId}
+          issueId={selectedId}
           onClose={() => setSelectedId(null)}
           onResolved={() => setRefreshKey((key) => key + 1)}
         />
       )}
-    </div>
+    </>
   )
 }

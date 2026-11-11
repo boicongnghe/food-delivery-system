@@ -614,6 +614,7 @@ Table deliveryissues [headercolor: #9B59B6] {
   "resolution.penalty.targetUser" ObjectId [ref: > users._id, note: 'indexed: violation history']
   "resolution.penalty.action" penalty_action
   "resolution.penalty.fineAmount" number [default: 0]
+  "resolution.penalty.autoSuspended" boolean [default: false, note: 'reached violation_settings.autoSuspendThreshold']
   "resolution.by" ObjectId [default: null, ref: > users._id]
   "resolution.at" date [default: null]
   createdAt date
@@ -689,6 +690,14 @@ Table platform_settings [headercolor: #C0392B] {
   createdAt date
   updatedAt date
   Note: 'All values in minutes. See docs/order-timeouts.md'
+}
+
+Table violation_settings [headercolor: #C0392B] {
+  _id string [pk, note: "single document 'default'"]
+  autoSuspendThreshold number [default: 3, note: 'penalties since the last suspension before automatic suspension; 0 = off']
+  updatedBy ObjectId [default: null, ref: > users._id]
+  createdAt date
+  updatedAt date
 }
 
 Table counters [headercolor: #C0392B] {

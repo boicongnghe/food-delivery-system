@@ -1,9 +1,10 @@
 import ApiError from './ApiError.js';
+import { SHIPPING_FEE_DEFAULTS } from '../models/ShippingFeeSetting.js';
 
-export const MAX_DELIVERY_DISTANCE_KM = 10; // Giới hạn tối đa 10km
-export const BASE_DISTANCE_KM = 2; // 2km đầu tiên
-export const BASE_SHIPPING_FEE = 15000; // 15.000 VNĐ cho 2km đầu
-export const PER_KM_FEE = 5000; // 5.000 VNĐ cho mỗi km tiếp theo
+export const MAX_DELIVERY_DISTANCE_KM = SHIPPING_FEE_DEFAULTS.maxDistanceKm;
+export const BASE_DISTANCE_KM = SHIPPING_FEE_DEFAULTS.baseDistanceKm;
+export const BASE_SHIPPING_FEE = SHIPPING_FEE_DEFAULTS.baseFee;
+export const PER_KM_FEE = SHIPPING_FEE_DEFAULTS.perKmFee;
 
 // Tọa độ trung tâm mặc định tại khu vực Hòa Lạc (Đại học FPT Hà Nội)
 export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
@@ -145,27 +146,29 @@ export const getRouteDistanceAndDuration = async (lat1, lon1, lat2, lon2) => {
 };
 
 /**
- * Tính cước phí vận chuyển dựa trên khoảng cách (km)
- * - Tối đa 10km
- * - 2km đầu: 15.000đ
- * - Mỗi km tiếp theo: +5.000đ / km (làm tròn lên theo km)
+ * Tính cước phí vận chuyển dựa trên khoảng cách (km) và cấu hình động
  * @param {number} distanceKm
+ * @param {object} config Cấu hình động từ database (mặc định lấy SHIPPING_FEE_DEFAULTS)
  * @returns {number} Phí vận chuyển (VNĐ)
  */
-export const calculateShippingFee = (distanceKm) => {
+export const calculateShippingFee = (distanceKm, config = SHIPPING_FEE_DEFAULTS) => {
   const dist = Number(distanceKm) || 0;
+  const maxDist = config.maxDistanceKm ?? MAX_DELIVERY_DISTANCE_KM;
+  const baseDist = config.baseDistanceKm ?? BASE_DISTANCE_KM;
+  const baseFee = config.baseFee ?? BASE_SHIPPING_FEE;
+  const perKm = config.perKmFee ?? PER_KM_FEE;
 
-  if (dist > MAX_DELIVERY_DISTANCE_KM) {
+  if (dist > maxDist) {
     throw new ApiError(
       400,
-      `Khoảng cách giao hàng theo đường thực tế là ${dist} km, vượt quá bán kính giao hàng tối đa cho phép (${MAX_DELIVERY_DISTANCE_KM} km). Vui lòng chọn địa chỉ khác gần hơn.`,
+      `Khoảng cách giao hàng theo đường thực tế là ${dist} km, vượt quá bán kính giao hàng tối đa cho phép (${maxDist} km). Vui lòng chọn địa chỉ khác gần hơn.`,
     );
   }
 
-  if (dist <= BASE_DISTANCE_KM) {
-    return BASE_SHIPPING_FEE;
+  if (dist <= baseDist) {
+    return baseFee;
   }
 
-  const extraKm = Math.ceil(dist - BASE_DISTANCE_KM);
-  return BASE_SHIPPING_FEE + extraKm * PER_KM_FEE;
+  const extraKm = Math.ceil(dist - baseDist);
+  return baseFee + extraKm * perKm;
 };

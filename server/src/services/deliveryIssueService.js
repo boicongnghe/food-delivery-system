@@ -7,6 +7,7 @@ import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { sendRealtimeNotification } from '../socket.js';
 import { getNextSequence } from './counterService.js';
+import { getViolationPolicy } from './settingService.js';
 import {
   countByStatus,
   ensureOwnEvidence,
@@ -119,9 +120,13 @@ export const getDeliveryIssueDetail = async (issueId) => {
 
   // Earlier penalties of each party help the admin spot repeat offenders
   const parties = { shipper: issue.shipper?._id, customer: issue.customer?._id, restaurant: issue.restaurant?.owner };
-  const groups = await DeliveryIssue.aggregate([
-    { $match: { 'resolution.penalty.targetUser': { $in: Object.values(parties).filter(Boolean) } } },
-    { $group: { _id: '$resolution.penalty.targetUser', count: { $sum: 1 } } },
+  const [groups, policy, sinceSuspension] = await Promise.all([
+    DeliveryIssue.aggregate([
+      { $match: { 'resolution.penalty.targetUser': { $in: Object.values(parties).filter(Boolean) } } },
+      { $group: { _id: '$resolution.penalty.targetUser', count: { $sum: 1 } } },
+    ]),
+    getViolationPolicy(),
+    Promise.all(Object.values(parties).map((userId) => (userId ? countViolationsSinceSuspension(userId) : 0))),
   ]);
   const violationCounts = Object.fromEntries(
     Object.entries(parties).map(([party, userId]) => [
@@ -129,20 +134,46 @@ export const getDeliveryIssueDetail = async (issueId) => {
       groups.find((group) => String(group._id) === String(userId))?.count || 0,
     ]),
   );
-  return { ...issue, violationCounts };
+  // Lets the form warn that the next penalty suspends the account
+  const autoSuspend = {
+    threshold: policy.autoSuspendThreshold,
+    counts: Object.fromEntries(Object.keys(parties).map((party, index) => [party, sinceSuspension[index]])),
+  };
+  return { ...issue, violationCounts, autoSuspend };
+};
+
+/**
+ * Penalties counted toward the automatic suspension: those received after the account's last suspension
+ * (chosen by an admin or automatic), so an account reopened after a suspension starts again from zero.
+ */
+const countViolationsSinceSuspension = async (userId) => {
+  const lastSuspension = await DeliveryIssue.findOne({
+    'resolution.penalty.targetUser': userId,
+    $or: [{ 'resolution.penalty.action': 'suspend' }, { 'resolution.penalty.autoSuspended': true }],
+  })
+    .sort({ 'resolution.at': -1 })
+    .select('resolution.at')
+    .lean();
+  return DeliveryIssue.countDocuments({
+    'resolution.penalty.targetUser': userId,
+    ...(lastSuspension && { 'resolution.at': { $gt: lastSuspension.resolution.at } }),
+  });
 };
 
 // Restaurant penalties go to the owner's account
 const getPenaltyTargetUser = (issue, target) =>
   ({ shipper: issue.shipper, customer: issue.customer, restaurant: issue.restaurant.owner })[target];
 
-const applySuspension = async (adminId, issue, target) => {
+const applySuspension = async (adminId, issue, target, { auto = false, threshold = 0 } = {}) => {
   if (target === 'restaurant') {
     // Same as a suspension from the restaurant page: it can still finish or refund orders it already accepted.
     // The reason is kept so that page shows why; reopening happens there too.
+    const note = auto
+      ? `Tự động đình chỉ: đạt ${threshold} lần vi phạm (sự cố giao hàng ${issue.code})`
+      : `Xử phạt sự cố giao hàng ${issue.code}`;
     await Restaurant.updateOne(
       { _id: issue.restaurant._id },
-      { status: 'suspended', statusChange: { note: `Xử phạt sự cố giao hàng ${issue.code}`, by: adminId, at: new Date() } },
+      { status: 'suspended', statusChange: { note, by: adminId, at: new Date() } },
     );
     return;
   }
@@ -171,14 +202,18 @@ const assertOrderActionAllowed = (issue, order, orderAction) => {
 
 // Locking a shipper who still holds an order would leave that order with nobody able to finish it
 const assertShipperCanBeLocked = async (issue, penaltyRecord, orderAction) => {
-  if (penaltyRecord?.target !== 'shipper' || penaltyRecord.action !== 'suspend') return;
+  const locks = penaltyRecord?.action === 'suspend' || penaltyRecord?.autoSuspended;
+  if (penaltyRecord?.target !== 'shipper' || !locks) return;
   const stillHeld = await Order.exists({
     shipper: issue.shipper,
     status: { $in: ACTIVE_STATUSES },
     ...(orderAction !== 'none' && { _id: { $ne: issue.order } }),
   });
   if (stillHeld) {
-    throw new ApiError(409, 'Shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản', [
+    const message = penaltyRecord.autoSuspended
+      ? 'Lần phạt này đạt ngưỡng vi phạm nên shipper sẽ bị tự động khóa, nhưng shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ'
+      : 'Shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản';
+    throw new ApiError(409, message, [
       { field: 'orderAction', message: 'Chọn cách xử lý đơn hàng trước khi khóa shipper' },
     ]);
   }
@@ -239,7 +274,14 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     targetUser: getPenaltyTargetUser(issue, penalty.target),
     action: penalty.action,
     fineAmount: penalty.action === 'fine' ? penalty.fineAmount : 0,
+    autoSuspended: false,
   };
+  // This penalty reaches the threshold: the account is suspended too, whatever action the admin picked
+  const { autoSuspendThreshold: threshold } = await getViolationPolicy();
+  if (penaltyRecord && penaltyRecord.action !== 'suspend' && threshold > 0) {
+    const earlier = await countViolationsSinceSuspension(penaltyRecord.targetUser);
+    penaltyRecord.autoSuspended = earlier + 1 >= threshold;
+  }
   const order = await Order.findById(issue.order).select(ORDER_FIELDS_FOR_ACTION).lean();
   assertOrderActionAllowed(issue, order, orderAction);
   await assertShipperCanBeLocked(issue, penaltyRecord, orderAction);
@@ -255,8 +297,8 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     throw new ApiError(409, 'Báo cáo vừa được xử lý bởi người khác, vui lòng tải lại');
   }
 
-  if (penaltyRecord?.action === 'suspend') {
-    await applySuspension(adminId, issue, penaltyRecord.target);
+  if (penaltyRecord?.action === 'suspend' || penaltyRecord?.autoSuspended) {
+    await applySuspension(adminId, issue, penaltyRecord.target, { auto: penaltyRecord.autoSuspended, threshold });
   }
   const hasOpenIssue = await DeliveryIssue.exists({ order: issue.order, status: 'open' });
   await Order.updateOne(

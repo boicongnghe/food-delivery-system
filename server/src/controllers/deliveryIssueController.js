@@ -42,6 +42,10 @@ export const resolveDeliveryIssue = asyncHandler(async (req, res) => {
     success: true,
     data: issue,
     message:
-      issue.status === 'resolved' ? `Đã xử lý báo cáo sự cố ${issue.code}` : `Đã bác bỏ báo cáo sự cố ${issue.code}`,
+      issue.status === 'resolved'
+        ? `Đã xử lý báo cáo sự cố ${issue.code}${
+            issue.resolution.penalty?.autoSuspended ? '. Bên vi phạm đã đạt ngưỡng và bị tự động đình chỉ' : ''
+          }`
+        : `Đã bác bỏ báo cáo sự cố ${issue.code}`,
   });
 });

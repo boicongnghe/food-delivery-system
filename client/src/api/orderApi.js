@@ -4,13 +4,34 @@ const RESTAURANT_ORDER_URL = '/restaurants/me/orders'
 
 export const orderApi = {
   // ----- Customer orders -----
-  createOrder: (data) => axiosClient.post('/orders', data),
-  estimateShipping: (params) => axiosClient.get('/orders/estimate-shipping', { params }),
-  getOrderById: (id) => axiosClient.get(`/orders/${id}`),
-  getCustomerOrders: (params) => axiosClient.get('/orders', { params }),
-  cancelOrder: (id, data) => axiosClient.post(`/orders/${id}/cancel`, data),
-  receiveOrder: (id) => axiosClient.patch(`/orders/${id}/receive`),
-  progressOrder: (id, data) => axiosClient.patch(`/orders/${id}/progress`, data),
+  createOrder: async (data) => {
+    const response = await axiosClient.post('/orders', data)
+    return response.data
+  },
+  estimateShipping: async (params) => {
+    const response = await axiosClient.get('/orders/estimate-shipping', { params })
+    return response.data
+  },
+  getOrderById: async (id) => {
+    const response = await axiosClient.get(`/orders/${id}`)
+    return response.data
+  },
+  getCustomerOrders: async (params) => {
+    const response = await axiosClient.get('/orders', { params })
+    return response.data
+  },
+  cancelOrder: async (id, data) => {
+    const response = await axiosClient.post(`/orders/${id}/cancel`, data)
+    return response.data
+  },
+  receiveOrder: async (id) => {
+    const response = await axiosClient.patch(`/orders/${id}/receive`)
+    return response.data
+  },
+  progressOrder: async (id, data) => {
+    const response = await axiosClient.patch(`/orders/${id}/progress`, data)
+    return response.data
+  },
 
   // ----- Restaurant owner (kitchen board) -----
   getBoard: async () => {

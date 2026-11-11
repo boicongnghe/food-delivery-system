@@ -7,6 +7,7 @@ import {
   PENALTY_TARGET_LABELS,
 } from '../../../utils/deliveryIssueLabels.js'
 import { formatNumber, parseNumberInput } from '../../../utils/formatCurrency.js'
+import { willAutoSuspend } from '../autoSuspend.js'
 
 const DECISIONS = [
   { value: 'resolved', label: 'Xác nhận & xử lý', activeClass: 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200' },
@@ -34,10 +35,23 @@ const ORDER_ACTION_HINTS = {
  * UC45 - handle a delivery issue report, optionally penalizing one party. The parent owns the state.
  * @param {{ decision, hasPenalty, target, action, fineAmount, note, orderAction }} form
  * @param {{ shipper: number, restaurant: number, customer: number }} violationCounts - earlier penalties
+ * @param {{ threshold: number, counts: { shipper: number, restaurant: number, customer: number } }} autoSuspend -
+ *   violation threshold (0: off) and penalties of each party since its last suspension
  * @param {'preparing' | 'ready_for_pickup' | 'delivering' | null} heldOrderStatus - order status while the reporting shipper
  *   still holds it (null: the order moved on, nothing to do with it here)
  */
-export default function ResolveIssueForm({ formId, form, errors, violationCounts, heldOrderStatus, disabled, onChange, onSubmit }) {
+export default function ResolveIssueForm({
+  formId,
+  form,
+  errors,
+  violationCounts,
+  autoSuspend,
+  heldOrderStatus,
+  disabled,
+  onChange,
+  onSubmit,
+}) {
+  const autoSuspending = willAutoSuspend(form, autoSuspend)
   // After pickup the food is with the shipper: it can no longer go back to the pool
   const orderActions = Object.keys(ISSUE_ORDER_ACTION_LABELS).filter(
     (value) => value !== 'release' || ['preparing', 'ready_for_pickup'].includes(heldOrderStatus),
@@ -135,6 +149,17 @@ export default function ResolveIssueForm({ formId, form, errors, violationCounts
                   <p className="flex gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-200">
                     <TriangleAlert className="h-4 w-4 shrink-0" />
                     {SUSPEND_EFFECTS[form.target]}
+                  </p>
+                )}
+
+                {autoSuspending && (
+                  <p className="flex gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-200">
+                    <TriangleAlert className="h-4 w-4 shrink-0" />
+                    <span>
+                      Đây là lần vi phạm thứ {autoSuspend.counts[form.target] + 1} kể từ lần đình chỉ gần nhất (ngưỡng{' '}
+                      {autoSuspend.threshold} lần): {PENALTY_TARGET_LABELS[form.target].toLowerCase()} sẽ bị tự động đình chỉ.{' '}
+                      {SUSPEND_EFFECTS[form.target]}
+                    </span>
                   </p>
                 )}
               </>

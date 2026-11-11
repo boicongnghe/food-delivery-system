@@ -125,6 +125,12 @@ export const registerUser = async ({
       vehicleInfo: shipperDetails.vehicleInfo || '',
       vehicleRegistration: shipperDetails.vehicleRegistration || null,
       vehicleInsurance: shipperDetails.vehicleInsurance || null,
+      deposit: {
+        amount: shipperDetails.depositAmount || 500000,
+        isPaid: Boolean(shipperDetails.depositConfirmed),
+        paidAt: new Date(),
+        transactionNote: shipperDetails.depositNote ? shipperDetails.depositNote.trim() : `Chuyển cọc 500.000đ qua VietQR (${phone ? phone.trim() : ''})`,
+      },
       status: 'pending',
     });
   }

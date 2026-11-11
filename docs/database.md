@@ -195,7 +195,7 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | Collection | Model | Ghi chú |
 | --- | --- | --- |
 | `complaints` | `Complaint.js` | Khiếu nại của khách (UC18, UC42). `code` dạng `KN-0001`, unique theo `order`. `open → resolved \| rejected`, `resolution: { note, refundAmount, by, at }` |
-| `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount }` là lịch sử vi phạm. `resolution.orderAction`: `none` \| `release` \| `cancel` (admin xử lý đơn shipper không giao tiếp được) |
+| `deliveryissues` | `DeliveryIssue.js` | Báo cáo sự cố của shipper (UC34, UC45). `code` dạng `SC-0001`, tối đa 1 báo cáo `open` cho mỗi đơn (unique partial index). `resolution.penalty: { target, targetUser, action, fineAmount, autoSuspended }` là lịch sử vi phạm (`autoSuspended`: lần phạt này chạm ngưỡng của `violation_settings` nên tài khoản bị tự động đình chỉ). `resolution.orderAction`: `none` \| `release` \| `cancel` (admin xử lý đơn shipper không giao tiếp được) |
 | `commissionrules` | `CommissionRule.js` | Hoa hồng nền tảng (UC40): `target` restaurant (% tiền món) hoặc shipper (% phí giao), `restaurant` null = mặc định, `effectiveFrom/effectiveTo` dạng `YYYY-MM-DD` (ngày Việt Nam) |
 | `promotion_rules` | `PromotionRule.js` | Mã khuyến mãi (UC41). **Dùng chung model với checkout (UC14)**, không đổi tên trường |
 | `restaurant_vouchers` | `RestaurantVoucher.js` | Voucher quán tự chạy, quán chịu tiền: `code` (unique theo quán), `discountType`, `discountValue`, `maxDiscount`, `minOrderValue`, `startAt`/`endAt`, `usageLimit`, `perCustomerLimit`, `isActive`. Đơn lưu bản sao ở `orders.restaurantVoucher`. Xem [restaurant-voucher.md](restaurant-voucher.md) |
@@ -208,6 +208,8 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 ## 7. `platform_settings`
 
 Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper`, `admin_cancel` hoặc `delivery_issue` (admin hủy khi xử lý sự cố giao hàng).
+
+Ngưỡng tự động đình chỉ khi vi phạm nằm ở collection riêng `violation_settings` (`ViolationSetting.js`, một document `_id: "default"`): `autoSuspendThreshold` (mặc định 3, `0` = tắt). Xem [post-delivery-admin.md](post-delivery-admin.md) mục 3.
 
 Nhà hàng có thêm `prepTime` (5–120 phút). Lịch rỗng = đóng cửa: không hiện trên trang chủ, không nhận đơn (admin vẫn duyệt được hồ sơ). Không có ca qua đêm.
 

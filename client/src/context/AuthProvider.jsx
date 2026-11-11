@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import authApi from '../api/authApi.js'
 import { AuthContext } from './authContext.js'
+import { disconnectSocket } from '../services/socket.js'
 
 const DEMO_ACCOUNTS = {
   'khachhang@fooddelivery.vn': {
@@ -68,6 +69,10 @@ const clearStoredAuth = () => {
   sessionStorage.removeItem('token')
   localStorage.removeItem('demo_user')
   sessionStorage.removeItem('demo_user')
+  try {
+    sessionStorage.removeItem('foodbot_chat_history')
+    sessionStorage.removeItem('foodbot_chat_history_guest')
+  } catch {}
 }
 const persistToken = (receivedToken, rememberMe = true) => {
   if (rememberMe) {
@@ -343,6 +348,13 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
+    disconnectSocket()
+    try {
+      const uid = user?._id || user?.id || user?.email
+      if (uid) {
+        sessionStorage.removeItem(`foodbot_chat_history_${uid}`)
+      }
+    } catch {}
     clearStoredAuth()
     setToken(null)
     setUser(null)
@@ -393,13 +405,32 @@ export function AuthProvider({ children }) {
     try {
       const response = await authApi.deleteAccount(confirmationData)
       const userEmail = user?.email
+      disconnectSocket()
+      try {
+        const uid = user?._id || user?.id || user?.email
+        if (uid) {
+          sessionStorage.removeItem(`foodbot_chat_history_${uid}`)
+        }
+      } catch {}
       clearStoredAuth()
       setToken(null)
       setUser(null)
       try {
         localStorage.removeItem('food_delivery_cart')
-        if (userEmail && localStorage.getItem('remembered_email') === userEmail) {
-          localStorage.removeItem('remembered_email')
+        if (userEmail) {
+          const norm = userEmail.toLowerCase().trim()
+          try {
+            const raw = localStorage.getItem('remembered_accounts')
+            if (raw) {
+              const accs = JSON.parse(raw)
+              delete accs[norm]
+              localStorage.setItem('remembered_accounts', JSON.stringify(accs))
+            }
+          } catch {}
+          if (localStorage.getItem('remembered_email')?.toLowerCase().trim() === norm) {
+            localStorage.removeItem('remembered_email')
+            localStorage.removeItem('remembered_password')
+          }
         }
       } catch {
         // ignore storage errors

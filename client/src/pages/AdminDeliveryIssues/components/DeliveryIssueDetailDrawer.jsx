@@ -14,6 +14,7 @@ import {
   PENALTY_TARGET_LABELS,
 } from '../../../utils/deliveryIssueLabels.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
+import { willAutoSuspend, willSuspend } from '../autoSuspend.js'
 import IssueResolutionView from './IssueResolutionView.jsx'
 import ResolveIssueForm from './ResolveIssueForm.jsx'
 
@@ -28,24 +29,27 @@ const getHeldOrderStatus = (issue) => {
   return held ? order.status : null
 }
 
-const isShipperLock = (form) =>
-  form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend' && form.target === 'shipper'
+const isShipperLock = (form, autoSuspend) => form.target === 'shipper' && willSuspend(form, autoSuspend)
 
-const getConfirmMessage = (form) => {
+const getConfirmMessage = (form, autoSuspend) => {
   const parts = []
   if (form.orderAction === 'cancel') parts.push('Đơn hàng sẽ bị hủy (khách đã thanh toán sẽ có yêu cầu hoàn tiền).')
   if (form.orderAction === 'release') parts.push('Đơn hàng sẽ được trả về hàng chờ cho shipper khác.')
-  if (form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend') {
+  if (willAutoSuspend(form, autoSuspend)) {
+    parts.push(
+      `${PENALTY_TARGET_LABELS[form.target]} đạt ${autoSuspend.threshold} lần vi phạm và sẽ bị tự động đình chỉ ngay sau khi lưu.`,
+    )
+  } else if (willSuspend(form, autoSuspend)) {
     parts.push(`${PENALTY_TARGET_LABELS[form.target] || ''} sẽ bị đình chỉ ngay sau khi lưu.`)
   }
   return `${parts.join(' ')} Bạn chắc chắn chứ?`
 }
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
-const validate = (form, heldOrderStatus) => {
+const validate = (form, heldOrderStatus, autoSuspend) => {
   const errors = {}
   if (form.note.trim().length < 5) errors.note = 'Kết luận xử lý ít nhất 5 ký tự'
-  if (isShipperLock(form) && heldOrderStatus && form.orderAction === 'none') {
+  if (isShipperLock(form, autoSuspend) && heldOrderStatus && form.orderAction === 'none') {
     errors.orderAction = 'Shipper đang giữ đơn: hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản'
   }
   if (form.decision === 'resolved' && form.hasPenalty) {
@@ -120,14 +124,13 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const nextErrors = validate(form, heldOrderStatus)
+    const nextErrors = validate(form, heldOrderStatus, issue.autoSuspend)
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
     }
-    // Suspending (locks an account / stops a restaurant) or changing the order: ask once more
-    const isSuspend = form.decision === 'resolved' && form.hasPenalty && form.action === 'suspend'
-    if (isSuspend || (heldOrderStatus && form.orderAction !== 'none')) {
+    // Suspending (picked or automatic: locks an account / stops a restaurant) or changing the order: ask once more
+    if (willSuspend(form, issue.autoSuspend) || (heldOrderStatus && form.orderAction !== 'none')) {
       setConfirming(true)
       return
     }
@@ -215,6 +218,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
                 form={form}
                 errors={errors}
                 violationCounts={issue.violationCounts}
+                autoSuspend={issue.autoSuspend}
                 heldOrderStatus={heldOrderStatus}
                 disabled={saving}
                 onChange={(changes) => {
@@ -233,7 +237,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       <ConfirmDialog
         open={confirming}
         title="Xác nhận kết quả xử lý"
-        message={getConfirmMessage(form)}
+        message={getConfirmMessage(form, issue?.autoSuspend)}
         confirmLabel="Xác nhận"
         loading={saving}
         onConfirm={submit}

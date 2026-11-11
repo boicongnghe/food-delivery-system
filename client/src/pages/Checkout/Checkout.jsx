@@ -4,6 +4,7 @@ import { Ticket, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { addressApi } from '../../api/addressApi.js'
 import { authApi } from '../../api/authApi.js'
+import { foodApi } from '../../api/foodApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import restaurantVoucherApi from '../../api/restaurantVoucherApi.js'
 import { orderApi } from '../../api/orderApi.js'
@@ -11,6 +12,27 @@ import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 import { cartLineKey } from '../../utils/cartLineKey.js'
 import { confirmToast } from '../../utils/confirmToast.jsx'
+
+const resolveRestaurantObjectId = async (cartRestaurant) => {
+  let rId = cartRestaurant?.id || cartRestaurant?._id
+  if (rId && /^[0-9a-fA-F]{24}$/.test(rId)) {
+    return rId
+  }
+  const rName = (cartRestaurant?.name || '').trim().toLowerCase()
+  if (!rName) return rId
+
+  try {
+    const res = await foodApi.getRestaurants()
+    const list = res.data?.data || res.data || []
+    const match = list.find((r) => (r.name || '').trim().toLowerCase() === rName)
+    if (match?._id) {
+      return match._id
+    }
+  } catch (err) {
+    console.warn('Could not resolve restaurant ID from database:', err?.message)
+  }
+  return rId
+}
 
 function Checkout() {
   const { user } = useAuth()
@@ -60,6 +82,7 @@ function Checkout() {
   // Distance & Shipping states
   const [shippingFee, setShippingFee] = useState(15000)
   const [distanceKm, setDistanceKm] = useState(null)
+  const [maxDistanceKm, setMaxDistanceKm] = useState(10)
   const [durationMinutes, setDurationMinutes] = useState(null)
   const [isDeliverable, setIsDeliverable] = useState(true)
   const [shippingError, setShippingError] = useState('')
@@ -121,8 +144,11 @@ function Checkout() {
           const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0]
           setSelectedAddressId(defaultAddr._id)
         }
-        if (promoRes.status === 'fulfilled' && promoRes.value?.data?.data) {
-          setActivePromotions(promoRes.value.data.data)
+        if (promoRes.status === 'fulfilled') {
+          const promoList = promoRes.value?.data?.data || promoRes.value?.data
+          if (Array.isArray(promoList)) {
+            setActivePromotions(promoList)
+          }
         }
       } catch (err) {
         console.error('Failed to load checkout data', err)
@@ -134,27 +160,16 @@ function Checkout() {
   // Tự động tính phí vận chuyển dựa trên khoảng cách GPS từ nhà hàng đến địa chỉ nhận
   useEffect(() => {
     const fetchShippingFee = async () => {
-      let restaurantId = cart?.restaurant?.id || cart?.restaurant?._id
-      if (!restaurantId || !selectedAddressId) return
-
-      const KNOWN_RESTAURANTS = {
-        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
-        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
-        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
-        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
-        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
-        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
-      }
-      if (restaurantId.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) {
-        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
-        if (KNOWN_RESTAURANTS[rName]) {
-          restaurantId = KNOWN_RESTAURANTS[rName]
-        }
-      }
+      const restaurantId = await resolveRestaurantObjectId(cart?.restaurant)
+      if (!restaurantId || !selectedAddressId || !/^[0-9a-fA-F]{24}$/.test(restaurantId)) return
 
       const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
       const params = { restaurantId, addressId: selectedAddressId }
-      if (chosenAddr?.location?.lat && chosenAddr?.location?.lng) {
+      
+      const lowerAddr = (chosenAddr?.addressLine || '').toLowerCase()
+      const isSouthAddr = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn)/i.test(lowerAddr)
+      const isNorthCoord = chosenAddr?.location?.lat > 18.0
+      if (chosenAddr?.location?.lat && chosenAddr?.location?.lng && !(isSouthAddr && isNorthCoord)) {
         params.lat = chosenAddr.location.lat
         params.lng = chosenAddr.location.lng
       }
@@ -162,9 +177,10 @@ function Checkout() {
       setLoadingShipping(true)
       try {
         const res = await orderApi.estimateShipping(params)
-        const info = res.data?.data
+        const info = res.data?.data || res.data
         if (info) {
           setDistanceKm(info.distanceKm)
+          if (info.maxDistanceKm) setMaxDistanceKm(info.maxDistanceKm)
           setDurationMinutes(info.durationMinutes || null)
           setShippingFee(info.shippingFee || 15000)
           setIsDeliverable(info.isDeliverable !== false)
@@ -277,7 +293,7 @@ function Checkout() {
         isDefault: newAddressForm.isDefault,
         location: newAddressForm.location,
       })
-      const created = res.data.data
+      const created = res.data?.data || res.data
       const updated = created.isDefault
         ? [created, ...addresses.map((a) => ({ ...a, isDefault: false }))]
         : [...addresses, created]
@@ -337,7 +353,7 @@ function Checkout() {
     setPromoError('')
     try {
       const res = await promotionApi.applyPromotion({ code, subtotal: subtotal - restaurantDiscountValue })
-      const data = res.data.data
+      const data = res.data?.data || res.data
       setDiscountAmount(data.discountAmount)
       setAppliedPromo(data.promotion)
       setPromoCodeInput(code)
@@ -393,7 +409,7 @@ function Checkout() {
     if (!isDeliverable) {
       setErrorMsg(
         shippingError ||
-          `Khoảng cách giao hàng (${distanceKm} km) vượt quá bán kính phục vụ tối đa (10 km). Vui lòng chọn địa chỉ khác gần hơn.`
+          `Khoảng cách giao hàng (${distanceKm} km) vượt quá bán kính phục vụ tối đa (${maxDistanceKm || 10} km). Vui lòng chọn địa chỉ khác gần hơn.`
       )
       return
     }
@@ -410,20 +426,11 @@ function Checkout() {
     try {
       setIsSubmitting(true)
 
-      let orderRestaurantId = cart.restaurant?.id || cart.restaurant?._id
-      const KNOWN_RESTAURANTS = {
-        'cơm gà nướng & cơm rang 99 - tân xã': '6ae77e0d08ffe82f6ca8e0b0',
-        'bún bò huế & bún đậu o mai - cổng fpt': '6ae77e0e08ffe82f6ca8e0b4',
-        'tiệm trà sữa & ăn vặt hola tea - ngã 3 thạch hòa': '6ae77e0e08ffe82f6ca8e0b8',
-        'phở bò gia truyền cụ chiêu - hòa lạc': '6ae77e0e08ffe82f6ca8e0bc',
-        'hola fastfood - burger & gà rán f-ville': '6ae77e0e08ffe82f6ca8e0bf',
-        'tiệm bánh mì chảo & cơm niêu sinh viên': '6ae77e0e08ffe82f6ca8e0c2',
-      }
-      if (orderRestaurantId?.startsWith('res-') || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
-        const rName = (cart?.restaurant?.name || '').trim().toLowerCase()
-        if (KNOWN_RESTAURANTS[rName]) {
-          orderRestaurantId = KNOWN_RESTAURANTS[rName]
-        }
+      const orderRestaurantId = await resolveRestaurantObjectId(cart.restaurant)
+      if (!orderRestaurantId || !/^[0-9a-fA-F]{24}$/.test(orderRestaurantId)) {
+        toast.error('Không tìm thấy thông tin nhà hàng trong hệ thống. Vui lòng thử lại!')
+        setIsSubmitting(false)
+        return
       }
 
       const payload = {
@@ -456,7 +463,7 @@ function Checkout() {
       }
 
       const res = await orderApi.createOrder(payload)
-      const createdOrder = res.data.data
+      const createdOrder = res.data?.data || res.data
 
       // Đánh dấu đơn đã đặt xong trước khi clear cart để tránh bị useEffect redirect về home
       isOrderPlaced.current = true
@@ -1020,14 +1027,35 @@ function Checkout() {
                   rows={3}
                   placeholder="Ví dụ: Số 25, Ngõ 10 Tạ Quang Bửu, Phường Bách Khoa, Quận Hai Bà Trưng, Hà Nội"
                   value={newAddressForm.addressLine}
-                  onChange={(e) => setNewAddressForm({ ...newAddressForm, addressLine: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setNewAddressForm((prev) => ({
+                      ...prev,
+                      addressLine: val,
+                      // Nếu người dùng chủ động gõ/sửa lại text địa chỉ, reset GPS thiết bị để hệ thống định vị đúng theo địa chỉ mới gõ
+                      location: null,
+                    }))
+                  }}
                   required
                 />
-                {newAddressForm.location && (
-                  <div className="text-xs text-green-600 font-semibold flex items-center gap-1 mt-1.5">
-                    <span>✓ Tọa độ GPS:</span>
-                    <span>{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
+                {newAddressForm.location ? (
+                  <div className="flex items-center justify-between text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-2 mt-1.5">
+                    <span className="flex items-center gap-1 font-medium">
+                      <span>📍 Đã ghim GPS thiết bị:</span>
+                      <span className="font-semibold">{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setNewAddressForm((prev) => ({ ...prev, location: null }))}
+                      className="text-red-500 hover:text-red-700 underline font-semibold ml-2 cursor-pointer"
+                    >
+                      Bỏ ghim GPS
+                    </button>
                   </div>
+                ) : (
+                  <p className="text-[0.75rem] text-slate-400 mt-1">
+                    * Hệ thống sẽ tự động xác định tọa độ GPS và tính toán lộ trình theo địa chỉ bạn nhập.
+                  </p>
                 )}
               </div>
 
