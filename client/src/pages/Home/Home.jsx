@@ -186,7 +186,7 @@ export default function Home() {
       try {
         setLoadingFoods(true)
         const res = await foodApi.getFoods()
-        const foods = res.data?.data || []
+        const foods = res.data?.data || res.data || []
         if (isMounted && Array.isArray(foods)) {
           const mapped = foods.map((f, idx) => ({
             id: f._id || `food-${idx}`,
@@ -222,7 +222,7 @@ export default function Home() {
       try {
         setLoadingPartners(true)
         const res = await foodApi.getRestaurants()
-        const restaurants = res.data?.data || []
+        const restaurants = res.data?.data || res.data || []
         if (isMounted && Array.isArray(restaurants)) {
           const mappedPartners = restaurants.map((r, idx) => ({
             id: r._id,

@@ -36,7 +36,7 @@ function PaymentResult() {
 
         try {
           const orderRes = await orderApi.getOrderById(orderId)
-          ord = orderRes.data.data
+          ord = orderRes.data?.data || orderRes.data
           setOrder(ord)
         } catch (e) {
           console.error('Error fetching order', e)

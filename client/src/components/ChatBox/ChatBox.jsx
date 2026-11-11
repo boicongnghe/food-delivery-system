@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   MessageSquareText,
   X,
@@ -16,7 +16,8 @@ import DishCardInChat from './DishCardInChat.jsx'
 import { useCart } from '../../context/useCart.js'
 import useAuth from '../../hooks/useAuth.js'
 
-const STORAGE_KEY = 'foodbot_chat_history'
+const getChatStorageKey = (uid) =>
+  uid ? `foodbot_chat_history_${uid}` : 'foodbot_chat_history_guest'
 
 const INITIAL_MESSAGE = {
   id: 'welcome',
@@ -32,31 +33,35 @@ const INITIAL_MESSAGE = {
   timestamp: new Date().toISOString(),
 }
 
+const loadUserMessages = (uid) => {
+  try {
+    const key = getChatStorageKey(uid)
+    const saved = sessionStorage.getItem(key)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        !parsed.some((p) => p.text?.includes('CraveDash') || p.text?.includes('đăng nhập'))
+      ) {
+        return parsed
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load chat history from sessionStorage', err)
+  }
+  return [INITIAL_MESSAGE]
+}
+
 export default function ChatBox() {
   const { user } = useAuth()
   const { itemCount = 0 } = useCart() || {}
 
+  const currentUserId = user?._id || user?.id || user?.email || null
+  const currentUserIdRef = useRef(currentUserId)
+
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        // If saved contains outdated branding, reset to fresh initial
-        if (
-          Array.isArray(parsed) &&
-          parsed.some((p) => p.text?.includes('CraveDash') || p.text?.includes('đăng nhập'))
-        ) {
-          sessionStorage.removeItem(STORAGE_KEY)
-          return [INITIAL_MESSAGE]
-        }
-        return parsed
-      }
-      return [INITIAL_MESSAGE]
-    } catch {
-      return [INITIAL_MESSAGE]
-    }
-  })
+  const [messages, setMessages] = useState(() => loadUserMessages(currentUserId))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [hasUnread, setHasUnread] = useState(false)
@@ -64,14 +69,34 @@ export default function ChatBox() {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Save conversation to sessionStorage
+  // Remove legacy shared chat storage key on mount
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+      sessionStorage.removeItem('foodbot_chat_history')
+    } catch {}
+  }, [])
+
+  // Switch chat session whenever user changes (login, logout, switch account)
+  useEffect(() => {
+    if (currentUserIdRef.current !== currentUserId) {
+      currentUserIdRef.current = currentUserId
+      setMessages(loadUserMessages(currentUserId))
+      setInput('')
+      setLoading(false)
+      setHasUnread(false)
+      setIsOpen(false)
+    }
+  }, [currentUserId])
+
+  // Save conversation to sessionStorage for the active user
+  useEffect(() => {
+    try {
+      const key = getChatStorageKey(currentUserId)
+      sessionStorage.setItem(key, JSON.stringify(messages))
     } catch (err) {
       console.warn('Could not save chat history to sessionStorage', err)
     }
-  }, [messages])
+  }, [messages, currentUserId])
 
   // Scroll to bottom whenever messages change or loading state toggles
   const scrollToBottom = (smooth = true) => {
@@ -102,7 +127,8 @@ export default function ChatBox() {
       },
     ])
     try {
-      sessionStorage.removeItem(STORAGE_KEY)
+      const key = getChatStorageKey(currentUserId)
+      sessionStorage.removeItem(key)
     } catch {}
   }
 

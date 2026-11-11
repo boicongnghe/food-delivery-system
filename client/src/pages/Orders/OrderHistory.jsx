@@ -11,7 +11,7 @@ function OrderHistory() {
       try {
         setLoading(true)
         const res = await orderApi.getCustomerOrders()
-        setOrders(res.data.data || [])
+        setOrders(res.data?.data || res.data || [])
       } catch (err) {
         console.error('Failed to load orders', err)
       } finally {
