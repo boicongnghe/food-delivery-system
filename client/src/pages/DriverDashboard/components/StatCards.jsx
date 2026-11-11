@@ -27,8 +27,11 @@ function BreakdownRow({ label, value, highlight = false }) {
 }
 
 function StatCards({ summary, onWithdraw }) {
-  const tripProgress = summary.tripGoal
-    ? Math.min(100, Math.round((summary.completedTrips / summary.tripGoal) * 100))
+  const completedTrips = Number(summary.completedTrips || 0)
+  const tripGoal = Number(summary.tripGoal || 0)
+  const hasTripGoal = tripGoal > 0
+  const tripProgress = hasTripGoal
+    ? Math.min(100, Math.round((completedTrips / tripGoal) * 100))
     : 0
 
   return (
@@ -45,25 +48,29 @@ function StatCards({ summary, onWithdraw }) {
       <div className={cardClass} role="listitem" id="stat-card-trips">
         <CardHeader label="Chuyến xe hoàn tất" icon={Bike} />
         <div className="text-2xl font-bold tabular-nums text-slate-900">
-          {summary.completedTrips}
-          <span className="text-base font-medium text-slate-500"> / {summary.tripGoal} cuốc</span>
+          {completedTrips}
+          {hasTripGoal && (
+            <span className="text-base font-medium text-slate-500"> / {tripGoal} cuốc</span>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <div className="h-2 overflow-hidden rounded-full bg-brand-light">
-            <div
-              className="h-full rounded-full bg-brand transition-all"
-              style={{ width: `${tripProgress}%` }}
-              role="progressbar"
-              aria-valuenow={tripProgress}
-              aria-valuemin="0"
-              aria-valuemax="100"
-            />
+        {hasTripGoal && (
+          <div className="space-y-1.5">
+            <div className="h-2 overflow-hidden rounded-full bg-brand-light">
+              <div
+                className="h-full rounded-full bg-brand transition-all"
+                style={{ width: `${tripProgress}%` }}
+                role="progressbar"
+                aria-valuenow={tripProgress}
+                aria-valuemin="0"
+                aria-valuemax="100"
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>Tiến độ: {tripProgress}%</span>
+              <span>Còn {Math.max(0, tripGoal - completedTrips)} chuyến</span>
+            </div>
           </div>
-          <div className="flex justify-between text-xs text-slate-500">
-            <span>Tiến độ: {tripProgress}%</span>
-            <span>Còn {Math.max(0, summary.tripGoal - summary.completedTrips)} chuyến</span>
-          </div>
-        </div>
+        )}
         <div className="space-y-1.5 border-t border-slate-100 pt-3">
           <BreakdownRow label="Đánh giá trung bình" value={`${Number(summary.rating || 0).toFixed(2)} ★`} highlight />
           <BreakdownRow label="Số lượt đánh giá" value={summary.ratingCount} />

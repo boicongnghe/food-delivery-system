@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
+import { connectSocket } from '../../services/socket.js'
 import toast from 'react-hot-toast'
 
 // Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
@@ -36,7 +37,37 @@ function OrderTracking() {
 
   useEffect(() => {
     fetchOrderDetails()
+
+    // Lắng nghe cập nhật realtime từ Socket.io
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    if (token) {
+      const socket = connectSocket(token)
+      const handleNewNotification = (notif) => {
+        if (!notif) return
+        const notifOrderId = notif.order?._id || notif.order
+        if (notifOrderId === id || notif.type === 'order') {
+          fetchOrderDetails()
+        }
+      }
+      socket.on('new_notification', handleNewNotification)
+      return () => {
+        socket.off('new_notification', handleNewNotification)
+      }
+    }
   }, [id])
+
+  // Tự động kiểm tra trạng thái đơn hàng định kỳ khi đơn đang xử lý
+  useEffect(() => {
+    if (!order || ['delivered', 'cancelled'].includes(order.status)) return
+    const interval = setInterval(() => {
+      orderApi.getOrderById(id).then((res) => {
+        if (res.data?.data) {
+          setOrder(res.data.data)
+        }
+      }).catch(() => {})
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [id, order?.status])
 
   // UC17: Cancel Order & Refund
   const handleCancelOrder = async () => {
@@ -60,6 +91,7 @@ function OrderTracking() {
       const res = await orderApi.receiveOrder(id)
       setOrder({ ...order, ...res.data.data })
       setActionMsg('Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
+      toast.success('🎉 Cảm ơn bạn! Đơn hàng đã được đánh dấu là Đã nhận hàng thành công.')
       fetchOrderDetails()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Lỗi khi xác nhận nhận hàng')
@@ -150,9 +182,15 @@ function OrderTracking() {
           <div>
             {/* Visual Step Bar */}
             <div className="flex justify-between relative mb-8">
-              {/* Connecting line */}
-              <div className="absolute top-5 left-[5%] right-[5%] h-1 bg-slate-200 z-[1]" />
-              <div className="absolute top-5 left-[5%] h-1 bg-emerald-500 z-[2] transition" style={{ width: `${Math.max(0, currentStepIndex) * 25}%` }} />
+              {/* Connecting line track */}
+              <div className="absolute top-5 left-10 right-10 h-1 bg-slate-200 z-[1] rounded overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-400 rounded"
+                  style={{
+                    width: `${currentStepIndex <= 0 ? 0 : Math.min(100, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
+                  }}
+                />
+              </div>
 
               {STATUS_STEPS.map((step, idx) => {
                 const isPassed = idx <= currentStepIndex
@@ -289,6 +327,22 @@ function OrderTracking() {
         )}
       </div>
 
+      {isDelivered && order.deliveryProof?.imageUrl && (
+        <section className="mb-6 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-3 text-xl font-bold text-slate-900">Ảnh chứng minh giao hàng</h2>
+          <img
+            className="max-h-[480px] w-full rounded-xl object-contain"
+            src={order.deliveryProof.imageUrl}
+            alt={`Ảnh chứng minh đơn hàng ${order.orderNumber} đã được giao`}
+          />
+          {order.deliveryProof.confirmedAt && (
+            <p className="mt-2 text-sm text-slate-500">
+              Xác nhận giao lúc {new Date(order.deliveryProof.confirmedAt).toLocaleString('vi-VN')}
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Order Details & Items Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md mb-6">
         <h2 className="text-xl font-bold mt-0 mb-4 mx-0">
@@ -300,6 +354,11 @@ function OrderTracking() {
             <div key={idx} className="flex justify-between items-center">
               <div>
                 <span className="font-bold">{item.quantity}x</span> {item.name}
+                {item.options?.length > 0 && (
+                  <span className="text-xs text-slate-500 block">
+                    + Topping: {item.options.map((opt) => `${opt.name}${opt.quantity > 1 ? ` x${opt.quantity}` : ''}`).join(', ')}
+                  </span>
+                )}
                 {item.note && (
                   <span className="text-xs text-slate-500 block">
                     ({item.note})

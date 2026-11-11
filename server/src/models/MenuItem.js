@@ -6,6 +6,7 @@ const optionSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     price: { type: Number, min: 0, default: 0 }, // extra price in VND
+    stock: { type: Number, min: 0, default: 50 }, // available stock/quantity
   },
   { _id: false },
 );

@@ -20,10 +20,11 @@ export default function TicketItems({ items }) {
               <p className="font-semibold text-slate-900">{item.name}</p>
               <p className="font-bold text-slate-900">{formatCurrency(item.lineTotal)}</p>
             </div>
-            {item.options.map((option) => (
-              <p key={`${option.groupName}-${option.name}`} className="text-xs text-slate-500">
+            {item.options.map((option, oIdx) => (
+              <p key={`${option.groupName}-${option.name}-${oIdx}`} className="text-xs text-slate-500">
                 • {option.groupName}: {option.name}
-                {option.price > 0 && ` (+${formatCurrency(option.price)})`}
+                {option.quantity > 1 && ` x${option.quantity}`}
+                {option.price > 0 && ` (+${formatCurrency(option.price * (option.quantity || 1))})`}
               </p>
             ))}
             {item.note && <p className="text-xs font-semibold text-red-700">• Yêu cầu: {item.note}</p>}

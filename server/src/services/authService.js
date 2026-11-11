@@ -9,6 +9,7 @@ import Notification from '../models/Notification.js';
 import ApiError from '../utils/ApiError.js';
 import * as emailService from './emailService.js';
 import * as addressService from './addressService.js';
+import { resolveLocationFromAddress } from '../utils/distance.js';
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -97,10 +98,14 @@ export const registerUser = async ({
 
   // 2. Lưu trực tiếp vào collection 'restaurants' nếu là tài khoản nhà hàng (chờ kiểm duyệt)
   if (userRole === 'restaurant_owner' && restaurantDetails) {
+    const restaurantAddress = restaurantDetails.restaurantAddress || 'Đang cập nhật địa chỉ';
+    const coords = await resolveLocationFromAddress(restaurantAddress);
+
     await Restaurant.create({
       owner: newUser._id,
       name: (restaurantDetails.restaurantName || fullName.trim()).slice(0, 60),
-      address: restaurantDetails.restaurantAddress || 'Đang cập nhật địa chỉ',
+      address: restaurantAddress,
+      location: coords,
       phone: (phone ? phone.trim() : '0900000000'),
       description: (restaurantDetails.businessItems || '').slice(0, 150),
       ownerCitizenId: restaurantDetails.ownerCitizenId || '',

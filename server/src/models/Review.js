@@ -30,6 +30,7 @@ const reviewSchema = new mongoose.Schema(
 
 reviewSchema.index({ restaurant: 1, isHidden: 1 }); // restaurant rating
 reviewSchema.index({ shipper: 1, isHidden: 1 }); // shipper rating
+reviewSchema.index({ shipper: 1, isHidden: 1, createdAt: -1 }); // shipper rating by period
 reviewSchema.index({ customer: 1, createdAt: -1 }); // "Đánh giá của tôi"
 reviewSchema.index({ isHidden: 1, createdAt: -1 }); // admin moderation list
 

@@ -52,7 +52,15 @@ const toModalOptions = (optionGroups = []) => {
       : [],
     toppings: optionGroups
       .filter((group) => group !== sizeGroup)
-      .flatMap((group) => group.options.map((option) => ({ name: option.name, price: option.price, groupName: group.name }))),
+      .flatMap((group) =>
+        group.options.map((option) => ({
+          name: option.name,
+          price: option.price,
+          groupName: group.name,
+          maxSelect: Math.max(group.maxSelect || 20, 20),
+          stock: option.stock !== undefined ? option.stock : 50,
+        }))
+      ),
   }
 }
 
@@ -1364,9 +1372,12 @@ export default function Home() {
               }
 
               // Enrich customized food with size and toppings to preserve total price in Cart
+              const toppingKeyPart = (orderData.selectedToppings || [])
+                .map((t) => `${t.name}x${t.quantity || 1}`)
+                .join('-')
               const customizedFood = {
                 ...orderData.dish,
-                id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${(orderData.selectedToppings || []).map((t) => t.name).join('-')}`,
+                id: `${orderData.dish.id || orderData.dish._id}-${orderData.selectedSize?.name || 'std'}-${toppingKeyPart}`,
                 name: orderData.selectedSize?.name
                   ? `${orderData.dish.name} (${orderData.selectedSize.name})`
                   : orderData.dish.name,

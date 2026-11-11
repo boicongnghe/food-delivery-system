@@ -438,11 +438,15 @@ function Checkout() {
           // Chosen size / toppings by group: the server prices them from the menu
           options: [
             ...(item.food?.selectedSize?.groupName
-              ? [{ groupName: item.food.selectedSize.groupName, name: item.food.selectedSize.name }]
+              ? [{ groupName: item.food.selectedSize.groupName, name: item.food.selectedSize.name, quantity: 1 }]
               : []),
             ...(item.food?.selectedToppings || [])
               .filter((topping) => topping.groupName)
-              .map((topping) => ({ groupName: topping.groupName, name: topping.name })),
+              .map((topping) => ({
+                groupName: topping.groupName,
+                name: topping.name,
+                quantity: Number(topping.quantity) || 1,
+              })),
           ],
         })),
         deliveryAddress,
@@ -658,6 +662,11 @@ function Checkout() {
                   <div>
                     <span className="font-bold">{item.quantity}x</span>{' '}
                     <span>{item.food.name}</span>
+                    {item.food?.selectedToppings?.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        + Topping: {item.food.selectedToppings.map((t) => `${t.name}${t.quantity > 1 ? ` x${t.quantity}` : ''}`).join(', ')}
+                      </div>
+                    )}
                   </div>
                   <span className="font-semibold">
                     {(item.food.price * item.quantity).toLocaleString('vi-VN')}đ

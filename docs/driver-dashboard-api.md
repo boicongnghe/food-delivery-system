@@ -59,7 +59,7 @@ Mongoose stores documents in the `driverdashboards` collection. The `_id` used
 in `userId` must be the same ObjectId as the `id` claim in the driver's JWT.
 Create a record using the `DriverDashboard` model so schema validation runs.
 Each selected period should include numeric summary fields and arrays for
-charts, trips, missions, reviews, badges, and hotspots. Monetary amounts are
+charts, trips, reviews, and badges. Monetary amounts are
 integer VND.
 
 Example shape (replace the placeholder ObjectId and values with real data):
@@ -95,10 +95,8 @@ Example shape (replace the placeholder ObjectId and values with real data):
       earningsByHour: [],
       forecast: [],
       trips: [],
-      missions: [],
       reviews: [],
-      badges: [],
-      hotspots: []
+      badges: []
     },
     week: { /* same fields as today */ },
     month: { /* same fields as today */ }
@@ -108,13 +106,11 @@ Example shape (replace the placeholder ObjectId and values with real data):
 
 Array item fields:
 
-- `earningsByHour`: `{ hour, base, surge }`
+- `earningsByHour`: `{ hour, base, bonus, surge }`; completed-delivery fees accumulate in `base` by Vietnam local hour.
 - `forecast`: `{ hour, demand }` where `demand` is from 0 to 100
 - `trips`: `{ id, time, restaurant, address, distance, baseFare, status, surge }`
-- `missions`: `{ id, title, reward, current, target, status }`
 - `reviews`: `{ id, quote, customer, stars }`
 - `badges`: `{ id, icon, label, count }`
-- `hotspots`: `{ id, name, district, level, demand, orders, pin, zone }`; `level` is `hot`, `med`, or `low`, and `pin` uses percentage `top`/`left` strings when shown on the map.
 
 Configure Atlas using the connection string from **Connect → Drivers** in
 `server/.env` as `MONGO_URI`. The Atlas console URL is not a connection string.
@@ -125,6 +121,11 @@ Dashboard routes return `401` until a valid shipper JWT is provided. If an
 authenticated shipper does not yet have a dashboard snapshot, the first
 dashboard or settings request creates an empty snapshot. Values remain zero or
 empty until operational data is added.
+The history list is queried from delivered orders by payout time for the
+selected Vietnam calendar period (today, Monday–Sunday week, or calendar
+month), with legacy delivery timestamps read from order status history.
+Ranking reviews and rating totals are queried from visible shipper reviews
+created in the selected period rather than dashboard snapshot arrays.
 
 The shipper order tab refreshes available and active orders every five minutes,
 and every 15 seconds while the shipper's order is still being cooked.
@@ -146,6 +147,8 @@ as paid, and frees the shipper for a new order. When the customer confirms
 receipt first (`PATCH /api/orders/:id/receive`), the same transaction runs, so
 the shipper is still credited and freed; the later shipper confirmation then
 returns `409`.
+Each completed delivery also adds its shipping fee to the matching Vietnam
+local-hour bucket for the today, week, and month earnings charts.
 
 Issue reports are accepted only for active assigned orders and appear in the
 existing open Admin delivery-issue queue. For `customer_unreachable` and

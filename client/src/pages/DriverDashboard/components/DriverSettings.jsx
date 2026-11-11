@@ -28,6 +28,7 @@ function DriverSettings({
   mobilePreview,
   onMobilePreviewChange,
   onOpenWallet,
+  showMobilePreview,
 }) {
   const [settings, setSettings] = useState(EMPTY_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
@@ -148,25 +149,27 @@ function DriverSettings({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <SectionCard title="Xem trước giao diện" icon={Smartphone} badge="Tùy chỉnh hiển thị" as="h1">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Xem trước trên điện thoại</h2>
-            <p className="text-sm text-slate-600">Thu giao diện vào khung điện thoại để xem cách bố trí trên màn hình nhỏ.</p>
+      {showMobilePreview && (
+        <SectionCard title="Xem trước giao diện" icon={Smartphone} badge="Tùy chỉnh hiển thị" as="h1">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Xem trước trên điện thoại</h2>
+              <p className="text-sm text-slate-600">Thu giao diện vào khung điện thoại để xem cách bố trí trên màn hình nhỏ.</p>
+            </div>
+            <button
+              type="button"
+              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold ${
+                mobilePreview ? 'border-brand bg-brand text-white' : 'border-brand-soft bg-white text-slate-700 hover:bg-brand-light'
+              }`}
+              aria-pressed={mobilePreview}
+              onClick={() => onMobilePreviewChange(!mobilePreview)}
+            >
+              {mobilePreview ? <Monitor size={16} /> : <Smartphone size={16} />}
+              {mobilePreview ? 'Tắt xem trước' : 'Xem trên mobile'}
+            </button>
           </div>
-          <button
-            type="button"
-            className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold ${
-              mobilePreview ? 'border-brand bg-brand text-white' : 'border-brand-soft bg-white text-slate-700 hover:bg-brand-light'
-            }`}
-            aria-pressed={mobilePreview}
-            onClick={() => onMobilePreviewChange(!mobilePreview)}
-          >
-            {mobilePreview ? <Monitor size={16} /> : <Smartphone size={16} />}
-            {mobilePreview ? 'Tắt xem trước' : 'Xem trên mobile'}
-          </button>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      )}
 
       <SectionCard title="Hồ sơ tài xế" icon={UserRound} badge="Thông tin tài khoản" as="h1">
         <form className="space-y-5" onSubmit={handleProfileSubmit}>

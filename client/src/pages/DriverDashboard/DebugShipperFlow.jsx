@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import driverApi from '../../api/driverApi.js'
 import orderApi from '../../api/orderApi.js'
+import uploadApi from '../../api/uploadApi.js'
 
 const LOG_COLORS = { info: 'text-slate-700', success: 'text-emerald-700', error: 'text-red-600' }
 
@@ -12,6 +13,7 @@ const LOG_COLORS = { info: 'text-slate-700', success: 'text-emerald-700', error:
 function DebugShipperFlow() {
   const [log, setLog] = useState([])
   const [running, setRunning] = useState(false)
+  const [proofFile, setProofFile] = useState(null)
 
   const add = (type, message) => setLog((previous) => [...previous, { type, message }])
 
@@ -19,6 +21,11 @@ function DebugShipperFlow() {
     setLog([])
     setRunning(true)
     try {
+      if (!proofFile) {
+        add('error', 'Chọn ảnh chứng minh giao hàng trước khi chạy luồng.')
+        return
+      }
+
       await driverApi.updateOnlineStatus(true)
       add('success', 'Đã bật trạng thái trực tuyến')
 
@@ -40,7 +47,10 @@ function DebugShipperFlow() {
       add('success', 'Đã nhận đơn')
       await orderApi.confirmDeliveryPickup(order._id)
       add('success', 'Đã lấy hàng (đang giao)')
-      const delivered = await orderApi.confirmDeliveryDelivered(order._id)
+      const upload = await uploadApi.uploadImage(proofFile, 'delivery-proofs')
+      const delivered = await orderApi.confirmDeliveryDelivered(order._id, {
+        deliveryProofUrl: upload.data.url,
+      })
       add('success', delivered.message || 'Đã giao hàng')
     } catch (error) {
       add('error', error.response?.data?.message || error.message)
@@ -56,10 +66,20 @@ function DebugShipperFlow() {
         Dùng tài khoản shipper đang đăng nhập để nhận, lấy và giao đơn cũ nhất trong danh sách chờ. Thao tác ghi dữ liệu thật vào
         database đang kết nối.
       </p>
+      <label className="block space-y-2 text-sm font-semibold text-slate-700">
+        Ảnh chứng minh giao hàng *
+        <input
+          className="block w-full text-sm font-normal"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+          onChange={event => setProofFile(event.target.files?.[0] || null)}
+        />
+      </label>
       <button
         type="button"
         onClick={runFlow}
-        disabled={running}
+        disabled={running || !proofFile}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
       >
         {running ? 'Đang chạy...' : 'Chạy luồng giao hàng'}

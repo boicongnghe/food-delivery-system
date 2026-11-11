@@ -1,7 +1,7 @@
 import axiosClient from './axiosClient.js'
 
 const uploadApi = {
-  // folder: 'restaurants' | 'menu-items'
+  // The server checks which folders are available to each user role.
   // Returns { success, data: { url, publicId }, message } - url is a Cloudinary https URL
   uploadImage: async (file, folder) => {
     const formData = new FormData()

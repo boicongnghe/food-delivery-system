@@ -126,7 +126,7 @@ const run = async () => {
       owner: owner._id,
       name: 'Phở Bò Gia Truyền 1986',
       description: 'Hương vị phở bò nước dùng hầm xương gia truyền 40 năm tại phố cổ Hà Nội.',
-      address: '48 Hàng Đồng, P. Hàng Bồ, Q. Hoàn Kiếm, Hà Nội',
+      address: 'Cổng số 1, ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
       phone: '0912345678',
       categories: ['Phở & Bún', 'Ăn sáng'],
       openingHours: DEFAULT_HOURS,

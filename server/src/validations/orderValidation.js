@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { cloudinaryImageUrl } from './commonValidation.js';
 
 export const REJECT_REASONS = ['out_of_stock', 'too_busy', 'closing_soon', 'other'];
 
@@ -37,4 +38,8 @@ export const orderLookupQuerySchema = Joi.object({
 export const paginationQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(50).default(10),
+});
+
+export const confirmDeliverySchema = Joi.object({
+  deliveryProofUrl: cloudinaryImageUrl('Ảnh chứng minh giao hàng').required(),
 });

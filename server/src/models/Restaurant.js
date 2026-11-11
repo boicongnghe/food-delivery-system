@@ -42,8 +42,8 @@ const restaurantSchema = new mongoose.Schema(
       trim: true,
     },
     location: {
-      lat: { type: Number, default: 21.0285 },
-      lng: { type: Number, default: 105.8542 },
+      lat: { type: Number, default: 21.0131 }, // Tọa độ mặc định tại ĐH FPT, Khu CNC Hòa Lạc
+      lng: { type: Number, default: 105.5255 },
     },
     phone: {
       type: String,
