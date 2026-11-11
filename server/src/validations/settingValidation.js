@@ -33,6 +33,17 @@ export const orderTimeoutSettingsSchema = Joi.object({
   closingCutoff: minutes('Thời gian ngừng nhận đơn trước giờ đóng', 0, 180),
 });
 
+// PUT /api/admin/settings/violations - 0 turns the automatic suspension off
+export const violationPolicySchema = Joi.object({
+  autoSuspendThreshold: Joi.number().integer().min(0).max(20).required().messages({
+    'number.base': 'Số lần vi phạm phải là số',
+    'number.integer': 'Số lần vi phạm phải là số nguyên',
+    'number.min': 'Số lần vi phạm tối thiểu 0 (tắt tự động đình chỉ)',
+    'number.max': 'Số lần vi phạm tối đa 20',
+    'any.required': 'Số lần vi phạm là bắt buộc',
+  }),
+});
+
 export const shippingFeeSettingSchema = Joi.object({
   baseDistanceKm: Joi.number().min(0).max(50).required().messages({
     'number.base': 'Khoảng cách cơ bản phải là số',
