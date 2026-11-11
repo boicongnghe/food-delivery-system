@@ -26,88 +26,19 @@ import {
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
 import { useCart } from '../../context/useCart.js'
-import { CATEGORIES, DISHES } from '../../data/dishesData.js'
+import { CATEGORIES } from '../../data/dishesData.js'
 import { foodApi } from '../../api/foodApi.js'
 import { promotionApi } from '../../api/promotionApi.js'
 import DishDetailModal from '../../components/DishDetailModal/DishDetailModal.jsx'
 import { isOpenNow, getOpeningHoursText } from '../../utils/openingHours.js'
 
-// Open for ordering: inside opening hours AND not paused by the owner. Demo partners (static data) have no
-// schedule: they keep their own flag.
+// Open for ordering: inside opening hours AND not paused by the owner.
 const getPartnerStatus = (partner) => {
   if (partner.isAcceptingOrders === false) return { isOpen: false, hoursText: 'Tạm ngưng nhận đơn' }
-  const isOpen = partner.openingHours ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
-  const hoursText = partner.openingHours ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
+  const isOpen = partner.openingHours?.length ? isOpenNow(partner.openingHours) : partner.isKitchenActive !== false
+  const hoursText = partner.openingHours?.length ? getOpeningHoursText(partner.openingHours) : '06:00 - 23:00'
   return { isOpen, hoursText }
 }
-
-// Partner Restaurants Data Fallback
-const DEFAULT_PARTNERS = [
-  {
-    id: 'res-1',
-    name: 'Cơm Tấm Ba Ghiền – Hòa Lạc',
-    address: 'Cổng số 1 ĐH FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
-    category: 'Cơm tấm sườn bì chả, Đặc sản Sài Gòn',
-    rating: 4.9,
-    reviewsCount: 1420,
-    deliveryTime: '15-25 phút',
-    distance: '1.2 km',
-    badge: 'Chuẩn 5 Sao',
-    badgeColor: 'bg-amber-500 text-white',
-    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
-    isKitchenActive: true,
-    promo: 'Freeship đơn từ 100k',
-    signatureDishes: ['Cơm tấm sườn bì chả', 'Canh khổ qua thịt'],
-  },
-  {
-    id: 'res-2',
-    name: 'Phở Thìn Lò Đúc – Hòa Lạc',
-    address: 'Tái định cư Bắc Phú Cát, Thạch Hòa, Thạch Thất, Hà Nội',
-    category: 'Phở bò tái lăn, Quẩy giòn gia truyền',
-    rating: 4.8,
-    reviewsCount: 980,
-    deliveryTime: '20-30 phút',
-    distance: '2.5 km',
-    badge: 'Giao nhanh',
-    badgeColor: 'bg-emerald-500 text-white',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=700&q=80',
-    isKitchenActive: true,
-    promo: 'Giảm 25k đơn đầu',
-    signatureDishes: ['Phở bò tái nạm gầu', 'Quẩy vàng giòn rụm'],
-  },
-  {
-    id: 'res-3',
-    name: 'The Grill Burger House',
-    address: 'Khu Công Nghệ Cao Hòa Lạc, Thạch Thất, Hà Nội',
-    category: 'Burger Bò Úc nướng khói, Gà giòn sốt cay',
-    rating: 4.9,
-    reviewsCount: 750,
-    deliveryTime: '15-20 phút',
-    distance: '1.8 km',
-    badge: 'Freeship',
-    badgeColor: 'bg-blue-500 text-white',
-    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=80',
-    isKitchenActive: true,
-    promo: 'Mua 1 tặng 1 Coca',
-    signatureDishes: ['Burger Bò Double Cheese', 'Khoai lắc sốt BBQ'],
-  },
-  {
-    id: 'res-4',
-    name: 'The Alley & Tea House',
-    address: 'Ngã 3 Thạch Hòa, Thạch Thất, Hà Nội',
-    category: 'Trà sữa đường đen Okinawa, Trà hoa quả',
-    rating: 5.0,
-    reviewsCount: 2150,
-    deliveryTime: '10-20 phút',
-    distance: '0.8 km',
-    badge: 'Chuẩn 5 Sao',
-    badgeColor: 'bg-amber-500 text-white',
-    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=700&q=80',
-    isKitchenActive: true,
-    promo: 'Tặng trân châu hoàng kim',
-    signatureDishes: ['Trà sữa trân châu dẻo', 'Trà đào cam sả'],
-  },
-]
 
 // Menu option groups -> the size / topping pickers of DishDetailModal. The first required single-choice group
 // is the size picker, every other option a topping. Each choice keeps its group name: checkout sends it and
@@ -154,6 +85,8 @@ export default function Home() {
   const [restaurantFilter, setRestaurantFilter] = useState('all') // 'all' | '5star' | 'fast' | 'freeship'
   const [apiDishes, setApiDishes] = useState([])
   const [apiPartners, setApiPartners] = useState([])
+  const [loadingFoods, setLoadingFoods] = useState(true)
+  const [loadingPartners, setLoadingPartners] = useState(true)
   const [favorites, setFavorites] = useState(new Set())
 
   // Modal State for Order - initialized with dish if user just logged in from dish selection
@@ -246,14 +179,15 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [activePromotions])
 
-  // Fetch foods from backend if available
+  // Fetch foods from backend (MongoDB)
   useEffect(() => {
     let isMounted = true
     const fetchFoods = async () => {
       try {
+        setLoadingFoods(true)
         const res = await foodApi.getFoods()
         const foods = res.data?.data || []
-        if (isMounted && Array.isArray(foods) && foods.length > 0) {
+        if (isMounted && Array.isArray(foods)) {
           const mapped = foods.map((f, idx) => ({
             id: f._id || `food-${idx}`,
             _id: f._id,
@@ -278,22 +212,26 @@ export default function Home() {
           setApiDishes(mapped)
         }
       } catch (err) {
-        console.warn('Backend foods not loaded, using fallback catalog:', err?.message)
+        console.error('Lỗi tải danh sách món ăn từ database:', err)
+      } finally {
+        if (isMounted) setLoadingFoods(false)
       }
     }
 
     const fetchRestaurants = async () => {
       try {
+        setLoadingPartners(true)
         const res = await foodApi.getRestaurants()
         const restaurants = res.data?.data || []
-        if (isMounted && Array.isArray(restaurants) && restaurants.length > 0) {
+        if (isMounted && Array.isArray(restaurants)) {
           const mappedPartners = restaurants.map((r, idx) => ({
-            id: r._id || `res-${idx}`,
+            id: r._id,
+            _id: r._id,
             name: r.name,
             address: r.address || '',
             category: r.description || 'Quán ăn đặc sản đối tác',
             rating: r.rating || 4.8,
-            reviewsCount: 300 + idx * 80,
+            reviewsCount: r.ratingCount || 120 + idx * 25,
             deliveryTime: '15-25 phút',
             distance: `${(1.0 + idx * 0.4).toFixed(1)} km`,
             badge: idx % 2 === 0 ? 'Chuẩn 5 Sao' : 'Freeship',
@@ -301,19 +239,19 @@ export default function Home() {
             image:
               r.coverImage ||
               r.logo ||
-              DEFAULT_PARTNERS[idx % DEFAULT_PARTNERS.length]?.image ||
               'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80',
             openingHours: r.openingHours || [],
             isAcceptingOrders: r.isAcceptingOrders !== false,
             isKitchenActive: isOpenNow(r.openingHours) && r.isAcceptingOrders !== false,
-            // Best running voucher of the restaurant (empty = no promotion line)
             promo: r.voucherLabel || '',
             signatureDishes: ['Món đặc sắc quán', 'Combo tiết kiệm'],
           }))
           setApiPartners(mappedPartners)
         }
       } catch (err) {
-        console.warn('Backend restaurants not loaded, using fallback partners:', err?.message)
+        console.error('Lỗi tải danh sách nhà hàng từ database:', err)
+      } finally {
+        if (isMounted) setLoadingPartners(false)
       }
     }
 
@@ -324,15 +262,8 @@ export default function Home() {
     }
   }, [])
 
-  // Combine partner restaurants
-  const allPartners = useMemo(() => {
-    if (apiPartners.length > 0) {
-      const apiNames = new Set(apiPartners.map((p) => p.name.toLowerCase()))
-      const nonOverlapping = DEFAULT_PARTNERS.filter((p) => !apiNames.has(p.name.toLowerCase()))
-      return [...apiPartners, ...nonOverlapping]
-    }
-    return DEFAULT_PARTNERS
-  }, [apiPartners])
+  // Partner restaurants: 100% from MongoDB
+  const allPartners = useMemo(() => apiPartners, [apiPartners])
 
   // Filtered partner restaurants
   const filteredPartners = useMemo(() => {
@@ -344,15 +275,8 @@ export default function Home() {
     })
   }, [allPartners, restaurantFilter])
 
-  // Combine dishes
-  const allDishes = useMemo(() => {
-    if (apiDishes.length > 0) {
-      const apiNames = new Set(apiDishes.map((d) => d.name.toLowerCase()))
-      const nonOverlappingStatic = DISHES.filter((d) => !apiNames.has(d.name.toLowerCase()))
-      return [...apiDishes, ...nonOverlappingStatic]
-    }
-    return DISHES
-  }, [apiDishes])
+  // Dishes: 100% from MongoDB
+  const allDishes = useMemo(() => apiDishes, [apiDishes])
 
   // Handle welcome toast when returning from login
   useEffect(() => {
@@ -749,43 +673,56 @@ export default function Home() {
                 <span>🧀 Phô mai • 🍅 Cà chua • 🌿 Húng quế</span>
               </div>
 
-              {/* Main Dish Showcase Card with 3D Tilt */}
-              <div
-                className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-slate-900 group cursor-pointer transition-transform duration-200 preserve-3d"
-                style={{
-                  transform: `perspective(1000px) rotateX(${heroTilt.x}deg) rotateY(${heroTilt.y}deg)`,
-                }}
-                onClick={() => handleDishClick(allDishes[0])}
-              >
-                <img
-                  src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80"
-                  alt="Món ăn đặc sắc"
-                  className="w-full h-96 sm:h-[440px] object-cover group-hover:scale-108 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+              {/* Main Dish Showcase Card with 3D Tilt (Dynamic from top DB dish) */}
+              {(() => {
+                const featuredDish = allDishes[0]
+                const featuredImg =
+                  featuredDish?.image ||
+                  'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80'
+                const featuredName = featuredDish?.name || 'Món ngon nổi bật'
+                const featuredRest = featuredDish?.restaurant || 'Quán ăn đối tác'
+                const featuredRating = featuredDish?.rating || 4.9
+                const featuredReviews = featuredDish?.reviewsCount || 382
 
-                {/* Card Bottom Info Overlay */}
-                <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-white/95 dark:bg-[#181A20]/95 backdrop-blur-xl text-slate-900 dark:text-white shadow-xl flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-primary border border-orange-200">
-                      🔥 Bán chạy nhất hôm nay
-                    </span>
-                    <h3 className="text-sm sm:text-base font-black truncate max-w-[200px] sm:max-w-[240px] mt-1">
-                      Cơm Tấm Sườn Bì Chả Ba Ghiền
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Đã bán 2.4k+ suất • 4.9 ★ (382 đánh giá)
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-xs font-extrabold shadow-md shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all shrink-0"
+                return (
+                  <div
+                    className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-slate-900 group cursor-pointer transition-transform duration-200 preserve-3d"
+                    style={{
+                      transform: `perspective(1000px) rotateX(${heroTilt.x}deg) rotateY(${heroTilt.y}deg)`,
+                    }}
+                    onClick={() => featuredDish && handleDishClick(featuredDish)}
                   >
-                    Đặt ngay
-                  </button>
-                </div>
-              </div>
+                    <img
+                      src={featuredImg}
+                      alt={featuredName}
+                      className="w-full h-96 sm:h-[440px] object-cover group-hover:scale-108 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+
+                    {/* Card Bottom Info Overlay */}
+                    <div className="absolute bottom-5 left-5 right-5 p-4 rounded-2xl bg-white/95 dark:bg-[#181A20]/95 backdrop-blur-xl text-slate-900 dark:text-white shadow-xl flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-primary border border-orange-200">
+                          🔥 Bán chạy nhất hôm nay
+                        </span>
+                        <h3 className="text-sm sm:text-base font-black truncate max-w-[200px] sm:max-w-[240px] mt-1">
+                          {featuredName}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {featuredRest} • {featuredRating} ★ ({featuredReviews} đánh giá)
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] text-white text-xs font-extrabold shadow-md shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all shrink-0"
+                      >
+                        Đặt ngay
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -834,153 +771,167 @@ export default function Home() {
         </div>
 
         {/* 4-Column Grid: Partner Restaurants */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {filteredPartners.map((partner) => {
-            const { isOpen, hoursText } = getPartnerStatus(partner)
-            return (
-              <div
-                key={partner.id}
-                className={`group relative bg-white dark:bg-[#16171E] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-black/50 hover:border-primary/40 dark:hover:border-primary/40 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between ${
-                  !isOpen ? 'opacity-85' : ''
-                }`}
-              >
-                <div>
-                  {/* Image Cover Container */}
-                  <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    <img
-                      src={partner.image}
-                      alt={partner.name}
-                      className={`w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ${!isOpen ? 'filter grayscale-[25%] contrast-90' : ''}`}
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80'
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+        {loadingPartners ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-80 rounded-3xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+            ))}
+          </div>
+        ) : filteredPartners.length === 0 ? (
+          <div className="py-12 text-center text-slate-500 bg-white dark:bg-[#16171E] rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-8">
+            <Store className="w-10 h-10 mx-auto text-slate-400 mb-2 opacity-60" />
+            <p className="font-bold text-sm text-slate-700 dark:text-slate-300">Không có quán ăn đối tác nào trong danh mục này</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {filteredPartners.map((partner) => {
+              const { isOpen, hoursText } = getPartnerStatus(partner)
+              return (
+                <div
+                  key={partner.id || partner._id}
+                  className={`group relative bg-white dark:bg-[#16171E] rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-black/50 hover:border-primary/40 dark:hover:border-primary/40 hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between ${
+                    !isOpen ? 'opacity-85' : ''
+                  }`}
+                >
+                  <div>
+                    {/* Image Cover Container */}
+                    <div className="relative h-48 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <img
+                        src={partner.image}
+                        alt={partner.name}
+                        className={`w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ${!isOpen ? 'filter grayscale-[25%] contrast-90' : ''}`}
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src =
+                            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=700&q=80'
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
 
-                    {/* Badge */}
-                    <span
-                      className={`absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-md backdrop-blur-sm ${partner.badgeColor}`}
-                    >
-                      {partner.badge}
-                    </span>
-
-                    {/* Live Kitchen Status Dot */}
-                    {isOpen ? (
-                      <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 text-[11px] font-bold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 -ml-3.5" />
-                        <span>Bếp đang nấu</span>
-                      </span>
-                    ) : (
-                      <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-950/85 border border-rose-500/40 backdrop-blur-md text-rose-300 text-[11px] font-bold">
-                        <span className="w-2 h-2 rounded-full bg-rose-400" />
-                        <span>Đã đóng cửa</span>
-                      </span>
-                    )}
-
-                    {/* Rating & Distance Meta */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-bold">
-                      <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
-                        <Star className="w-3.5 h-3.5 fill-amber-300" />
-                        {partner.rating} ({partner.reviewsCount})
-                      </span>
-                      <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-slate-200 font-medium">
-                        <Clock className="w-3.5 h-3.5" />
-                        {partner.deliveryTime}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Restaurant Content */}
-                  <div className="p-5 space-y-3">
-                    <div>
-                      <h3
-                        className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1"
-                        title={partner.name}
+                      {/* Badge */}
+                      <span
+                        className={`absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-md backdrop-blur-sm ${partner.badgeColor}`}
                       >
-                        {partner.name}
-                      </h3>
-                      <div className="flex items-center justify-between gap-2 mt-1">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                          {partner.category}
-                        </p>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                            isOpen
-                              ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
-                              : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10'
-                          }`}
-                        >
-                          {isOpen ? 'Mở cửa' : 'Đóng cửa'} ({hoursText})
+                        {partner.badge}
+                      </span>
+
+                      {/* Live Kitchen Status Dot */}
+                      {isOpen ? (
+                        <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 text-[11px] font-bold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 -ml-3.5" />
+                          <span>Bếp đang nấu</span>
+                        </span>
+                      ) : (
+                        <span className="absolute top-3.5 right-3.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-950/85 border border-rose-500/40 backdrop-blur-md text-rose-300 text-[11px] font-bold">
+                          <span className="w-2 h-2 rounded-full bg-rose-400" />
+                          <span>Đã đóng cửa</span>
+                        </span>
+                      )}
+
+                      {/* Rating & Distance Meta */}
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-bold">
+                        <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
+                          <Star className="w-3.5 h-3.5 fill-amber-300" />
+                          {partner.rating} ({partner.reviewsCount})
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-slate-200 font-medium">
+                          <Clock className="w-3.5 h-3.5" />
+                          {partner.deliveryTime}
                         </span>
                       </div>
+                    </div>
 
-                      {partner.address && (
-                        <p
-                          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-1"
-                          title={partner.address}
+                    {/* Restaurant Content */}
+                    <div className="p-5 space-y-3">
+                      <div>
+                        <h3
+                          className="text-base font-extrabold text-slate-900 dark:text-white leading-snug group-hover:text-primary transition-colors line-clamp-1"
+                          title={partner.name}
                         >
-                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                          <span className="truncate">{partner.address}</span>
-                        </p>
+                          {partner.name}
+                        </h3>
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                            {partner.category}
+                          </p>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                              isOpen
+                                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
+                                : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10'
+                            }`}
+                          >
+                            {isOpen ? 'Mở cửa' : 'Đóng cửa'} ({hoursText})
+                          </span>
+                        </div>
+
+                        {partner.address && (
+                          <p
+                            className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-1"
+                            title={partner.address}
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="truncate">{partner.address}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Promo Tag: the restaurant's best running voucher, only when it has one */}
+                      {partner.promo && (
+                        <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
+                          <Tag className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{partner.promo}</span>
+                        </div>
+                      )}
+
+                      {/* Signature Dishes List */}
+                      {partner.signatureDishes && partner.signatureDishes.length > 0 && (
+                        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Món bán chạy:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {partner.signatureDishes.map((dishName, i) => (
+                              <span
+                                key={i}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.04] text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-transparent dark:border-white/[0.05]"
+                              >
+                                ✓ {dishName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
+                  </div>
 
-                    {/* Promo Tag: the restaurant's best running voucher, only when it has one */}
-                    {partner.promo && (
-                      <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-amber-400 font-bold bg-orange-50 dark:bg-amber-500/10 p-2.5 rounded-xl border border-orange-200/60 dark:border-amber-500/20">
-                        <Tag className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{partner.promo}</span>
-                      </div>
-                    )}
-
-                    {/* Signature Dishes List */}
-                    {partner.signatureDishes && partner.signatureDishes.length > 0 && (
-                      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Món bán chạy:
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {partner.signatureDishes.map((dishName, i) => (
-                            <span
-                              key={i}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.04] text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-transparent dark:border-white/[0.05]"
-                            >
-                              ✓ {dishName}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  {/* Card Footer Actions */}
+                  <div className="p-5 pt-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory('all')
+                        setPriceFilter('all')
+                        const cleanQuery = partner.name.split('-')[0].trim()
+                        setSearchQuery(cleanQuery)
+                        toast.success(`Đang mở thực đơn: ${partner.name}`, { icon: '🍽️', duration: 2500 })
+                        setTimeout(() => {
+                          document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
+                        }, 50)
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-primary dark:hover:bg-primary text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white border border-transparent dark:border-white/[0.08] dark:hover:border-primary text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
+                    >
+                      <span>{isOpen ? 'Xem thực đơn quán' : 'Xem thực đơn (Tạm đóng cửa)'}</span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
                   </div>
                 </div>
-
-                {/* Card Footer Actions */}
-                <div className="p-5 pt-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory('all')
-                      setPriceFilter('all')
-                      const cleanQuery = partner.name.split('-')[0].trim()
-                      setSearchQuery(cleanQuery)
-                      toast.success(`Đang mở thực đơn: ${partner.name}`, { icon: '🍽️', duration: 2500 })
-                      setTimeout(() => {
-                        document.getElementById('menu-section')?.scrollIntoView({ behavior: 'smooth' })
-                      }, 50)
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-primary dark:hover:bg-primary text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white border border-transparent dark:border-white/[0.08] dark:hover:border-primary text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
-                  >
-                    <span>{isOpen ? 'Xem thực đơn quán' : 'Xem thực đơn (Tạm đóng cửa)'}</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* ====================================================================
@@ -1059,7 +1010,13 @@ export default function Home() {
         </div>
 
         {/* Dishes Grid (4 columns) */}
-        {filteredDishes.length === 0 ? (
+        {loadingFoods ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="h-96 rounded-3xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+            ))}
+          </div>
+        ) : filteredDishes.length === 0 ? (
           <div className="bg-white dark:bg-[#181A20] rounded-3xl p-10 sm:p-14 text-center border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-950/60 text-primary flex items-center justify-center mx-auto text-3xl shadow-inner">
               🍲

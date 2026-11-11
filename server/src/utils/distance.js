@@ -1,12 +1,37 @@
 import ApiError from './ApiError.js';
+import { SHIPPING_FEE_DEFAULTS } from '../models/ShippingFeeSetting.js';
 
-export const MAX_DELIVERY_DISTANCE_KM = 10; // Giới hạn tối đa 10km
-export const BASE_DISTANCE_KM = 2; // 2km đầu tiên
-export const BASE_SHIPPING_FEE = 15000; // 15.000 VNĐ cho 2km đầu
-export const PER_KM_FEE = 5000; // 5.000 VNĐ cho mỗi km tiếp theo
+export const MAX_DELIVERY_DISTANCE_KM = SHIPPING_FEE_DEFAULTS.maxDistanceKm;
+export const BASE_DISTANCE_KM = SHIPPING_FEE_DEFAULTS.baseDistanceKm;
+export const BASE_SHIPPING_FEE = SHIPPING_FEE_DEFAULTS.baseFee;
+export const PER_KM_FEE = SHIPPING_FEE_DEFAULTS.perKmFee;
 
 // Tọa độ trung tâm mặc định tại khu vực Hòa Lạc (Đại học FPT Hà Nội)
 export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
+
+/**
+ * Kiểm tra xem tọa độ đã lưu có bị xung đột địa lý rõ rệt với tên địa chỉ dạng text hay không.
+ * Ví dụ: Địa chỉ ghi "Hồ Chí Minh" nhưng tọa độ lại ở miền Bắc (lat > 18 - Hòa Lạc/Hà Nội),
+ * hoặc địa chỉ ghi "Hà Nội" nhưng tọa độ ở miền Nam (lat < 16).
+ * @param {string} addressText
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {boolean}
+ */
+export const isLocationMismatch = (addressText, lat, lng) => {
+  if (!addressText || typeof addressText !== 'string' || lat == null || lng == null) return false;
+  const lower = addressText.toLowerCase();
+
+  // Địa chỉ ở miền Nam nhưng tọa độ miền Bắc (lat > 18)
+  const isSouthText = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|bình dương|đồng nai|cần thơ|vũng tàu)/i.test(lower);
+  if (isSouthText && lat > 18.0) return true;
+
+  // Địa chỉ ở miền Bắc nhưng tọa độ miền Nam (lat < 16)
+  const isNorthText = /(hà nội|thạch thất|hòa lạc|hải phòng|bắc ninh|quảng ninh|thái nguyên)/i.test(lower);
+  if (isNorthText && lat < 16.0) return true;
+
+  return false;
+};
 
 /**
  * Tự động tìm tọa độ GPS từ chuỗi địa chỉ bằng OpenStreetMap Nominatim Geocoding API.
@@ -21,36 +46,48 @@ export const resolveLocationFromAddress = async (addressString) => {
 
   const cleanText = addressString.trim();
 
-  // Gọi OpenStreetMap Nominatim Geocoding API động
-  try {
-    const query = /Thạch Thất|Hòa Lạc|Hà Nội/i.test(cleanText) ? cleanText : `${cleanText}, Thạch Thất, Hà Nội`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+  const fetchNominatim = async (query) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=1`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'FoodDeliverySystem/1.0',
-        'Accept-Language': 'vi',
-      },
-    });
-    clearTimeout(timeoutId);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'FoodDeliverySystem/1.0',
+          'Accept-Language': 'vi',
+        },
+      });
+      clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+          };
+        }
       }
+    } catch {
+      // ignore geocoding fetch error
     }
-  } catch {
-    // Nếu mạng chậm hoặc timeout, fallback về tọa độ trung tâm
+    return null;
+  };
+
+  // 1. Tìm kiếm trực tiếp chuỗi địa chỉ người dùng nhập
+  let coords = await fetchNominatim(cleanText);
+  if (coords) return coords;
+
+  // 2. Nếu không tìm thấy và chuỗi không nhắc tới các tỉnh/thành khác, thử tìm trong phạm vi Thạch Thất, Hà Nội
+  const hasOtherCity = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|đà nẵng|hải phòng|cần thơ|huế|nha trang|bình dương|đồng nai|vũng tàu)/i.test(cleanText);
+  if (!hasOtherCity) {
+    coords = await fetchNominatim(`${cleanText}, Thạch Thất, Hà Nội`);
+    if (coords) return coords;
   }
 
-  // Fallback mặc định khu vực trung tâm Hòa Lạc
+  // 3. Fallback mặc định khu vực trung tâm Hòa Lạc nếu hoàn toàn không tìm thấy
   return DEFAULT_HOA_LAC_COORDINATES;
 };
 
@@ -106,27 +143,29 @@ export const getRouteDistanceAndDuration = async (lat1, lon1, lat2, lon2) => {
 };
 
 /**
- * Tính cước phí vận chuyển dựa trên khoảng cách (km)
- * - Tối đa 10km
- * - 2km đầu: 15.000đ
- * - Mỗi km tiếp theo: +5.000đ / km (làm tròn lên theo km)
+ * Tính cước phí vận chuyển dựa trên khoảng cách (km) và cấu hình động
  * @param {number} distanceKm
+ * @param {object} config Cấu hình động từ database (mặc định lấy SHIPPING_FEE_DEFAULTS)
  * @returns {number} Phí vận chuyển (VNĐ)
  */
-export const calculateShippingFee = (distanceKm) => {
+export const calculateShippingFee = (distanceKm, config = SHIPPING_FEE_DEFAULTS) => {
   const dist = Number(distanceKm) || 0;
+  const maxDist = config.maxDistanceKm ?? MAX_DELIVERY_DISTANCE_KM;
+  const baseDist = config.baseDistanceKm ?? BASE_DISTANCE_KM;
+  const baseFee = config.baseFee ?? BASE_SHIPPING_FEE;
+  const perKm = config.perKmFee ?? PER_KM_FEE;
 
-  if (dist > MAX_DELIVERY_DISTANCE_KM) {
+  if (dist > maxDist) {
     throw new ApiError(
       400,
-      `Khoảng cách giao hàng theo đường thực tế là ${dist} km, vượt quá bán kính giao hàng tối đa cho phép (${MAX_DELIVERY_DISTANCE_KM} km). Vui lòng chọn địa chỉ khác gần hơn.`,
+      `Khoảng cách giao hàng theo đường thực tế là ${dist} km, vượt quá bán kính giao hàng tối đa cho phép (${maxDist} km). Vui lòng chọn địa chỉ khác gần hơn.`,
     );
   }
 
-  if (dist <= BASE_DISTANCE_KM) {
-    return BASE_SHIPPING_FEE;
+  if (dist <= baseDist) {
+    return baseFee;
   }
 
-  const extraKm = Math.ceil(dist - BASE_DISTANCE_KM);
-  return BASE_SHIPPING_FEE + extraKm * PER_KM_FEE;
+  const extraKm = Math.ceil(dist - baseDist);
+  return baseFee + extraKm * perKm;
 };
