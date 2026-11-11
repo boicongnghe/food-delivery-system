@@ -122,6 +122,36 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
             </p>
           </AdminSection>
 
+          {review.dishReviews && review.dishReviews.length > 0 && (
+            <AdminSection title="Đánh giá món ăn (Shopee style)">
+              <div className="space-y-2.5">
+                {review.dishReviews.map((dish, idx) => (
+                  <div key={idx} className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {dish.dishImage && (
+                          <img src={dish.dishImage} alt={dish.dishName} className="h-8 w-8 rounded-lg object-cover" />
+                        )}
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{dish.dishName}</p>
+                          {dish.optionsSummary && (
+                            <p className="text-[11px] text-slate-400">{dish.optionsSummary}</p>
+                          )}
+                        </div>
+                      </div>
+                      <StarRating value={dish.rating} size="sm" emptyClassName="text-slate-300 dark:text-slate-700" />
+                    </div>
+                    {dish.comment ? (
+                      <p className="text-xs text-slate-700 dark:text-slate-300 italic">"{dish.comment}"</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">Không có bình luận chữ</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </AdminSection>
+          )}
+
           {review.shipperRating && (
             <AdminSection
               title={`Đánh giá shipper ${review.shipper?.fullName || ''}`}

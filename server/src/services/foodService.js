@@ -38,11 +38,15 @@ const toPublicDish = (item) => ({
   isAvailable: item.isAvailable,
   optionGroups: item.optionGroups,
   restaurant: item.restaurant,
+  rating: item.rating !== undefined ? item.rating : 5,
+  reviewsCount: item.reviewsCount !== undefined ? item.reviewsCount : 0,
 });
 
 const findDishes = (filter) =>
   MenuItem.find(filter)
-    .select('name description price originalPrice image tags category isAvailable optionGroups restaurant sortOrder')
+    .select(
+      'name description price originalPrice image tags category isAvailable optionGroups restaurant sortOrder rating reviewsCount',
+    )
     .populate('restaurant', PUBLIC_RESTAURANT_FIELDS)
     .populate('category', 'name')
     .sort({ restaurant: 1, sortOrder: 1, createdAt: 1 })

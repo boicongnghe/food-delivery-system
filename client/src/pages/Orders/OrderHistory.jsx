@@ -103,6 +103,14 @@ function OrderHistory() {
               </div>
 
               <div className="flex justify-end gap-2.5">
+                {ord.status === 'delivered' && (
+                  <Link
+                    to="/feedback"
+                    className="inline-flex items-center justify-center gap-1.5 border font-bold transition rounded-lg px-3 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white border-transparent shadow-sm"
+                  >
+                    ⭐ Đánh giá món ăn
+                  </Link>
+                )}
                 <Link to={`/orders/${ord._id}`} className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50">
                   Chi tiết & Theo dõi tiến trình ➔
                 </Link>

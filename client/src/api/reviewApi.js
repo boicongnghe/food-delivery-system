@@ -19,6 +19,22 @@ const reviewApi = {
     return response.data
   },
 
+  // ----- Dish Reviews (Shopee style - UC Verified Buyer Reviews) -----
+  getFoodReviews: async (foodId, params) => {
+    const response = await axiosClient.get(`/foods/${foodId}/reviews`, { params })
+    return response.data
+  },
+
+  getMyDishReviewStatus: async (foodId) => {
+    const response = await axiosClient.get(`/foods/${foodId}/my-review-status`)
+    return response.data
+  },
+
+  createDishReview: async (foodId, data) => {
+    const response = await axiosClient.post(`/foods/${foodId}/reviews`, data)
+    return response.data
+  },
+
   // ----- Admin moderation (UC43) -----
   // params: { page, limit, keyword, visibility: 'all' | 'visible' | 'hidden', rating }
   getReviews: async (params) => {
