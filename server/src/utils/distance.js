@@ -14,12 +14,16 @@ export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
  * @param {string} addressString Địa chỉ dạng text
  * @returns {Promise<{ lat: number, lng: number }>}
  */
-export const resolveLocationFromAddress = async (addressString) => {
+export const resolveLocationFromAddress = async (addressString, { allowDefault = true } = {}) => {
   if (!addressString || typeof addressString !== 'string' || !addressString.trim()) {
+    if (!allowDefault) {
+      throw new ApiError(400, 'Vui lòng cung cấp địa chỉ để xác định tọa độ GPS.');
+    }
     return DEFAULT_HOA_LAC_COORDINATES;
   }
 
   const cleanText = addressString.trim();
+  let lookupFailed = false;
 
   // Gọi OpenStreetMap Nominatim Geocoding API động
   try {
@@ -45,9 +49,18 @@ export const resolveLocationFromAddress = async (addressString) => {
           lng: parseFloat(data[0].lon),
         };
       }
+    } else {
+      lookupFailed = true;
     }
   } catch {
-    // Nếu mạng chậm hoặc timeout, fallback về tọa độ trung tâm
+    lookupFailed = true;
+  }
+
+  if (!allowDefault) {
+    if (lookupFailed) {
+      throw new ApiError(503, 'Không thể xác định tọa độ GPS hiện tại. Vui lòng thử lại sau.');
+    }
+    throw new ApiError(422, 'Không tìm thấy tọa độ GPS cho địa chỉ đã nhập. Vui lòng kiểm tra địa chỉ.');
   }
 
   // Fallback mặc định khu vực trung tâm Hòa Lạc
