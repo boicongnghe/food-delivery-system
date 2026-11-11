@@ -84,6 +84,12 @@ const shipperChecks = (shipper, account) => {
       ok: Boolean(shipper.vehicleInsurance?.hasInsurance),
       required: false,
     },
+    {
+      key: 'deposit',
+      label: 'Ký quỹ tài xế (500.000đ tiền cọc)',
+      ok: Boolean(shipper.deposit?.isPaid),
+      required: true,
+    },
   ];
 };
 
@@ -129,7 +135,7 @@ const PARTNERS = {
     Model: Shipper,
     accountField: 'user',
     notFound: 'Không tìm thấy tài xế',
-    listFields: 'user fullName phone citizenId vehicleInfo status rating statusChange createdAt',
+    listFields: 'user fullName phone citizenId vehicleInfo deposit status rating statusChange createdAt',
     searchFields: ['fullName', 'phone', 'citizenId', 'vehicleInfo'],
     getChecks: shipperChecks,
     getOrderMatch: (shipper) => ({ shipper: shipper.user?._id }),

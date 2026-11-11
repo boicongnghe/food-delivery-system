@@ -152,6 +152,15 @@ export default function ShipperDetailDrawer({ shipperId, onClose, onChanged }) {
                 ? `Đã có${insurance.insuranceInfo ? `: ${insurance.insuranceInfo}` : ''}`
                 : 'Bổ sung sau khi kích hoạt'}
             </AdminInfoRow>
+            <AdminInfoRow label="Tiền cọc ký quỹ (500.000đ)">
+              {detail.deposit?.isPaid ? (
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  Đã nộp cọc {(detail.deposit.amount || 500000).toLocaleString('vi-VN')}đ {detail.deposit.transactionNote ? `(${detail.deposit.transactionNote})` : ''}
+                </span>
+              ) : (
+                <span className="font-bold text-amber-600 dark:text-amber-400">Chưa nộp tiền cọc</span>
+              )}
+            </AdminInfoRow>
             <AdminInfoRow label="Số điện thoại">{detail.phone || '—'}</AdminInfoRow>
           </AdminSection>
 

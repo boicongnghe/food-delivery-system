@@ -44,7 +44,7 @@ export function CartProvider({ children, userId }) {
         .getRestaurants()
         .then((res) => {
           if (!isMounted) return
-          const dbRestaurants = res.data?.data || []
+          const dbRestaurants = res.data?.data || res.data || []
           const match = dbRestaurants.find(
             (r) => (r.name || '').trim().toLowerCase() === rName.trim().toLowerCase()
           )

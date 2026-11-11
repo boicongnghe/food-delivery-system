@@ -26,9 +26,21 @@ import {
   RefreshCw,
   Inbox,
   Image as ImageIcon,
+  Copy,
+  Check,
+  QrCode,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
+
+// Cấu hình VietQR tiền cọc ký quỹ tài xế shipper (500.000đ)
+const SHIPPER_DEPOSIT_CONFIG = {
+  amount: 500000,
+  bankId: 'MB',
+  bankName: 'MBBank (Ngân hàng TMCP Quân Đội)',
+  accountNo: '0393863658',
+  accountName: 'DO MANH DUONG',
+}
 
 // Authentic minimal 1-page blank PDF in Base64 for fast demo testing
 const SAMPLE_PDF_BASE64 =
@@ -76,10 +88,21 @@ export default function Register() {
     vehicleInfo: '',
     insuranceSubmitLater: true,
     insuranceInfo: '',
+    depositConfirmed: false,
+    depositNote: '',
   })
 
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [copiedField, setCopiedField] = useState(null)
+
+  const handleCopy = (text, field) => {
+    if (!text) return
+    navigator.clipboard.writeText(String(text))
+    setCopiedField(field)
+    toast.success('Đã sao chép vào bộ nhớ tạm!')
+    setTimeout(() => setCopiedField(null), 2000)
+  }
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -283,8 +306,10 @@ export default function Register() {
         vehicleInfo: 'Honda Air Blade 150cc - Biển số: 59-V2 678.90 (Có Cà vẹt chính chủ)',
         insuranceSubmitLater: true,
         insuranceInfo: '',
+        depositConfirmed: true,
+        depositNote: `FT${Date.now().toString().slice(-6)}`,
       }))
-      toast.success('Đã điền thông tin Tài Xế mẫu (Bảo hiểm chọn nộp sau)!')
+      toast.success('Đã điền thông tin Tài Xế mẫu (Bảo hiểm nộp sau, đã chuyển cọc 500K)!')
     } else {
       setCurrentStep(1)
       setFormData((prev) => ({
@@ -430,6 +455,11 @@ export default function Register() {
         return
       }
 
+      if (!formData.depositConfirmed) {
+        toast.error('Vui lòng quét mã VietQR chuyển khoản tiền cọc 500.000đ và tích xác nhận để hoàn tất đăng ký tài xế.')
+        return
+      }
+
       payload.shipperDetails = {
         dateOfBirth: formData.dateOfBirth,
         citizenId: formData.driverCitizenId.trim(),
@@ -439,6 +469,9 @@ export default function Register() {
           submitLater: formData.insuranceSubmitLater,
           insuranceInfo: formData.insuranceInfo.trim(),
         },
+        depositAmount: 500000,
+        depositConfirmed: formData.depositConfirmed,
+        depositNote: formData.depositNote ? formData.depositNote.trim() : '',
       }
     }
 
@@ -499,6 +532,9 @@ export default function Register() {
   }
 
   const shipperAge = calculateAge(formData.dateOfBirth)
+  const cleanPhone = (formData.phone || '').trim().replace(/[\s.-]/g, '')
+  const depositTransferContent = `COC SHIPPER ${cleanPhone || 'TAIXE'}`
+  const depositQrUrl = `https://img.vietqr.io/image/${SHIPPER_DEPOSIT_CONFIG.bankId}-${SHIPPER_DEPOSIT_CONFIG.accountNo}-compact2.png?amount=${SHIPPER_DEPOSIT_CONFIG.amount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent(SHIPPER_DEPOSIT_CONFIG.accountName)}`
 
   if (registeredData) {
     return (
@@ -1190,7 +1226,8 @@ export default function Register() {
 
                   {/* BƯỚC 2: DÀNH RIÊNG CHO TÀI XẾ */}
                   {formData.role === 'shipper' && currentStep === 2 && (
-                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4 animate-in fade-in">
+                    <div className="space-y-4">
+                      <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-4 animate-in fade-in">
                       <h3 className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
                         <Bike className="w-3.5 h-3.5" /> Thông tin phương tiện & tài xế
                       </h3>
@@ -1260,7 +1297,132 @@ export default function Register() {
                         </label>
                       </div>
                     </div>
-                  )}
+
+                    {/* PHẦN KÝ QUỸ / TIỀN CỌC 500.000Đ DÀNH CHO SHIPPER */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-4 animate-in fade-in">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h3 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                          <Coins className="w-3.5 h-3.5" /> Tiền cọc ký quỹ tài xế (500.000đ)
+                        </h3>
+                        <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                          Bắt buộc để kích hoạt tài xế
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        Theo quy chế đối tác FoodDelivery, tài xế nộp cọc ký quỹ <strong>500.000đ</strong> để bảo lãnh nhận đơn và ứng tiền hàng (COD). Khoản tiền này sẽ được <strong>hoàn trả 100%</strong> khi bạn ngưng hợp tác.
+                      </p>
+
+                      {/* Khung quét mã VietQR */}
+                      <div className="rounded-2xl border border-amber-200/80 dark:border-amber-800/80 bg-white dark:bg-[#181A20] p-4 text-center shadow-xs">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                          Quét mã VietQR chuyển khoản nhanh 24/7
+                        </p>
+
+                        <div className="inline-block bg-white p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-3">
+                          <img
+                            src={depositQrUrl}
+                            alt="VietQR Tiền cọc shipper"
+                            className="w-44 h-44 sm:w-48 sm:h-48 block mx-auto object-contain"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-3">
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>Nội dung chuyển khoản tự động gắn với SĐT: <strong>{cleanPhone || 'Chưa nhập SĐT'}</strong></span>
+                        </div>
+
+                        {/* Bảng chi tiết chuyển khoản thủ công */}
+                        <div className="bg-slate-50 dark:bg-[#131418] rounded-xl border border-slate-200 dark:border-slate-800 text-left text-xs space-y-2 p-3.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 dark:text-slate-400">Ngân hàng thụ hưởng:</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{SHIPPER_DEPOSIT_CONFIG.bankName}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 dark:text-slate-400">Chủ tài khoản:</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{SHIPPER_DEPOSIT_CONFIG.accountName}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 dark:text-slate-400">Số tài khoản:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-slate-900 dark:text-white font-mono text-sm">
+                                {SHIPPER_DEPOSIT_CONFIG.accountNo}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(SHIPPER_DEPOSIT_CONFIG.accountNo, 'accountNo')}
+                                className="px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1E2028] hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                              >
+                                {copiedField === 'accountNo' ? '✓ Đã chép' : 'Sao chép'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 dark:text-slate-400">Số tiền cọc:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-amber-600 dark:text-amber-400 text-sm">
+                                500.000 đ
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy('500000', 'amount')}
+                                className="px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1E2028] hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                              >
+                                {copiedField === 'amount' ? '✓ Đã chép' : 'Sao chép'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center border-t border-dashed border-slate-300 dark:border-slate-700 pt-2">
+                            <span className="text-slate-500 dark:text-slate-400">Nội dung CK:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-primary font-mono text-xs">
+                                {depositTransferContent}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(depositTransferContent, 'transferContent')}
+                                className="px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1E2028] hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                              >
+                                {copiedField === 'transferContent' ? '✓ Đã chép' : 'Sao chép'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Checkbox xác nhận đã chuyển cọc */}
+                      <div className="space-y-2 pt-1">
+                        <label className="flex items-start gap-2.5 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 select-none">
+                          <input
+                            type="checkbox"
+                            name="depositConfirmed"
+                            checked={formData.depositConfirmed}
+                            onChange={handleChange}
+                            className="w-4 h-4 rounded mt-0.5 text-amber-600 accent-amber-600 cursor-pointer"
+                          />
+                          <span>
+                            Tôi xác nhận đã chuyển khoản trước 500.000đ tiền cọc ký quỹ tài xế qua mã VietQR trên <span className="text-red-500">*</span>
+                          </span>
+                        </label>
+
+                        <div>
+                          <input
+                            type="text"
+                            name="depositNote"
+                            placeholder="Mã giao dịch ngân hàng / Ghi chú chuyển tiền (nếu có, ví dụ: FT240123...)"
+                            value={formData.depositNote}
+                            onChange={handleChange}
+                            className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                   {/* Terms & Privacy Checkbox (Hiển thị ở bước cuối) */}
                   {(formData.role === 'customer' || currentStep === 2) && (

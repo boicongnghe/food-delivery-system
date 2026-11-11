@@ -23,7 +23,7 @@ const resolveRestaurantObjectId = async (cartRestaurant) => {
 
   try {
     const res = await foodApi.getRestaurants()
-    const list = res.data?.data || []
+    const list = res.data?.data || res.data || []
     const match = list.find((r) => (r.name || '').trim().toLowerCase() === rName)
     if (match?._id) {
       return match._id
@@ -144,8 +144,11 @@ function Checkout() {
           const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0]
           setSelectedAddressId(defaultAddr._id)
         }
-        if (promoRes.status === 'fulfilled' && promoRes.value?.data?.data) {
-          setActivePromotions(promoRes.value.data.data)
+        if (promoRes.status === 'fulfilled') {
+          const promoList = promoRes.value?.data?.data || promoRes.value?.data
+          if (Array.isArray(promoList)) {
+            setActivePromotions(promoList)
+          }
         }
       } catch (err) {
         console.error('Failed to load checkout data', err)
@@ -174,7 +177,7 @@ function Checkout() {
       setLoadingShipping(true)
       try {
         const res = await orderApi.estimateShipping(params)
-        const info = res.data?.data
+        const info = res.data?.data || res.data
         if (info) {
           setDistanceKm(info.distanceKm)
           if (info.maxDistanceKm) setMaxDistanceKm(info.maxDistanceKm)
@@ -290,7 +293,7 @@ function Checkout() {
         isDefault: newAddressForm.isDefault,
         location: newAddressForm.location,
       })
-      const created = res.data.data
+      const created = res.data?.data || res.data
       const updated = created.isDefault
         ? [created, ...addresses.map((a) => ({ ...a, isDefault: false }))]
         : [...addresses, created]
@@ -350,7 +353,7 @@ function Checkout() {
     setPromoError('')
     try {
       const res = await promotionApi.applyPromotion({ code, subtotal: subtotal - restaurantDiscountValue })
-      const data = res.data.data
+      const data = res.data?.data || res.data
       setDiscountAmount(data.discountAmount)
       setAppliedPromo(data.promotion)
       setPromoCodeInput(code)
@@ -460,7 +463,7 @@ function Checkout() {
       }
 
       const res = await orderApi.createOrder(payload)
-      const createdOrder = res.data.data
+      const createdOrder = res.data?.data || res.data
 
       // Đánh dấu đơn đã đặt xong trước khi clear cart để tránh bị useEffect redirect về home
       isOrderPlaced.current = true

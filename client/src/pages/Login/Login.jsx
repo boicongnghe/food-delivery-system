@@ -21,6 +21,89 @@ import toast from 'react-hot-toast'
 import useAuth from '../../hooks/useAuth.js'
 import ForgotPasswordModal from '../../components/ForgotPasswordModal/ForgotPasswordModal.jsx'
 
+const encodePassword = (password) => {
+  try {
+    return btoa(encodeURIComponent(password))
+  } catch {
+    return password
+  }
+}
+
+const decodePassword = (encoded) => {
+  try {
+    return decodeURIComponent(atob(encoded))
+  } catch {
+    return encoded || ''
+  }
+}
+
+const getRememberedAccounts = () => {
+  try {
+    const raw = localStorage.getItem('remembered_accounts')
+    if (raw) return JSON.parse(raw)
+  } catch {
+    // fallback
+  }
+  const legacyEmail = localStorage.getItem('remembered_email')
+  const legacyPass = localStorage.getItem('remembered_password')
+  if (legacyEmail && legacyPass) {
+    return { [legacyEmail.toLowerCase().trim()]: legacyPass }
+  }
+  return {}
+}
+
+const getSavedPasswordForEmail = (email) => {
+  if (!email) return ''
+  const accounts = getRememberedAccounts()
+  const key = email.toLowerCase().trim()
+  if (accounts[key]) {
+    return decodePassword(accounts[key])
+  }
+  const legacyEmail = localStorage.getItem('remembered_email')
+  if (legacyEmail && legacyEmail.toLowerCase().trim() === key) {
+    const rawPass = localStorage.getItem('remembered_password')
+    return rawPass ? decodePassword(rawPass) : ''
+  }
+  return ''
+}
+
+const saveCredentials = (email, password) => {
+  if (!email || !password) return
+  const normEmail = email.toLowerCase().trim()
+  const encoded = encodePassword(password)
+
+  // 1. Save to accounts dictionary
+  const accounts = getRememberedAccounts()
+  accounts[normEmail] = encoded
+  try {
+    localStorage.setItem('remembered_accounts', JSON.stringify(accounts))
+  } catch {}
+
+  // 2. Save last used credentials
+  try {
+    localStorage.setItem('remembered_email', email.trim())
+    localStorage.setItem('remembered_password', encoded)
+  } catch {}
+}
+
+const forgetCredentials = (email) => {
+  if (!email) return
+  const normEmail = email.toLowerCase().trim()
+  const accounts = getRememberedAccounts()
+  delete accounts[normEmail]
+  try {
+    localStorage.setItem('remembered_accounts', JSON.stringify(accounts))
+  } catch {}
+
+  const legacyEmail = localStorage.getItem('remembered_email')
+  if (legacyEmail && legacyEmail.toLowerCase().trim() === normEmail) {
+    try {
+      localStorage.removeItem('remembered_email')
+      localStorage.removeItem('remembered_password')
+    } catch {}
+  }
+}
+
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -28,10 +111,11 @@ export default function Login() {
 
   const [formData, setFormData] = useState(() => {
     const savedEmail = localStorage.getItem('remembered_email') || ''
+    const savedPassword = getSavedPasswordForEmail(savedEmail)
     return {
       email: savedEmail,
-      password: '',
-      rememberMe: Boolean(savedEmail),
+      password: savedPassword,
+      rememberMe: Boolean(savedEmail && savedPassword),
     }
   })
 
@@ -106,10 +190,51 @@ export default function Login() {
     if (fieldErrors[name]) {
       setFieldErrors((prev) => ({ ...prev, [name]: '' }))
     }
+
+    if (name === 'email') {
+      const trimmed = (value || '').trim().toLowerCase()
+      const savedPass = getSavedPasswordForEmail(trimmed)
+
+      if (savedPass) {
+        setFormData((prev) => ({
+          ...prev,
+          email: value,
+          password: savedPass,
+          rememberMe: true,
+        }))
+        return
+      }
+
+      // If switching from an account that had a remembered password, clear password so it's not carried over
+      const prevSavedPass = getSavedPasswordForEmail(formData.email)
+      const shouldClearPassword = prevSavedPass && formData.password === prevSavedPass
+
+      setFormData((prev) => ({
+        ...prev,
+        email: value,
+        password: shouldClearPassword ? '' : prev.password,
+        rememberMe: shouldClearPassword ? false : prev.rememberMe,
+      }))
+      return
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+  }
+
+  const handleEmailBlur = (e) => {
+    const emailVal = e.target.value || formData.email
+    const trimmed = (emailVal || '').trim().toLowerCase()
+    const savedPass = getSavedPasswordForEmail(trimmed)
+    if (savedPass && (!formData.password || formData.password !== savedPass)) {
+      setFormData((prev) => ({
+        ...prev,
+        password: savedPass,
+        rememberMe: true,
+      }))
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -143,9 +268,9 @@ export default function Login() {
 
     if (result.success) {
       if (formData.rememberMe) {
-        localStorage.setItem('remembered_email', formData.email.trim())
+        saveCredentials(formData.email.trim(), formData.password)
       } else {
-        localStorage.removeItem('remembered_email')
+        forgetCredentials(formData.email.trim())
       }
       setUnverifiedEmail(null)
       handleLoginSuccess(result)
@@ -310,35 +435,37 @@ export default function Login() {
   }
 
   const handleDemoFill = (role) => {
+    let demoEmail = ''
+    let defaultPass = 'password123'
+    let roleLabel = ''
+    let icon = ''
+
     if (role === 'customer') {
-      setFormData((prev) => ({
-        ...prev,
-        email: 'khachhang@fooddelivery.vn',
-        password: 'password123',
-      }))
-      toast('Đã điền tài khoản Khách hàng mẫu', { icon: '👤' })
+      demoEmail = 'khachhang@fooddelivery.vn'
+      roleLabel = 'Khách hàng'
+      icon = '👤'
     } else if (role === 'owner') {
-      setFormData((prev) => ({
-        ...prev,
-        email: 'chuquan@fooddelivery.vn',
-        password: 'password123',
-      }))
-      toast('Đã điền tài khoản Chủ quán mẫu', { icon: '🍳' })
+      demoEmail = 'chuquan@fooddelivery.vn'
+      roleLabel = 'Chủ quán'
+      icon = '🍳'
     } else if (role === 'shipper') {
-      setFormData((prev) => ({
-        ...prev,
-        email: 'taixe@fooddelivery.vn',
-        password: 'password123',
-      }))
-      toast('Đã điền tài khoản Tài xế mẫu', { icon: '🛵' })
+      demoEmail = 'taixe@fooddelivery.vn'
+      roleLabel = 'Tài xế'
+      icon = '🛵'
     } else if (role === 'admin') {
-      setFormData((prev) => ({
-        ...prev,
-        email: 'admin@fooddelivery.vn',
-        password: 'password123',
-      }))
-      toast('Đã điền tài khoản Quản trị viên mẫu', { icon: '🛡️' })
+      demoEmail = 'admin@fooddelivery.vn'
+      roleLabel = 'Quản trị viên'
+      icon = '🛡️'
     }
+
+    const savedPass = getSavedPasswordForEmail(demoEmail)
+    setFormData((prev) => ({
+      ...prev,
+      email: demoEmail,
+      password: savedPass || defaultPass,
+      rememberMe: Boolean(savedPass),
+    }))
+    toast(`Đã điền tài khoản ${roleLabel} mẫu`, { icon })
   }
 
   return (
@@ -554,9 +681,12 @@ export default function Login() {
                         id="login-email"
                         type="email"
                         name="email"
+                        autoComplete="username"
+                        list="remembered-emails-list"
                         placeholder="name@example.com"
                         value={formData.email}
                         onChange={handleChange}
+                        onBlur={handleEmailBlur}
                         required
                         className={`w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border transition-all ${
                           fieldErrors.email
@@ -564,6 +694,11 @@ export default function Login() {
                             : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50/70 dark:bg-slate-900 focus:bg-white'
                         }`}
                       />
+                      <datalist id="remembered-emails-list">
+                        {Object.keys(getRememberedAccounts()).map((accEmail) => (
+                          <option key={accEmail} value={accEmail} />
+                        ))}
+                      </datalist>
                     </div>
                     {fieldErrors.email && (
                       <p className="text-[11px] font-semibold text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1 animate-in fade-in">
@@ -586,6 +721,7 @@ export default function Login() {
                         id="login-password"
                         type={showPassword ? 'text' : 'password'}
                         name="password"
+                        autoComplete="current-password"
                         placeholder="••••••••"
                         value={formData.password}
                         onChange={handleChange}
@@ -616,13 +752,14 @@ export default function Login() {
                     <div className="flex items-center justify-between pt-2.5">
                       <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400 select-none">
                         <input
+                          id="login-remember-me"
                           type="checkbox"
                           name="rememberMe"
                           checked={formData.rememberMe}
                           onChange={handleChange}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 accent-primary"
+                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 accent-primary cursor-pointer"
                         />
-                        <span>Ghi nhớ đăng nhập</span>
+                        <span>Ghi nhớ mật khẩu</span>
                       </label>
                       <button
                         type="button"
