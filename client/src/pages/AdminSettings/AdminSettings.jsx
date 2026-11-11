@@ -1,150 +1,19 @@
-import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
-import { Info, RotateCcw, Save, Timer } from 'lucide-react'
-import settingApi from '../../api/settingApi.js'
-import AdminFieldError from '../../components/AdminFieldError/AdminFieldError.jsx'
+import { Timer } from 'lucide-react'
 import AdminPageHeader from '../../components/AdminPageHeader/AdminPageHeader.jsx'
-import { ADMIN_BUTTON, ADMIN_CARD, ADMIN_INPUT } from '../../utils/adminClassNames.js'
-import { formatDateTime } from '../../utils/formatDate.js'
-import { SETTING_FIELDS } from './constants.js'
+import OrderTimeoutSection from './components/OrderTimeoutSection.jsx'
+import ViolationPolicySection from './components/ViolationPolicySection.jsx'
 
-// API errors look like [{ field: 'acceptTimeout', message }]
-const toFieldErrors = (apiErrors = []) => Object.fromEntries(apiErrors.map(({ field, message }) => [field, message]))
-
-function SettingRow({ field, value, defaultValue, error, onChange }) {
-  return (
-    <div className="flex flex-col gap-2 border-b border-slate-100 py-3 last:border-0 dark:border-slate-800 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <label htmlFor={`setting-${field.key}`} className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          {field.label}
-        </label>
-        <p className="mt-0.5 text-xs text-slate-500">Mặc định {defaultValue} phút</p>
-        <AdminFieldError message={error} />
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id={`setting-${field.key}`}
-          type="number"
-          min={field.min}
-          max={field.max}
-          step={1}
-          value={value}
-          onChange={(event) => onChange(field.key, event.target.value === '' ? '' : Number(event.target.value))}
-          className={`${ADMIN_INPUT} w-24 text-right tabular-nums`}
-        />
-        <span className="w-8 text-xs text-slate-500">phút</span>
-      </div>
-    </div>
-  )
-}
-
-// Order timeout rules: the admin tunes the BA assumptions without a new deployment
+// Operation settings: each section loads and saves its own group
 export default function AdminSettings() {
-  const [settings, setSettings] = useState(null) // { values, defaults, updatedAt, updatedBy }
-  const [form, setForm] = useState(null)
-  const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let ignore = false
-    settingApi
-      .getOrderTimeouts()
-      .then((response) => {
-        if (ignore) return
-        setSettings(response.data)
-        setForm(response.data.values)
-      })
-      .catch((error) => {
-        if (!ignore) toast.error(error.response?.data?.message || 'Không tải được cấu hình')
-      })
-    return () => {
-      ignore = true
-    }
-  }, [])
-
-  const change = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    setErrors((prev) => ({ ...prev, [key]: undefined }))
-  }
-
-  const save = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    try {
-      const response = await settingApi.updateOrderTimeouts(form)
-      setSettings(response.data)
-      setForm(response.data.values)
-      setErrors({})
-      toast.success(response.message)
-    } catch (error) {
-      const data = error.response?.data
-      setErrors(toFieldErrors(data?.errors))
-      toast.error(data?.message || 'Không lưu được cấu hình')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const isDirty = settings && form && JSON.stringify(form) !== JSON.stringify(settings.values)
-
   return (
-    <form onSubmit={save} className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <AdminPageHeader
         icon={Timer}
         title="Cấu hình vận hành"
-        description="Thời hạn xử lý đơn: nhắc, tự hủy và chuyển cho quản trị viên"
-        actions={
-          <>
-            <button
-              type="button"
-              disabled={!settings}
-              onClick={() => setForm(settings.defaults)}
-              className={ADMIN_BUTTON.secondary}
-            >
-              <RotateCcw className="h-4 w-4" />
-              Về mặc định
-            </button>
-            <button type="submit" disabled={!isDirty || saving} className={ADMIN_BUTTON.primary}>
-              <Save className="h-4 w-4" />
-              {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
-            </button>
-          </>
-        }
+        description="Thời hạn xử lý đơn và ngưỡng tự động đình chỉ tài khoản vi phạm. Mỗi nhóm lưu riêng."
       />
-
-      <p className="flex items-start gap-2 rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-800 dark:text-sky-200">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        Hệ thống kiểm tra mỗi phút. Bước chưa ai tốn chi phí thì tự xử lý (nhắc, tự hủy). Bước món đã nấu thì chuyển cho quản trị viên
-        (tab "Cần xử lý" ở Đơn hàng toàn sàn). Giá trị mới áp dụng từ lần kiểm tra kế tiếp.
-      </p>
-
-      {!form ? (
-        <div className="flex justify-center py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        </div>
-      ) : (
-        <>
-          <section className={`${ADMIN_CARD} p-5`}>
-            {SETTING_FIELDS.map((field) => (
-              <SettingRow
-                key={field.key}
-                field={field}
-                value={form[field.key]}
-                defaultValue={settings.defaults[field.key]}
-                error={errors[field.key]}
-                onChange={change}
-              />
-            ))}
-          </section>
-
-          {settings.updatedAt && (
-            <p className="text-xs text-slate-500">
-              Cập nhật lần cuối {formatDateTime(settings.updatedAt)}
-              {settings.updatedBy && ` bởi ${settings.updatedBy}`}
-            </p>
-          )}
-        </>
-      )}
-    </form>
+      <OrderTimeoutSection />
+      <ViolationPolicySection />
+    </div>
   )
 }

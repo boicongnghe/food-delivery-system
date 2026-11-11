@@ -34,10 +34,9 @@ const VerifyEmail = lazy(() => import('../pages/VerifyEmail/VerifyEmail.jsx'))
 const AdminDashboard = lazy(() => import('../pages/Admin/AdminDashboard.jsx'))
 const AdminAnalytics = lazy(() => import('../pages/AdminAnalytics/AdminAnalytics.jsx'))
 const AdminCommissionRules = lazy(() => import('../pages/AdminCommissionRules/AdminCommissionRules.jsx'))
-const AdminComplaints = lazy(() => import('../pages/AdminComplaints/AdminComplaints.jsx'))
-const AdminDeliveryIssues = lazy(() => import('../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'))
 const AdminOrders = lazy(() => import('../pages/AdminOrders/AdminOrders.jsx'))
 const AdminWithdrawals = lazy(() => import('../pages/AdminWithdrawals/AdminWithdrawals.jsx'))
+const AdminSupportCases = lazy(() => import('../pages/AdminSupportCases/AdminSupportCases.jsx'))
 const AdminPromotions = lazy(() => import('../pages/AdminPromotions/AdminPromotions.jsx'))
 const AdminRestaurants = lazy(() => import('../pages/AdminRestaurants/AdminRestaurants.jsx'))
 const AdminReviews = lazy(() => import('../pages/AdminReviews/AdminReviews.jsx'))
@@ -147,9 +146,11 @@ function AppRouter() {
                 <Route path="shippers" element={<AdminShippers />} />
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="withdrawals" element={<AdminWithdrawals />} />
-                <Route path="complaints" element={<AdminComplaints />} />
+                <Route path="support-cases" element={<AdminSupportCases />} />
+                {/* Old addresses (links, bookmarks) open the matching tab */}
+                <Route path="complaints" element={<Navigate to="/admin/support-cases" replace />} />
                 <Route path="reviews" element={<AdminReviews />} />
-                <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
+                <Route path="delivery-issues" element={<Navigate to="/admin/support-cases?tab=delivery-issues" replace />} />
                 <Route path="promotions" element={<AdminPromotions />} />
                 <Route path="commission-rules" element={<AdminCommissionRules />} />
                 <Route path="shipping-fee" element={<AdminShippingFee />} />

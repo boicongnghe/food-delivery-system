@@ -23,10 +23,13 @@ export default function UserViolationList({ violations }) {
                   <p className="font-bold text-slate-800 dark:text-slate-200">
                     {violation.code} · {DELIVERY_ISSUE_TYPE_LABELS[violation.type]}
                   </p>
-                  <AdminBadge tone={penalty.action === 'warning' ? 'amber' : 'red'}>
-                    {PENALTY_ACTION_LABELS[penalty.action]}
-                    {penalty.action === 'fine' && ` ${formatCurrency(penalty.fineAmount)}`}
-                  </AdminBadge>
+                  <div className="flex flex-wrap gap-1">
+                    <AdminBadge tone={penalty.action === 'warning' ? 'amber' : 'red'}>
+                      {PENALTY_ACTION_LABELS[penalty.action]}
+                      {penalty.action === 'fine' && ` ${formatCurrency(penalty.fineAmount)}`}
+                    </AdminBadge>
+                    {penalty.autoSuspended && <AdminBadge tone="red">Tự động đình chỉ</AdminBadge>}
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{note}</p>
                 <p className="mt-1 text-xs text-slate-500">

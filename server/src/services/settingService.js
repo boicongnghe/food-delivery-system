@@ -1,4 +1,5 @@
 import PlatformSetting, { ORDER_TIMEOUT_DEFAULTS, ORDER_TIMEOUT_KEY } from '../models/PlatformSetting.js';
+import ViolationSetting, { VIOLATION_SETTING_DEFAULTS, VIOLATION_SETTING_KEY } from '../models/ViolationSetting.js';
 
 // The job runs every minute and checkout reads the cutoff on every order: keep the values in memory briefly
 const CACHE_MS = 30 * 1000;
@@ -35,4 +36,35 @@ export const updateOrderTimeouts = async (adminId, values) => {
   );
   cache = { value: null, at: 0 }; // new values apply from the next job run / order
   return getOrderTimeoutSettings();
+};
+
+// ---------- Violation policy (automatic suspension) ----------
+
+const VIOLATION_FIELDS = Object.keys(VIOLATION_SETTING_DEFAULTS);
+
+const pickViolationSettings = (doc) =>
+  Object.fromEntries(VIOLATION_FIELDS.map((field) => [field, doc?.[field] ?? VIOLATION_SETTING_DEFAULTS[field]]));
+
+// Read when an admin penalizes an account: rare, no cache needed
+export const getViolationPolicy = async () =>
+  pickViolationSettings(await ViolationSetting.findById(VIOLATION_SETTING_KEY).lean());
+
+export const getViolationPolicySettings = async () => {
+  const doc = await ViolationSetting.findById(VIOLATION_SETTING_KEY).populate('updatedBy', 'fullName').lean();
+  return {
+    values: pickViolationSettings(doc),
+    defaults: VIOLATION_SETTING_DEFAULTS,
+    updatedAt: doc?.updatedAt || null,
+    updatedBy: doc?.updatedBy?.fullName || null,
+  };
+};
+
+// Applies to the next penalty; accounts already over the new threshold are not suspended retroactively
+export const updateViolationPolicy = async (adminId, values) => {
+  await ViolationSetting.findByIdAndUpdate(
+    VIOLATION_SETTING_KEY,
+    { $set: { ...values, updatedBy: adminId } },
+    { upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
+  return getViolationPolicySettings();
 };

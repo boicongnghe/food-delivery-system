@@ -23,6 +23,8 @@ const penaltySchema = new mongoose.Schema(
     targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // account penalized
     action: { type: String, enum: PENALTY_ACTIONS, required: true },
     fineAmount: { type: Number, min: 0, default: 0 },
+    // This penalty reached the violation threshold (ViolationSetting), so the account was suspended as well
+    autoSuspended: { type: Boolean, default: false },
   },
   { _id: false },
 );
