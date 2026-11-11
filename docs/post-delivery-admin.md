@@ -13,10 +13,10 @@ Thành viên 5 phụ trách: UC17, UC18, UC37, UC40, UC41, UC42, UC43, UC44, UC4
 | `/admin/orders` | admin | Đơn hàng toàn sàn (chỉ xem) |
 | `/admin/commission-rules` | admin | UC40 quy tắc hoa hồng |
 | `/admin/promotions` | admin | UC41 mã khuyến mãi |
-| `/admin/complaints` | admin | UC42 xử lý khiếu nại |
+| `/admin/support-cases` | admin | Trang "Khiếu nại & sự cố": tab Khiếu nại (UC42, mặc định) và tab Sự cố giao hàng (`?tab=delivery-issues`, UC45). Đường dẫn cũ `/admin/complaints`, `/admin/delivery-issues` tự chuyển sang tab tương ứng |
 | `/admin/reviews` | admin | UC43 kiểm duyệt đánh giá |
 | `/admin/analytics` | admin | UC44 thống kê & báo cáo |
-| `/admin/delivery-issues` | admin | UC45 xử lý sự cố giao hàng |
+| `/admin/settings` | admin | Cấu hình vận hành: thời hạn xử lý đơn, ngưỡng tự động đình chỉ khi vi phạm |
 
 ## 2. API
 
@@ -50,8 +50,8 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 | GET | `/restaurants?page&limit&keyword&status` | Danh sách nhà hàng (không kèm file giấy phép). `status`: `all` | `pending` | `approved` | `rejected` | `suspended`. Ô chọn nhà hàng của form hoa hồng cũng dùng API này |
 | GET | `/restaurants/:id` | Hồ sơ đăng ký đầy đủ (kèm file giấy phép), `registrationChecks`, `orderStats`, `violationCount` |
 | PATCH | `/restaurants/:id/status` | `{ status: 'approved' | 'rejected' | 'suspended', note }` |
-| GET | `/shippers?page&limit&keyword&status` | Danh sách tài xế, tương tự nhà hàng |
-| GET | `/shippers/:id` | Hồ sơ đăng ký đầy đủ của tài xế |
+| GET | `/shippers?page&limit&keyword&status` | Danh sách tài xế, tương tự nhà hàng. Mỗi tài xế kèm `availability: { isOnline, activeOrders }` (công tắc "Nhận đơn" của app tài xế `driverdashboards.isOnline`, số đơn đang giữ). Cột trạng thái: tài xế `approved` hiện "Đang nhận đơn" / "Tắt nhận đơn", trạng thái khác giữ nhãn hồ sơ |
+| GET | `/shippers/:id` | Hồ sơ đăng ký đầy đủ của tài xế, kèm `availability` |
 | PATCH | `/shippers/:id/status` | Như nhà hàng |
 | GET | `/pending-approvals`, `/stats` | Trang tổng quan (không kèm file) |
 | GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Đơn toàn sàn, chỉ xem. `status`: `all` | `pending` | `confirmed` (chờ shipper nhận) | `preparing` | `ready_for_pickup` | `delivering` | `delivered` | `cancelled`. `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
@@ -71,7 +71,9 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 | PATCH | `/reviews/:id/visibility` | UC43. `{ isHidden: true, reason, note }` hoặc `{ isHidden: false }` |
 | GET | `/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD` | UC44. Tối đa 366 ngày, trên 62 ngày thì gộp theo tháng |
 | GET | `/delivery-issues?status&type&keyword` | UC45. Mặc định `status=open` |
-| GET | `/delivery-issues/:id` | UC45. Kèm `violationCounts` của shipper, khách, nhà hàng |
+| GET | `/delivery-issues/:id` | UC45. Kèm `violationCounts` (tổng số lần bị phạt) của shipper, khách, nhà hàng và `autoSuspend: { threshold, counts }` (số lần bị phạt kể từ lần đình chỉ gần nhất) |
+| GET | `/settings/violations` | UC45. `{ values: { autoSuspendThreshold }, defaults, updatedAt, updatedBy }` |
+| PUT | `/settings/violations` | UC45. `{ autoSuspendThreshold }` (0–20, `0` = tắt tự động đình chỉ) |
 | PATCH | `/delivery-issues/:id/resolution` | UC45. `{ decision: 'resolved' \| 'dismissed', note, penalty: { target, action, fineAmount? } \| null, orderAction: 'none' \| 'release' \| 'cancel' }` |
 
 Ảnh minh chứng: upload qua `POST /api/uploads/images?folder=complaints` (khách hàng) hoặc `folder=delivery-issues` (shipper). Server chỉ nhận ảnh do chính người gửi tải lên.
@@ -90,6 +92,10 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
     - `cancel`: hủy đơn (`cancellation.by = system`, `reason = delivery_issue`, không tính lỗi cho quán). Đơn đã trả tiền có yêu cầu hoàn tiền (tab "Chờ hoàn tiền").
     - `release` và `cancel` đều giải phóng shipper để nhận đơn mới. Lệnh đổi đơn có điều kiện theo trạng thái và shipper vừa đọc, và chạy trước khi đóng báo cáo.
   - Khóa shipper (`suspend`) khi shipper còn giữ đơn sẽ bị từ chối (409): phải hủy hoặc trả đơn về hàng chờ trong cùng lần xử lý.
+  - **Tự động đình chỉ:** mỗi lần phạt (`warning`, `fine` hoặc `suspend`) tính là một lần vi phạm của tài khoản bị phạt (vi phạm của nhà hàng tính cho chủ quán). Khi một lần phạt làm số vi phạm **kể từ lần đình chỉ gần nhất** đạt `autoSuspendThreshold` (mặc định 3, chỉnh ở `/admin/settings`, `0` = tắt), tài khoản bị đình chỉ như `suspend` và lần phạt được đánh dấu `autoSuspended`.
+    - Bộ đếm bắt đầu lại sau mỗi lần đình chỉ: mở lại tài khoản thì lần phạt kế tiếp không khóa ngay.
+    - Ràng buộc shipper còn giữ đơn ở trên vẫn áp dụng khi tự động khóa shipper.
+    - Đổi ngưỡng chỉ áp dụng cho lần phạt tiếp theo, không đình chỉ ngược các tài khoản đã vượt ngưỡng mới.
 - **Duyệt nhà hàng / shipper:**
   - Chuyển trạng thái: duyệt `pending`/`rejected` → `approved`; từ chối `pending` → `rejected`; đình chỉ `approved` → `suspended`; mở lại `suspended` → `approved`. Từ chối và đình chỉ bắt buộc nhập lý do (≥ 5 ký tự), lưu ở `statusChange`.
   - Chỉ duyệt được khi đủ các mục bắt buộc của form đăng ký (server kiểm tra, cùng danh sách hiển thị trong hồ sơ): email đã xác thực; nhà hàng có tên, địa chỉ thật, mặt hàng kinh doanh, CCCD 9–12 số, file giấy phép; tài xế đủ 18 tuổi, CCCD 9–12 số, thông tin xe. Bảo hiểm xe không bắt buộc (form cho bổ sung sau). **Mở lại** đối tác bị đình chỉ cũng kiểm tra lại các mục này theo hồ sơ hiện tại.

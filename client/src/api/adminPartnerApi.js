@@ -21,6 +21,8 @@ const adminPartnerApi = {
     return response.data
   },
 
+  // params: same as restaurants
+  // -> { items (each with availability: { isOnline, activeOrders }: "Nhận đơn" switch of the driver app), pagination, counts }
   getShippers: async (params) => {
     const response = await axiosClient.get('/admin/shippers', { params })
     return response.data

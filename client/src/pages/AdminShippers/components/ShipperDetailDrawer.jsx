@@ -12,6 +12,7 @@ import AdminPartnerStatusBadge from '../../../components/AdminPartnerStatusBadge
 import AdminRegistrationChecklist from '../../../components/AdminRegistrationChecklist/AdminRegistrationChecklist.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
 import { formatDateTime, formatDay } from '../../../utils/formatDate.js'
+import ShipperAvailabilityBadge from './ShipperAvailabilityBadge.jsx'
 
 const STATUS_EFFECTS = {
   approved: 'Tài xế được xem và nhận các đơn đang chờ giao.',
@@ -119,6 +120,15 @@ export default function ShipperDetailDrawer({ shipperId, onClose, onChanged }) {
       {detail && (
         <>
           <AdminPartnerDecision status={detail.status} statusChange={detail.statusChange} />
+
+          <AdminSection title="Tình trạng nhận đơn">
+            <AdminInfoRow label="Công tắc nhận đơn">
+              <ShipperAvailabilityBadge availability={detail.availability} />
+            </AdminInfoRow>
+            <p className="mt-1 text-xs text-slate-500">
+              Tài xế tự bật / tắt trong ứng dụng; khi tắt không nhận được đơn mới. Đình chỉ hoặc từ chối hồ sơ sẽ tự tắt công tắc này.
+            </p>
+          </AdminSection>
 
           <AdminSection title="Đối chiếu hồ sơ đăng ký">
             <AdminRegistrationChecklist
