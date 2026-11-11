@@ -9,9 +9,27 @@ export const PER_KM_FEE = 5000; // 5.000 VNĐ cho mỗi km tiếp theo
 export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
 
 /**
+ * Detects a clear mismatch between the address's region and its stored coordinates.
+ * @param {string} addressText
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {boolean}
+ */
+export const isLocationMismatch = (addressText, lat, lng) => {
+  if (!addressText || typeof addressText !== 'string' || lat == null || lng == null) return false;
+  const lower = addressText.toLowerCase();
+
+  const isSouthText = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|bình dương|đồng nai|cần thơ|vũng tàu)/i.test(lower);
+  if (isSouthText && lat > 18.0) return true;
+
+  const isNorthText = /(hà nội|thạch thất|hòa lạc|hải phòng|bắc ninh|quảng ninh|thái nguyên)/i.test(lower);
+  return isNorthText && lat < 16.0;
+};
+
+/**
  * Tự động tìm tọa độ GPS từ chuỗi địa chỉ bằng OpenStreetMap Nominatim Geocoding API.
- * Hoàn toàn động, không fix cứng bất kỳ danh sách hay từ khóa regex nào.
  * @param {string} addressString Địa chỉ dạng text
+ * @param {{ allowDefault?: boolean }} options
  * @returns {Promise<{ lat: number, lng: number }>}
  */
 export const resolveLocationFromAddress = async (addressString, { allowDefault = true } = {}) => {
@@ -25,35 +43,44 @@ export const resolveLocationFromAddress = async (addressString, { allowDefault =
   const cleanText = addressString.trim();
   let lookupFailed = false;
 
-  // Gọi OpenStreetMap Nominatim Geocoding API động
-  try {
-    const query = /Thạch Thất|Hòa Lạc|Hà Nội/i.test(cleanText) ? cleanText : `${cleanText}, Thạch Thất, Hà Nội`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+  const fetchNominatim = async (query) => {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=1`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'FoodDeliverySystem/1.0',
-        'Accept-Language': 'vi',
-      },
-    });
-    clearTimeout(timeoutId);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'FoodDeliverySystem/1.0',
+          'Accept-Language': 'vi',
+        },
+      });
+      if (!res.ok) {
+        lookupFailed = true;
+        return null;
+      }
 
-    if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-        };
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
-    } else {
+    } catch {
       lookupFailed = true;
+    } finally {
+      clearTimeout(timeoutId);
     }
-  } catch {
-    lookupFailed = true;
+
+    return null;
+  };
+
+  let coords = await fetchNominatim(cleanText);
+  if (coords) return coords;
+
+  const hasOtherCity = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|đà nẵng|hải phòng|cần thơ|huế|nha trang|bình dương|đồng nai|vũng tàu)/i.test(cleanText);
+  if (!hasOtherCity) {
+    coords = await fetchNominatim(`${cleanText}, Thạch Thất, Hà Nội`);
+    if (coords) return coords;
   }
 
   if (!allowDefault) {
@@ -63,7 +90,6 @@ export const resolveLocationFromAddress = async (addressString, { allowDefault =
     throw new ApiError(422, 'Không tìm thấy tọa độ GPS cho địa chỉ đã nhập. Vui lòng kiểm tra địa chỉ.');
   }
 
-  // Fallback mặc định khu vực trung tâm Hòa Lạc
   return DEFAULT_HOA_LAC_COORDINATES;
 };
 

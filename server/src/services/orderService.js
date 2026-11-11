@@ -23,15 +23,12 @@ import {
   getRouteDistanceAndDuration,
   resolveLocationFromAddress,
   calculateShippingFee,
+  isLocationMismatch,
   MAX_DELIVERY_DISTANCE_KM,
   BASE_DISTANCE_KM,
   BASE_SHIPPING_FEE,
   PER_KM_FEE,
-  DEFAULT_HOA_LAC_COORDINATES,
 } from '../utils/distance.js';
-
-const isFallbackLocation = (lat, lng) =>
-  lat === DEFAULT_HOA_LAC_COORDINATES.lat && lng === DEFAULT_HOA_LAC_COORDINATES.lng;
 
 /**
  * Safely find restaurant by ObjectId or slug/name to avoid Mongoose CastError
@@ -295,13 +292,8 @@ export const createOrder = async (userId, data) => {
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
   // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
-  if (
-    restLat == null ||
-    restLng == null ||
-    isFallbackLocation(restLat, restLng) ||
-    (restLat === 21.0285 && restLng === 105.8542)
-  ) {
-    const resolvedRest = await resolveLocationFromAddress(restaurant.address, { allowDefault: false });
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
+    const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
     Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
@@ -311,16 +303,11 @@ export const createOrder = async (userId, data) => {
   let destLng = deliveryAddress.location?.lng;
   let destText = deliveryAddress.addressLine || '';
 
-  if (isFallbackLocation(destLat, destLng)) {
-    destLat = null;
-    destLng = null;
-  }
-
-  if ((destLat == null || destLng == null) && deliveryAddress.addressId) {
+  if (deliveryAddress.addressId) {
     const savedAddress = await Address.findById(deliveryAddress.addressId);
     if (savedAddress) {
-      destText = destText || savedAddress.addressLine;
-      if (savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
+      destText = savedAddress.addressLine || destText;
+      if ((destLat == null || destLng == null) && savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
         destLat = savedAddress.location.lat;
         destLng = savedAddress.location.lng;
       }
@@ -328,10 +315,8 @@ export const createOrder = async (userId, data) => {
       const user = await User.findOne({ 'addresses._id': deliveryAddress.addressId }, 'addresses');
       const embedded = user?.addresses?.id(deliveryAddress.addressId);
       if (embedded) {
-        destText =
-          destText ||
-          [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ');
-        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+        destText = [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ') || destText;
+        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
           destLat = embedded.location.lat;
           destLng = embedded.location.lng;
         }
@@ -339,7 +324,7 @@ export const createOrder = async (userId, data) => {
     }
   }
 
-  if ((destLat == null || destLng == null) && destText) {
+  if (destLat == null || destLng == null || isLocationMismatch(destText, destLat, destLng)) {
     const resolved = await resolveLocationFromAddress(destText, { allowDefault: false });
     destLat = resolved.lat;
     destLng = resolved.lng;
@@ -734,13 +719,8 @@ export const estimateShipping = async (userId, params) => {
   let restLat = restaurant.location?.lat;
   let restLng = restaurant.location?.lng;
   // Tự động định vị lại nếu quán chưa có tọa độ hoặc đang dính tọa độ cũ ở trung tâm nội thành (21.0285, 105.8542)
-  if (
-    restLat == null ||
-    restLng == null ||
-    isFallbackLocation(restLat, restLng) ||
-    (restLat === 21.0285 && restLng === 105.8542)
-  ) {
-    const resolvedRest = await resolveLocationFromAddress(restaurant.address, { allowDefault: false });
+  if (restLat == null || restLng == null || (restLat === 21.0285 && restLng === 105.8542)) {
+    const resolvedRest = await resolveLocationFromAddress(restaurant.address);
     restLat = resolvedRest.lat;
     restLng = resolvedRest.lng;
     Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
@@ -750,17 +730,12 @@ export const estimateShipping = async (userId, params) => {
   let destLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : null;
   let destinationAddressText = '';
 
-  if (isFallbackLocation(destLat, destLng)) {
-    destLat = null;
-    destLng = null;
-  }
-
-  if ((destLat == null || destLng == null) && addressId) {
+  if (addressId) {
     // 1. Kiểm tra trong Address collection
     const address = await Address.findById(addressId);
     if (address) {
-      destinationAddressText = address.addressLine;
-      if (address.location?.lat != null && address.location?.lng != null) {
+      destinationAddressText = address.addressLine || '';
+      if ((destLat == null || destLng == null) && address.location?.lat != null && address.location?.lng != null) {
         destLat = address.location.lat;
         destLng = address.location.lng;
       }
@@ -772,7 +747,7 @@ export const estimateShipping = async (userId, params) => {
         destinationAddressText = [embedded.street, embedded.ward, embedded.district, embedded.city]
           .filter(Boolean)
           .join(', ');
-        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
           destLat = embedded.location.lat;
           destLng = embedded.location.lng;
         }
@@ -781,7 +756,7 @@ export const estimateShipping = async (userId, params) => {
   }
 
   // 3. Nếu địa chỉ chưa có tọa độ, tự động geocode từ tên đường qua OpenStreetMap
-  if ((destLat == null || destLng == null) && destinationAddressText) {
+  if (destLat == null || destLng == null || isLocationMismatch(destinationAddressText, destLat, destLng)) {
     const resolved = await resolveLocationFromAddress(destinationAddressText, { allowDefault: false });
     destLat = resolved.lat;
     destLng = resolved.lng;
