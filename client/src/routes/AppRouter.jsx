@@ -24,8 +24,6 @@ import VerifyEmail from '../pages/VerifyEmail/VerifyEmail.jsx'
 import AdminDashboard from '../pages/Admin/AdminDashboard.jsx'
 import AdminAnalytics from '../pages/AdminAnalytics/AdminAnalytics.jsx'
 import AdminCommissionRules from '../pages/AdminCommissionRules/AdminCommissionRules.jsx'
-import AdminComplaints from '../pages/AdminComplaints/AdminComplaints.jsx'
-import AdminDeliveryIssues from '../pages/AdminDeliveryIssues/AdminDeliveryIssues.jsx'
 import AdminOrders from '../pages/AdminOrders/AdminOrders.jsx'
 import AdminWithdrawals from '../pages/AdminWithdrawals/AdminWithdrawals.jsx'
 import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
@@ -34,6 +32,7 @@ import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
 import AdminSettings from '../pages/AdminSettings/AdminSettings.jsx'
 import AdminShippingFee from '../pages/AdminShippingFee/AdminShippingFee.jsx'
 import AdminShippers from '../pages/AdminShippers/AdminShippers.jsx'
+import AdminSupportCases from '../pages/AdminSupportCases/AdminSupportCases.jsx'
 import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
 import DriverDashboard from '../pages/DriverDashboard/DriverDashboard.jsx'
@@ -128,9 +127,11 @@ function AppRouter() {
               <Route path="shippers" element={<AdminShippers />} />
               <Route path="orders" element={<AdminOrders />} />
               <Route path="withdrawals" element={<AdminWithdrawals />} />
-              <Route path="complaints" element={<AdminComplaints />} />
+              <Route path="support-cases" element={<AdminSupportCases />} />
+              {/* Old addresses (links, bookmarks) open the matching tab */}
+              <Route path="complaints" element={<Navigate to="/admin/support-cases" replace />} />
               <Route path="reviews" element={<AdminReviews />} />
-              <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
+              <Route path="delivery-issues" element={<Navigate to="/admin/support-cases?tab=delivery-issues" replace />} />
               <Route path="promotions" element={<AdminPromotions />} />
               <Route path="commission-rules" element={<AdminCommissionRules />} />
               <Route path="shipping-fee" element={<AdminShippingFee />} />
