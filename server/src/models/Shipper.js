@@ -40,6 +40,12 @@ const shipperSchema = new mongoose.Schema(
       fileName: { type: String, default: '' },
       fileData: { type: String, default: '' },
     },
+    deposit: {
+      amount: { type: Number, default: 500000 },
+      isPaid: { type: Boolean, default: false },
+      paidAt: { type: Date, default: null },
+      transactionNote: { type: String, default: '' },
+    },
     status: {
       type: String,
       enum: ['pending', 'approved', 'rejected', 'suspended'],

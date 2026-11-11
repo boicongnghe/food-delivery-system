@@ -131,6 +131,12 @@ export const registerSchema = Joi.object({
       fileName: Joi.string().allow('', null).optional(),
       fileData: Joi.string().allow('', null).optional(),
     }).optional().allow(null),
+    depositAmount: Joi.number().optional().default(500000),
+    depositConfirmed: Joi.boolean().required().valid(true).messages({
+      'any.only': 'Bạn cần xác nhận đã chuyển khoản tiền cọc 500.000đ để đăng ký làm tài xế',
+      'any.required': 'Xác nhận chuyển khoản tiền cọc là bắt buộc',
+    }),
+    depositNote: Joi.string().allow('', null).optional(),
   }).when('role', {
     is: 'shipper',
     then: Joi.required().messages({
