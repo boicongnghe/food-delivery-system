@@ -1,18 +1,20 @@
 import { MessageSquareHeart } from 'lucide-react'
 import SectionCard from './SectionCard.jsx'
 
-function CustomerPraise({ reviews, badges, rating }) {
+function CustomerPraise({ reviews, badges, rating, ratingCount }) {
   return (
     <SectionCard
       id="customer-praise-section"
       title="Lời khen từ thực khách"
       icon={MessageSquareHeart}
-      badge={`★ ${Number(rating || 0).toFixed(2)} / 5.0`}
+      badge={`★ ${Number(rating || 0).toFixed(2)} / 5.0 · ${Number(ratingCount || 0)} đánh giá`}
     >
       <div className="space-y-2" role="list" aria-label="Customer reviews">
         {reviews.map(review => (
           <blockquote key={review.id} id={review.id} className="rounded-lg bg-brand-light/50 px-3 py-2.5" role="listitem">
-            <p className="text-sm italic text-slate-700">"{review.quote}"</p>
+            <p className="text-sm italic text-slate-700">
+              {review.quote ? `"${review.quote}"` : 'Khách hàng đã đánh giá chuyến giao hàng.'}
+            </p>
             <div className="mt-1 flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-600">{review.customer}</span>
               <span className="text-amber-500" aria-label={`${review.stars} stars`}>

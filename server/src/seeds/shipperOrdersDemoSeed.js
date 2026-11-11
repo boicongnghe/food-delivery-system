@@ -8,25 +8,49 @@ import Order from '../models/Order.js';
 const DEMO_OWNER_EMAIL = 'demo-shipper-restaurant@fooddelivery.vn';
 const DEMO_CUSTOMER_EMAIL = 'demo-shipper-customer@fooddelivery.vn';
 const DEMO_ORDER_CODES = ['DEMO-SHIPPER-001', 'DEMO-SHIPPER-002', 'DEMO-SHIPPER-003'];
+const DEMO_RESTAURANT_ADDRESS = 'Khu CNC Hòa Lạc, Thạch Thất, Hà Nội';
+const DEMO_RESTAURANT_LOCATION = { lat: 21.0131, lng: 105.5262 };
 const DEMO_ITEMS = [
   { name: 'Phở bò tái', price: 65000 },
   { name: 'Nem rán Hà Nội', price: 35000 },
   { name: 'Trà chanh', price: 25000 },
 ];
+const HOA_LAC_LOCATIONS = [
+  {
+    address: 'Phòng 305, Ký túc xá Dom A, Trường Đại học FPT, Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
+    location: { lat: 21.0131, lng: 105.5262 },
+  },
+  {
+    address: 'Sảnh Tầng 1, Tòa nhà Alpha, Trường Đại học FPT, Km29 Đại lộ Thăng Long, Thạch Thất, Hà Nội',
+    location: { lat: 21.0135, lng: 105.5248 },
+  },
+  {
+    address: 'Nhà trọ Hoa Hồng, Thôn 2, Xã Tân Xã, Huyện Thạch Thất, Hà Nội',
+    location: { lat: 21.0185, lng: 105.536 },
+  },
+  {
+    address: 'Tòa KTX QG01, Ký túc xá ĐHQGHN, Thạch Hòa, Thạch Thất, Hà Nội',
+    location: { lat: 21.0028, lng: 105.5097 },
+  },
+  {
+    address: 'Khu CNC Hòa Lạc, Thạch Thất, Hà Nội',
+    location: { lat: 21.0205, lng: 105.5385 },
+  },
+];
 const ORDER_SCENARIOS = [
   {
     name: 'Nguyễn Minh Anh',
     phone: '0901234567',
-    address: '12 Phố Huế, Hai Bà Trưng, Hà Nội',
+    ...HOA_LAC_LOCATIONS[0],
     type: 'standard',
-    payment: { method: 'cod', status: 'unpaid' },
+    payment: { method: 'momo', status: 'paid', paidAt: new Date() },
     shippingFee: 15000,
     itemIndexes: [0, 1],
   },
   {
     name: 'Trần Thu Hà',
     phone: '0912345678',
-    address: '45 Huỳnh Thúc Kháng, Đống Đa, Hà Nội',
+    ...HOA_LAC_LOCATIONS[1],
     type: 'express',
     payment: { method: 'momo', status: 'paid', paidAt: new Date() },
     shippingFee: 25000,
@@ -35,7 +59,7 @@ const ORDER_SCENARIOS = [
   {
     name: 'Lê Hoàng Nam',
     phone: '0941234567',
-    address: '28 Nguyễn Chí Thanh, Ba Đình, Hà Nội',
+    ...HOA_LAC_LOCATIONS[2],
     type: 'standard',
     payment: { method: 'vnpay', status: 'paid', paidAt: new Date() },
     shippingFee: 18000,
@@ -95,7 +119,9 @@ const seedShipperOrdersDemo = async () => {
       owner: owner._id,
       name: 'Quán Demo Đơn Giao',
       description: 'Nhà hàng mẫu dùng để thử quy trình shipper.',
-      address: '48 Hàng Đồng, Hoàn Kiếm, Hà Nội',
+      address: DEMO_RESTAURANT_ADDRESS,
+      location: DEMO_RESTAURANT_LOCATION,
+      location: { lat: 21.0131, lng: 105.5262 },
       phone: '0912345001',
       categories: ['Món Việt'],
       status: 'approved',
@@ -107,6 +133,14 @@ const seedShipperOrdersDemo = async () => {
     });
   } else if (restaurant.status !== 'approved') {
     throw new Error('The demo restaurant exists but is not approved; no records were changed.');
+  } else if (
+    restaurant.address !== DEMO_RESTAURANT_ADDRESS
+    || restaurant.location?.lat !== DEMO_RESTAURANT_LOCATION.lat
+    || restaurant.location?.lng !== DEMO_RESTAURANT_LOCATION.lng
+  ) {
+    restaurant.address = DEMO_RESTAURANT_ADDRESS;
+    restaurant.location = DEMO_RESTAURANT_LOCATION;
+    await restaurant.save();
   }
   const customer = await getOrCreateDemoUser({
     email: DEMO_CUSTOMER_EMAIL,
@@ -146,12 +180,14 @@ const seedShipperOrdersDemo = async () => {
         recipientName: scenario.name,
         phone: scenario.phone,
         address: scenario.address,
+        location: scenario.location,
         type: scenario.type,
       },
       deliveryAddress: {
         recipientName: scenario.name,
         phone: scenario.phone,
         addressLine: scenario.address,
+        location: scenario.location,
         note: 'Đơn hàng minh họa cho luồng giao hàng.',
       },
       customerNote: 'Đơn demo shipper',

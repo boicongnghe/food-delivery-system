@@ -17,10 +17,10 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
   const [hovered, setHovered] = useState(null)
   const maxTotal = Math.max(
     1,
-    ...earningsByHour.map(item => Number(item.base || 0) + Number(item.bonus || 0)),
+    ...earningsByHour.map(item => Number(item.base || 0)),
   )
   const activeEarning = Number.isInteger(hovered) ? earningsByHour[hovered] : null
-  const activeTotal = Number(activeEarning?.base || 0) + Number(activeEarning?.bonus || 0)
+  const activeTotal = Number(activeEarning?.base || 0)
 
   return (
     <SectionCard id="earnings-chart-section" title="Biểu đồ thu nhập theo khung giờ" icon={BarChart3} badge={periodLabel}>
@@ -28,8 +28,9 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
         {/* Legend */}
         <div className="flex flex-wrap gap-4 text-xs text-slate-600">
           <LegendItem className="bg-slate-500" label="Phí giao đơn" />
-          <LegendItem className="bg-emerald-600" label="Thưởng" />
-          <LegendItem className="border border-dashed border-sky-700 bg-sky-200" label="Dự báo ca tối" />
+          {forecast.length > 0 && (
+            <LegendItem className="border border-dashed border-sky-700 bg-sky-200" label="Dự báo ca tối" />
+          )}
         </div>
 
         {activeEarning ? (
@@ -38,10 +39,9 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
               <span>{activeEarning.hour}</span>
               <span className="tabular-nums">{activeTotal.toLocaleString('vi-VN')}đ</span>
             </div>
-            <div className="mt-0.5 flex gap-4 text-xs text-slate-600">
-              <span>Cước {Number(activeEarning.base || 0).toLocaleString('vi-VN')}đ</span>
-              <span>Thưởng {Number(activeEarning.bonus || 0).toLocaleString('vi-VN')}đ</span>
-            </div>
+            <p className="mt-0.5 text-xs text-slate-600">
+              Phí giao đơn {Number(activeEarning.base || 0).toLocaleString('vi-VN')}đ
+            </p>
           </div>
         ) : (
           <p className="text-xs text-slate-500">Chọn một cột để xem chi tiết thu nhập.</p>
@@ -56,10 +56,7 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
           {/* Actual data */}
           {earningsByHour.map((d, i) => {
             const base = Number(d.base || 0)
-            const bonus = Number(d.bonus || 0)
-            const total = base + bonus
             const baseH = (base / maxTotal) * MAX_BAR_H
-            const bonusH = (bonus / maxTotal) * MAX_BAR_H
 
             return (
               <div
@@ -79,11 +76,10 @@ function EarningsChart({ earningsByHour, forecast, periodLabel }) {
                 role="button"
                 tabIndex={0}
                 aria-pressed={hovered === i}
-                aria-label={`${d.hour}: ${total.toLocaleString('vi-VN')}đ`}
+                aria-label={`${d.hour}: ${base.toLocaleString('vi-VN')}đ phí giao đơn`}
               >
                 <div className="flex w-full flex-col-reverse">
                   {baseH > 0 && <div className="w-full rounded-b-sm bg-slate-500" style={{ height: `${baseH}px` }} />}
-                  {bonusH > 0 && <div className="w-full rounded-t-sm bg-emerald-600" style={{ height: `${bonusH}px` }} />}
                 </div>
                 <span className="absolute -bottom-5 whitespace-nowrap text-[10px] text-slate-500">{d.hour}</span>
               </div>

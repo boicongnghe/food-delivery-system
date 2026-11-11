@@ -15,6 +15,7 @@ import {
 import { recordStatusChange } from './orderHistoryService.js';
 import { PAYMENT_ALLOWS_FULFILLMENT_FILTER } from './orderPolicy.js';
 import driverDashboardService from './driverDashboardService.js';
+import { assertOwnUpload } from './uploadService.js';
 
 const AVAILABLE_FILTER = {
   status: { $in: SHIPPER_POOL_STATUSES },
@@ -49,21 +50,52 @@ const DASHBOARD_PERIOD_FIELDS = [
   'earningsByHour',
   'forecast',
   'trips',
-  'missions',
   'reviews',
   'badges',
-  'hotspots',
 ];
 const DASHBOARD_ARRAY_FIELDS = new Set([
   'earningsByHour',
   'forecast',
   'trips',
-  'missions',
   'reviews',
   'badges',
-  'hotspots',
 ]);
 const DASHBOARD_STRING_FIELDS = new Set(['tier', 'payoutBank']);
+
+const buildHourlyEarningsPipeline = (hour, payout) => [{
+  $set: Object.fromEntries(DASHBOARD_PERIODS.map((period) => {
+    const entries = `$periods.${period}.earningsByHour`;
+    return [`periods.${period}.earningsByHour`, {
+      $let: {
+        vars: { entries: { $ifNull: [entries, []] } },
+        in: {
+          $cond: [
+            { $in: [hour, { $map: { input: '$$entries', as: 'entry', in: '$$entry.hour' } }] },
+            {
+              $map: {
+                input: '$$entries',
+                as: 'entry',
+                in: {
+                  $cond: [
+                    { $eq: ['$$entry.hour', hour] },
+                    {
+                      $mergeObjects: [
+                        '$$entry',
+                        { base: { $add: [{ $ifNull: ['$$entry.base', 0] }, payout] } },
+                      ],
+                    },
+                    '$$entry',
+                  ],
+                },
+              },
+            },
+            { $concatArrays: ['$$entries', [{ hour, base: payout, bonus: 0, surge: false }]] },
+          ],
+        },
+      },
+    }];
+  })),
+}];
 
 const clearDemoDashboard = async (shipperId, session) => {
   const fields = { isDemo: false, 'profile.tier': '' };
@@ -399,9 +431,22 @@ const codPaidFields = (order, at) =>
  * Finish a delivery: order -> delivered, COD -> paid, shipping fee credited to the shipper, slot freed.
  * One transaction, conditional on the order still being delivered by this shipper and not credited yet,
  * so the shipper's "delivered" and the customer's "received" can never both credit the same order.
- * @param {{ orderId, shipperId, byRole: 'shipper' | 'customer', customerId? }} params
+ * @param {{ orderId, shipperId, byRole: 'shipper' | 'customer', customerId?, deliveryProofUrl? }} params
  */
-export const completeDelivery = async ({ orderId, shipperId, byRole, customerId = null }) => {
+export const completeDelivery = async ({
+  orderId,
+  shipperId,
+  byRole,
+  customerId = null,
+  deliveryProofUrl = null,
+}) => {
+  if (byRole === 'shipper') {
+    if (!deliveryProofUrl) {
+      throw new ApiError(400, 'Vui lòng tải ảnh chứng minh giao hàng');
+    }
+    assertOwnUpload(deliveryProofUrl, shipperId, ['delivery-proofs'], 'deliveryProofUrl');
+  }
+
   const ownerFilter = { _id: orderId, shipper: shipperId, status: 'delivering', ...(customerId && { customer: customerId }) };
   const order = await Order.findOne(ownerFilter).populate('restaurant', 'name address').lean();
   if (!order) {
@@ -412,6 +457,11 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
 
   const payout = Math.max(0, order.shippingFee || 0);
   const deliveredAt = new Date();
+  const deliveredHour = `${new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(deliveredAt)}:00`;
   const session = await mongoose.startSession();
   try {
     let deliveredOrder;
@@ -419,7 +469,15 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
       deliveredOrder = await Order.findOneAndUpdate(
         { ...ownerFilter, 'payment.status': order.payment.status, payoutCreditedAt: null },
         {
-          $set: { status: 'delivered', payoutCreditedAt: deliveredAt, ...codPaidFields(order, deliveredAt) },
+          $set: {
+            status: 'delivered',
+            payoutCreditedAt: deliveredAt,
+            ...codPaidFields(order, deliveredAt),
+            ...(deliveryProofUrl && {
+              'deliveryProof.imageUrl': deliveryProofUrl,
+              'deliveryProof.confirmedAt': deliveredAt,
+            }),
+          },
           $push: { statusHistory: { status: 'delivered', at: deliveredAt, byRole } },
         },
         { new: true, runValidators: true, session },
@@ -484,6 +542,14 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
       if (!dashboardUpdate.matchedCount) {
         throw new ApiError(409, 'Không thể cập nhật ví tài xế; vui lòng thử lại');
       }
+      const hourlyUpdate = await DriverDashboard.updateOne(
+        { userId: shipperId },
+        buildHourlyEarningsPipeline(deliveredHour, payout),
+        { session, updatePipeline: true },
+      );
+      if (!hourlyUpdate.matchedCount) {
+        throw new ApiError(409, 'Không thể cập nhật biểu đồ thu nhập; vui lòng thử lại');
+      }
     });
     await recordStatusChange({
       orderId: deliveredOrder._id,
@@ -536,5 +602,5 @@ export const completeDelivery = async ({ orderId, shipperId, byRole, customerId 
   }
 };
 
-export const confirmDelivered = (shipperId, orderId) =>
-  completeDelivery({ orderId, shipperId, byRole: 'shipper' });
+export const confirmDelivered = (shipperId, orderId, deliveryProofUrl) =>
+  completeDelivery({ orderId, shipperId, byRole: 'shipper', deliveryProofUrl });

@@ -142,6 +142,9 @@ function DeliveryOrders({ onOrderChanged }) {
   const [errorCategory, setErrorCategory] = useState(ERROR_CATEGORY.OTHER)
   const [actionError, setActionError] = useState('')
   const [busyOrderId, setBusyOrderId] = useState('')
+  const [deliveryProofOrderId, setDeliveryProofOrderId] = useState('')
+  const [deliveryProofFile, setDeliveryProofFile] = useState(null)
+  const [deliveryProofPreview, setDeliveryProofPreview] = useState('')
   const [issueOrder, setIssueOrder] = useState(null)
   const [issueType, setIssueType] = useState('')
   const [issueDescription, setIssueDescription] = useState('')
@@ -245,6 +248,61 @@ function DeliveryOrders({ onOrderChanged }) {
     setActionError('')
     try {
       await action()
+      onOrderChanged?.()
+      await refreshOrders(true)
+    } catch (requestError) {
+      setActionError(getErrorMessage(requestError))
+    } finally {
+      setBusyOrderId('')
+    }
+  }
+
+  const handleDeliveryProofFile = event => {
+    const [file] = event.target.files || []
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setActionError('Ảnh chứng minh phải có định dạng JPG, PNG hoặc WEBP.')
+      setDeliveryProofFile(null)
+      setDeliveryProofPreview('')
+      event.target.value = ''
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setActionError('Ảnh chứng minh không được vượt quá 5 MB.')
+      setDeliveryProofFile(null)
+      setDeliveryProofPreview('')
+      event.target.value = ''
+      return
+    }
+    setActionError('')
+    setDeliveryProofFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setDeliveryProofPreview(String(reader.result || ''))
+    reader.onerror = () => {
+      setDeliveryProofFile(null)
+      setDeliveryProofPreview('')
+      setActionError('Không thể đọc ảnh đã chọn. Vui lòng chọn ảnh khác.')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const submitDeliveryProof = async event => {
+    event.preventDefault()
+    if (!deliveryProofOrderId || !deliveryProofFile) {
+      setActionError('Vui lòng chụp hoặc chọn ảnh chứng minh giao hàng.')
+      return
+    }
+
+    setBusyOrderId(deliveryProofOrderId)
+    setActionError('')
+    try {
+      const upload = await uploadApi.uploadImage(deliveryProofFile, 'delivery-proofs')
+      await orderApi.confirmDeliveryDelivered(deliveryProofOrderId, {
+        deliveryProofUrl: upload.data.url,
+      })
+      setDeliveryProofOrderId('')
+      setDeliveryProofFile(null)
+      setDeliveryProofPreview('')
       onOrderChanged?.()
       await refreshOrders(true)
     } catch (requestError) {
@@ -534,13 +592,67 @@ function DeliveryOrders({ onOrderChanged }) {
                             type="button"
                             className={`${primaryButtonClass} w-full`}
                             disabled={busyOrderId === order._id}
-                            onClick={() => runOrderAction(order._id, () => {
-                              if (!window.confirm('Xác nhận đã giao đơn cho khách hàng?')) return Promise.resolve()
-                              return orderApi.confirmDeliveryDelivered(order._id)
-                            })}
+                            onClick={() => {
+                              setDeliveryProofOrderId(order._id)
+                              setDeliveryProofFile(null)
+                              setDeliveryProofPreview('')
+                              setActionError('')
+                            }}
                           >
-                            {busyOrderId === order._id ? 'Đang hoàn tất…' : 'Xác nhận đã giao'}
+                            Chụp ảnh và xác nhận đã giao
                           </button>
+                          {deliveryProofOrderId === order._id && (
+                            <form
+                              className="space-y-3 rounded-lg border border-brand-soft bg-brand-light/40 p-4"
+                              onSubmit={submitDeliveryProof}
+                            >
+                              <label className={fieldLabelClass} htmlFor={`delivery-proof-${order._id}`}>
+                                Ảnh chứng minh đã giao *
+                              </label>
+                              <p className="text-xs text-slate-600">
+                                Chụp ảnh món hàng tại điểm giao hoặc khách đã nhận. JPG, PNG, WEBP, tối đa 5 MB.
+                              </p>
+                              <input
+                                id={`delivery-proof-${order._id}`}
+                                className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:font-semibold file:text-brand"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                capture="environment"
+                                required
+                                onChange={handleDeliveryProofFile}
+                              />
+                              {deliveryProofPreview && (
+                                <img
+                                  className="max-h-64 w-full rounded-lg object-contain"
+                                  src={deliveryProofPreview}
+                                  alt="Ảnh xem trước chứng minh giao hàng"
+                                />
+                              )}
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="submit"
+                                  className={primaryButtonClass}
+                                  disabled={busyOrderId === order._id || !deliveryProofFile}
+                                >
+                                  <Camera size={16} />
+                                  {busyOrderId === order._id ? 'Đang tải ảnh và hoàn tất…' : 'Tải ảnh và hoàn tất đơn'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className={secondaryButtonClass}
+                                  disabled={busyOrderId === order._id}
+                                  onClick={() => {
+                                    setDeliveryProofOrderId('')
+                                    setDeliveryProofFile(null)
+                                    setDeliveryProofPreview('')
+                                    setActionError('')
+                                  }}
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            </form>
+                          )}
                         </section>
                       )}
                       {order.deliveryIssueFlagged && (

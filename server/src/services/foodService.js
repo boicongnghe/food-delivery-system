@@ -52,6 +52,13 @@ export const getFoods = async (query = {}) => {
   const approvedIds = await approvedRestaurantIds();
   const filter = { ...SELLABLE, isAvailable: true, restaurant: { $in: approvedIds } };
 
+  if (query.search || query.keyword || query.q) {
+    const term = String(query.search || query.keyword || query.q).trim();
+    if (term) {
+      filter.name = { $regex: term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+    }
+  }
+
   if (query.restaurantId) {
     if (!mongoose.isValidObjectId(query.restaurantId)) return [];
     filter.restaurant = { $in: approvedIds.filter((id) => String(id) === String(query.restaurantId)) };

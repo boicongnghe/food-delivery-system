@@ -39,21 +39,27 @@ const registerConnectionEvents = () => {
   });
 };
 
-const connectDB = async () => {
-  console.log('[MongoDB] Connecting...');
-
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-    });
-    console.log(
-      `${GREEN}[MongoDB] Connected successfully - host: ${conn.connection.host}, database: ${conn.connection.name}${RESET}`,
-    );
-    registerConnectionEvents();
-  } catch (error) {
-    console.error(`${RED}[MongoDB] Connection failed: ${error.message}${RESET}`);
-    console.error(`${YELLOW}[MongoDB] Hint: ${getErrorHint(error)}${RESET}`);
-    process.exit(1);
+const connectDB = async (retries = 5, delay = 2500) => {
+  for (let i = 1; i <= retries; i++) {
+    console.log(`[MongoDB] Connecting (attempt ${i}/${retries})...`);
+    try {
+      const conn = await mongoose.connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: 15000,
+      });
+      console.log(
+        `${GREEN}[MongoDB] Connected successfully - host: ${conn.connection.host}, database: ${conn.connection.name}${RESET}`,
+      );
+      registerConnectionEvents();
+      return conn;
+    } catch (error) {
+      console.error(`${RED}[MongoDB] Connection attempt ${i} failed: ${error.message}${RESET}`);
+      if (i === retries) {
+        console.error(`${YELLOW}[MongoDB] Hint: ${getErrorHint(error)}${RESET}`);
+        process.exit(1);
+      }
+      console.log(`[MongoDB] Retrying in ${delay / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
 };
 
