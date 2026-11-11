@@ -398,8 +398,20 @@ export function AuthProvider({ children }) {
       setUser(null)
       try {
         localStorage.removeItem('food_delivery_cart')
-        if (userEmail && localStorage.getItem('remembered_email') === userEmail) {
-          localStorage.removeItem('remembered_email')
+        if (userEmail) {
+          const norm = userEmail.toLowerCase().trim()
+          try {
+            const raw = localStorage.getItem('remembered_accounts')
+            if (raw) {
+              const accs = JSON.parse(raw)
+              delete accs[norm]
+              localStorage.setItem('remembered_accounts', JSON.stringify(accs))
+            }
+          } catch {}
+          if (localStorage.getItem('remembered_email')?.toLowerCase().trim() === norm) {
+            localStorage.removeItem('remembered_email')
+            localStorage.removeItem('remembered_password')
+          }
         }
       } catch {
         // ignore storage errors
