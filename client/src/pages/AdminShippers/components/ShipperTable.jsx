@@ -42,6 +42,11 @@ export default function ShipperTable({ shippers, onSelect }) {
               <td className={ADMIN_TABLE_CELL}>
                 <div className="flex flex-wrap gap-1.5">
                   <AdminPartnerStatusBadge status={shipper.status} />
+                  {shipper.status === 'approved' && (
+                    <AdminBadge tone={shipper.isOnline ? 'emerald' : 'slate'}>
+                      {shipper.isOnline ? 'Đang trực' : 'Ngoại tuyến'}
+                    </AdminBadge>
+                  )}
                   {shipper.user && !shipper.user.isActive && <AdminBadge tone="red">TK bị khóa</AdminBadge>}
                 </div>
               </td>

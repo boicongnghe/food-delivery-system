@@ -130,6 +130,11 @@ export default function ShipperDetailDrawer({ shipperId, onClose, onChanged }) {
           {/* Same labels and order as the shipper step of the register form */}
           <AdminSection title="Thông tin tài xế đã khai báo">
             <AdminInfoRow label="Họ và tên">{detail.fullName || '—'}</AdminInfoRow>
+            <AdminInfoRow label="Trạng thái trực">
+              <span className={`font-semibold ${detail.isOnline ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>
+                {detail.isOnline ? 'Đang trực' : 'Ngoại tuyến'}
+              </span>
+            </AdminInfoRow>
             <AdminInfoRow label="Ngày tháng năm sinh">
               {detail.dateOfBirth ? `${formatDay(detail.dateOfBirth)}${age !== null ? ` (${age} tuổi)` : ''}` : '—'}
             </AdminInfoRow>
