@@ -10,6 +10,30 @@ export const PER_KM_FEE = SHIPPING_FEE_DEFAULTS.perKmFee;
 export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
 
 /**
+ * Kiểm tra xem tọa độ đã lưu có bị xung đột địa lý rõ rệt với tên địa chỉ dạng text hay không.
+ * Ví dụ: Địa chỉ ghi "Hồ Chí Minh" nhưng tọa độ lại ở miền Bắc (lat > 18 - Hòa Lạc/Hà Nội),
+ * hoặc địa chỉ ghi "Hà Nội" nhưng tọa độ ở miền Nam (lat < 16).
+ * @param {string} addressText
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {boolean}
+ */
+export const isLocationMismatch = (addressText, lat, lng) => {
+  if (!addressText || typeof addressText !== 'string' || lat == null || lng == null) return false;
+  const lower = addressText.toLowerCase();
+
+  // Địa chỉ ở miền Nam nhưng tọa độ miền Bắc (lat > 18)
+  const isSouthText = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|bình dương|đồng nai|cần thơ|vũng tàu)/i.test(lower);
+  if (isSouthText && lat > 18.0) return true;
+
+  // Địa chỉ ở miền Bắc nhưng tọa độ miền Nam (lat < 16)
+  const isNorthText = /(hà nội|thạch thất|hòa lạc|hải phòng|bắc ninh|quảng ninh|thái nguyên)/i.test(lower);
+  if (isNorthText && lat < 16.0) return true;
+
+  return false;
+};
+
+/**
  * Tự động tìm tọa độ GPS từ chuỗi địa chỉ bằng OpenStreetMap Nominatim Geocoding API.
  * Hoàn toàn động, không fix cứng bất kỳ danh sách hay từ khóa regex nào.
  * @param {string} addressString Địa chỉ dạng text
@@ -22,36 +46,48 @@ export const resolveLocationFromAddress = async (addressString) => {
 
   const cleanText = addressString.trim();
 
-  // Gọi OpenStreetMap Nominatim Geocoding API động
-  try {
-    const query = /Thạch Thất|Hòa Lạc|Hà Nội/i.test(cleanText) ? cleanText : `${cleanText}, Thạch Thất, Hà Nội`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+  const fetchNominatim = async (query) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=1`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'FoodDeliverySystem/1.0',
-        'Accept-Language': 'vi',
-      },
-    });
-    clearTimeout(timeoutId);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'FoodDeliverySystem/1.0',
+          'Accept-Language': 'vi',
+        },
+      });
+      clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+          };
+        }
       }
+    } catch {
+      // ignore geocoding fetch error
     }
-  } catch {
-    // Nếu mạng chậm hoặc timeout, fallback về tọa độ trung tâm
+    return null;
+  };
+
+  // 1. Tìm kiếm trực tiếp chuỗi địa chỉ người dùng nhập
+  let coords = await fetchNominatim(cleanText);
+  if (coords) return coords;
+
+  // 2. Nếu không tìm thấy và chuỗi không nhắc tới các tỉnh/thành khác, thử tìm trong phạm vi Thạch Thất, Hà Nội
+  const hasOtherCity = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|đà nẵng|hải phòng|cần thơ|huế|nha trang|bình dương|đồng nai|vũng tàu)/i.test(cleanText);
+  if (!hasOtherCity) {
+    coords = await fetchNominatim(`${cleanText}, Thạch Thất, Hà Nội`);
+    if (coords) return coords;
   }
 
-  // Fallback mặc định khu vực trung tâm Hòa Lạc
+  // 3. Fallback mặc định khu vực trung tâm Hòa Lạc nếu hoàn toàn không tìm thấy
   return DEFAULT_HOA_LAC_COORDINATES;
 };
 

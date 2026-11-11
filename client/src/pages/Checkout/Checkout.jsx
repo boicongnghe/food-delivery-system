@@ -162,7 +162,11 @@ function Checkout() {
 
       const chosenAddr = addresses.find((a) => a._id === selectedAddressId)
       const params = { restaurantId, addressId: selectedAddressId }
-      if (chosenAddr?.location?.lat && chosenAddr?.location?.lng) {
+      
+      const lowerAddr = (chosenAddr?.addressLine || '').toLowerCase()
+      const isSouthAddr = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn)/i.test(lowerAddr)
+      const isNorthCoord = chosenAddr?.location?.lat > 18.0
+      if (chosenAddr?.location?.lat && chosenAddr?.location?.lng && !(isSouthAddr && isNorthCoord)) {
         params.lat = chosenAddr.location.lat
         params.lng = chosenAddr.location.lng
       }
@@ -1020,14 +1024,35 @@ function Checkout() {
                   rows={3}
                   placeholder="Ví dụ: Số 25, Ngõ 10 Tạ Quang Bửu, Phường Bách Khoa, Quận Hai Bà Trưng, Hà Nội"
                   value={newAddressForm.addressLine}
-                  onChange={(e) => setNewAddressForm({ ...newAddressForm, addressLine: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setNewAddressForm((prev) => ({
+                      ...prev,
+                      addressLine: val,
+                      // Nếu người dùng chủ động gõ/sửa lại text địa chỉ, reset GPS thiết bị để hệ thống định vị đúng theo địa chỉ mới gõ
+                      location: null,
+                    }))
+                  }}
                   required
                 />
-                {newAddressForm.location && (
-                  <div className="text-xs text-green-600 font-semibold flex items-center gap-1 mt-1.5">
-                    <span>✓ Tọa độ GPS:</span>
-                    <span>{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
+                {newAddressForm.location ? (
+                  <div className="flex items-center justify-between text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-2 mt-1.5">
+                    <span className="flex items-center gap-1 font-medium">
+                      <span>📍 Đã ghim GPS thiết bị:</span>
+                      <span className="font-semibold">{newAddressForm.location.lat.toFixed(4)}, {newAddressForm.location.lng.toFixed(4)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setNewAddressForm((prev) => ({ ...prev, location: null }))}
+                      className="text-red-500 hover:text-red-700 underline font-semibold ml-2 cursor-pointer"
+                    >
+                      Bỏ ghim GPS
+                    </button>
                   </div>
+                ) : (
+                  <p className="text-[0.75rem] text-slate-400 mt-1">
+                    * Hệ thống sẽ tự động xác định tọa độ GPS và tính toán lộ trình theo địa chỉ bạn nhập.
+                  </p>
                 )}
               </div>
 

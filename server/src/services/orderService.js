@@ -23,6 +23,7 @@ import { getShippingFeeConfig } from './shippingFeeService.js';
 import {
   getRouteDistanceAndDuration,
   resolveLocationFromAddress,
+  isLocationMismatch,
   calculateShippingFee,
 } from '../utils/distance.js';
 
@@ -299,11 +300,11 @@ export const createOrder = async (userId, data) => {
   let destLng = deliveryAddress.location?.lng;
   let destText = deliveryAddress.addressLine || '';
 
-  if ((destLat == null || destLng == null) && deliveryAddress.addressId) {
+  if (deliveryAddress.addressId) {
     const savedAddress = await Address.findById(deliveryAddress.addressId);
     if (savedAddress) {
       destText = destText || savedAddress.addressLine;
-      if (savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
+      if ((destLat == null || destLng == null) && savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
         destLat = savedAddress.location.lat;
         destLng = savedAddress.location.lng;
       }
@@ -314,7 +315,7 @@ export const createOrder = async (userId, data) => {
         destText =
           destText ||
           [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ');
-        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
           destLat = embedded.location.lat;
           destLng = embedded.location.lng;
         }
@@ -322,10 +323,15 @@ export const createOrder = async (userId, data) => {
     }
   }
 
-  if ((destLat == null || destLng == null) && destText) {
+  // Tự động phát hiện và sửa chữa nếu tọa độ bị xung đột với tên địa chỉ (vd: địa chỉ ghi HCM nhưng tọa độ ở Hòa Lạc)
+  if (isLocationMismatch(destText, destLat, destLng) || ((destLat == null || destLng == null) && destText)) {
     const resolved = await resolveLocationFromAddress(destText);
     destLat = resolved.lat;
     destLng = resolved.lng;
+    if (deliveryAddress.addressId) {
+      Address.updateOne({ _id: deliveryAddress.addressId }, { $set: { location: resolved } }).catch(() => {});
+      User.updateOne({ 'addresses._id': deliveryAddress.addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
+    }
   }
 
   const shippingConfig = await getShippingFeeConfig();
@@ -729,12 +735,12 @@ export const estimateShipping = async (userId, params) => {
   let destLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : null;
   let destinationAddressText = '';
 
-  if ((destLat == null || destLng == null) && addressId) {
+  if (addressId) {
     // 1. Kiểm tra trong Address collection
     const address = await Address.findById(addressId);
     if (address) {
-      destinationAddressText = address.addressLine;
-      if (address.location?.lat != null && address.location?.lng != null) {
+      destinationAddressText = address.addressLine || '';
+      if ((destLat == null || destLng == null) && address.location?.lat != null && address.location?.lng != null) {
         destLat = address.location.lat;
         destLng = address.location.lng;
       }
@@ -746,7 +752,7 @@ export const estimateShipping = async (userId, params) => {
         destinationAddressText = [embedded.street, embedded.ward, embedded.district, embedded.city]
           .filter(Boolean)
           .join(', ');
-        if (embedded.location?.lat != null && embedded.location?.lng != null) {
+        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
           destLat = embedded.location.lat;
           destLng = embedded.location.lng;
         }
@@ -754,15 +760,17 @@ export const estimateShipping = async (userId, params) => {
     }
   }
 
-  // 3. Nếu địa chỉ chưa có tọa độ, tự động geocode từ tên đường qua OpenStreetMap
-  if ((destLat == null || destLng == null) && destinationAddressText) {
+  // 3. Tự động phát hiện xung đột tọa độ (vd: địa chỉ ghi TP.HCM nhưng tọa độ ở Hòa Lạc) hoặc chưa có tọa độ
+  if (isLocationMismatch(destinationAddressText, destLat, destLng) || ((destLat == null || destLng == null) && destinationAddressText)) {
     const resolved = await resolveLocationFromAddress(destinationAddressText);
     destLat = resolved.lat;
     destLng = resolved.lng;
 
-    // Lưu lại vào DB để lần sau truy vấn siêu tốc
-    Address.updateOne({ _id: addressId }, { $set: { location: resolved } }).catch(() => {});
-    User.updateOne({ 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
+    // Cập nhật lại vào DB để tự động sửa chữa dữ liệu cũ
+    if (addressId) {
+      Address.updateOne({ _id: addressId }, { $set: { location: resolved } }).catch(() => {});
+      User.updateOne({ 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
+    }
   }
 
   const shippingConfig = await getShippingFeeConfig();
