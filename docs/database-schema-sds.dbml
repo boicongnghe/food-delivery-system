@@ -115,6 +115,7 @@ Table orders [headercolor: #E67E22] {
   total number
   "promotion.code" string [ref: > promotion_rules.code]
   delivery object
+  deliveryProof object [note: 'shipper delivery evidence image and timestamp']
   payment object
   status enum
   statusHistory array

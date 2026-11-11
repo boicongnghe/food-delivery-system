@@ -77,8 +77,8 @@ export const orderApi = {
     const response = await axiosClient.post(`/orders/${id}/shipper/unanswered-call`)
     return response.data
   },
-  confirmDeliveryDelivered: async id => {
-    const response = await axiosClient.patch(`/orders/${id}/shipper/delivered`)
+  confirmDeliveryDelivered: async (id, data) => {
+    const response = await axiosClient.patch(`/orders/${id}/shipper/delivered`, data)
     return response.data
   },
 }

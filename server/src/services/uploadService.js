@@ -80,8 +80,8 @@ export const assertOwnUpload = (url, userId, folders, field) => {
   }
 };
 
-// Every place that can still show an image: menus, restaurant profiles, avatars, feedback evidence
-// and the item snapshots of orders (old orders must keep their photos)
+// Every place that can still show an image: menus, restaurant profiles, avatars, feedback evidence,
+// delivery proofs and item snapshots of orders (old orders must keep their photos)
 const isImageInUse = async (url, publicId) => {
   const urlRegex = new RegExp(escapeRegex(publicId));
   const usages = await Promise.all([
@@ -91,6 +91,7 @@ const isImageInUse = async (url, publicId) => {
     Complaint.exists({ images: url }),
     DeliveryIssue.exists({ images: url }),
     Order.exists({ 'items.image': url }),
+    Order.exists({ 'deliveryProof.imageUrl': url }),
   ]);
   return usages.some(Boolean);
 };

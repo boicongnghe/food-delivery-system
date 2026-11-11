@@ -105,6 +105,22 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
             <AdminInfoRow label="Số điện thoại nhận">{order.delivery?.phone || '—'}</AdminInfoRow>
             <AdminInfoRow label="Địa chỉ giao">{order.delivery?.address || '—'}</AdminInfoRow>
             {order.customerNote && <AdminInfoRow label="Ghi chú của khách">{order.customerNote}</AdminInfoRow>}
+            {order.deliveryProof?.imageUrl && (
+              <AdminInfoRow label="Ảnh chứng minh giao hàng">
+                <a href={order.deliveryProof.imageUrl} target="_blank" rel="noreferrer">
+                  <img
+                    className="max-h-48 rounded-lg object-contain"
+                    src={order.deliveryProof.imageUrl}
+                    alt={`Ảnh chứng minh đơn ${order.orderCode || order.orderNumber} đã giao`}
+                  />
+                  {order.deliveryProof.confirmedAt && (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      {formatDateTime(order.deliveryProof.confirmedAt)}
+                    </span>
+                  )}
+                </a>
+              </AdminInfoRow>
+            )}
           </AdminSection>
 
           <AdminSection

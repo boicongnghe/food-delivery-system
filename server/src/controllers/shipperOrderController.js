@@ -50,7 +50,11 @@ export const recordUnansweredCall = asyncHandler(async (req, res) => {
 });
 
 export const confirmDelivered = asyncHandler(async (req, res) => {
-  const result = await shipperOrderService.confirmDelivered(req.user._id, req.params.id);
+  const result = await shipperOrderService.confirmDelivered(
+    req.user._id,
+    req.params.id,
+    req.body.deliveryProofUrl,
+  );
   res.status(200).json({
     success: true,
     data: result,

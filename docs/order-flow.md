@@ -17,7 +17,7 @@ stateDiagram-v2
     confirmed --> cancelled : khách hủy / không có shipper (TO-07)
     preparing --> ready_for_pickup : bếp bấm "Đã xong"
     ready_for_pickup --> delivering : shipper xác nhận đã lấy hàng
-    delivering --> delivered : giao thành công
+    delivering --> delivered : shipper tải ảnh chứng minh và xác nhận giao thành công
     delivered --> [*]
     cancelled --> [*]
 ```
@@ -28,7 +28,7 @@ stateDiagram-v2
 | `confirmed` | Quán đã nhận, **đang tìm shipper**, bếp chưa nấu | Cột "Chờ shipper nhận" (đếm giờ tự hủy) | Thấy trong "Đơn có thể nhận" |
 | `preparing` | Shipper đã nhận, **bếp đang nấu** (`kitchenDueAt` = lúc shipper nhận + `prepTime`) | Cột "Đang chuẩn bị": nút "Đã xong" | Đơn đang giữ, đi tới quán; chưa bấm "Đã lấy" được |
 | `ready_for_pickup` | Món xong, chờ shipper lấy | Cột "Sẵn sàng lấy hàng" | Bấm "Xác nhận đã lấy" |
-| `delivering` → `delivered` | Đang giao / đã giao | Rời bảng | Giao cho khách |
+| `delivering` → `delivered` | Đang giao / đã giao | Rời bảng | Tải ảnh chứng minh (JPG, PNG, WEBP, tối đa 5 MB) rồi xác nhận; ảnh được lưu vào đơn và hiển thị cho khách / Admin |
 
 - **Số phiếu bếp** và hạn bàn giao được ghi lúc shipper nhận đơn (lúc bếp thật sự bắt đầu), không phải lúc quán nhận.
 - **Khách hủy** được khi đơn còn `pending` hoặc `confirmed` (bếp chưa nấu). Từ `preparing` trở đi khách không tự hủy được.
@@ -56,6 +56,8 @@ Chủ quán bật/tắt trên bảng bếp (nút "Đang nhận đơn / Tạm ng�
 | --- | --- | --- |
 | PATCH | `/api/restaurants/me/orders/:id/accept` | `pending` → `confirmed`, gửi `new_pickup_order` cho shipper |
 | PATCH | `/api/orders/:id/shipper/accept` | Đơn `confirmed` → `preparing` (bếp nấu, có số phiếu); đơn đã được trả về hàng chờ chỉ gán shipper |
+| POST | `/api/uploads/images?folder=delivery-proofs` | Shipper tải ảnh chứng minh lên trước khi xác nhận giao hàng |
+| PATCH | `/api/orders/:id/shipper/delivered` | Body `{ "deliveryProofUrl": "<Cloudinary URL>" }` bắt buộc; ảnh được lưu cùng lúc hoàn tất đơn và ghi nhận thu nhập |
 | PATCH | `/api/restaurants/me/orders/:id/ready` | `preparing` → `ready_for_pickup` |
 | GET | `/api/orders/available-for-pickup` | Đơn `confirmed` / `preparing` / `ready_for_pickup` chưa có shipper, thanh toán hợp lệ |
 | GET | `/api/restaurants/me/orders/board` | Thêm nhóm `confirmed` (kèm `waitingShipperSince`, `shipperDeadline`); thẻ đang nấu có `cookingStartedAt` |

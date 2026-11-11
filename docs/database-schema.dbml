@@ -427,6 +427,8 @@ Table orders [headercolor: #E67E22] {
   "delivery.expectedAt" date [default: null]
   "delivery.location.lat" number [default: null]
   "delivery.location.lng" number [default: null]
+  "deliveryProof.imageUrl" string [default: null, note: 'shipper delivery evidence']
+  "deliveryProof.confirmedAt" date [default: null]
   customerNote string [default: '']
   "payment.method" payment_method [default: 'cod']
   "payment.status" payment_status [default: 'unpaid']
