@@ -3,6 +3,7 @@ import { Camera, Lock, MapPin, Navigation, Package, Phone, Power, RefreshCw, Shi
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import orderApi from '../../../api/orderApi.js'
 import uploadApi from '../../../api/uploadApi.js'
+import OrderChat from '../../../components/OrderChat/OrderChat.jsx'
 import useAuth from '../../../hooks/useAuth.js'
 import { connectSocket } from '../../../services/socket.js'
 
@@ -686,6 +687,11 @@ function DeliveryOrders({ onOrderChanged }) {
                           )}
                         </section>
                       )}
+                      <OrderChat
+                        orderId={order._id}
+                        status={order.status}
+                        otherPartyLabel={order.customer?.fullName || 'khách hàng'}
+                      />
                       {order.deliveryIssueFlagged && (
                         <p className="flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                           <ShieldAlert size={14} /> Đơn đang được Admin xem xét sự cố.

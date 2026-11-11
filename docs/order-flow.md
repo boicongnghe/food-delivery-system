@@ -66,3 +66,11 @@ Chủ quán bật/tắt trên bảng bếp (nút "Đang nhận đơn / Tạm ng�
 ## 6. Đơn cũ trước khi đổi luồng
 
 Không cần migration. Đơn `preparing` cũ (bếp đã nấu, chưa có shipper) hiện trong danh sách cho shipper và nhận như đơn được trả về hàng chờ. Đơn `ready_for_pickup` cũ chưa có shipper vẫn theo TO-06/TO-07 tính từ `readyAt`.
+
+## 7. Trao đổi giữa khách và shipper
+
+- Khi đơn đã có shipper, khách và shipper được xem lịch sử và nhắn tin trong trang theo dõi / danh sách đơn đang giao.
+- Chỉ khách đặt đơn và shipper đang được gán cho đơn mới có quyền truy cập cuộc trò chuyện.
+- Tin nhắn được lưu trong collection `order_messages` và phát realtime qua Socket.IO tới hai bên.
+- Chỉ gửi tin nhắn khi đơn ở trạng thái `preparing`, `ready_for_pickup` hoặc `delivering`. Sau khi đơn kết thúc, hai bên chỉ xem được lịch sử.
+- API: `GET /api/chat/orders/:orderId/messages` và `POST /api/chat/orders/:orderId/messages` với body `{ "message": "..." }`; nội dung tối đa 1000 ký tự.
