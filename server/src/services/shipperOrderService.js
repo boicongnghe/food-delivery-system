@@ -545,7 +545,7 @@ export const completeDelivery = async ({
       const hourlyUpdate = await DriverDashboard.updateOne(
         { userId: shipperId },
         buildHourlyEarningsPipeline(deliveredHour, payout),
-        { session },
+        { session, updatePipeline: true },
       );
       if (!hourlyUpdate.matchedCount) {
         throw new ApiError(409, 'Không thể cập nhật biểu đồ thu nhập; vui lòng thử lại');
