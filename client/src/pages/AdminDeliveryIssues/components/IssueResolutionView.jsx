@@ -21,6 +21,7 @@ export default function IssueResolutionView({ resolution }) {
             {PENALTY_ACTION_LABELS[penalty.action]}
             {penalty.action === 'fine' && ` ${formatCurrency(penalty.fineAmount)}`}
           </AdminBadge>
+          {penalty.autoSuspended && <AdminBadge tone="red">Tự động đình chỉ (đạt ngưỡng vi phạm)</AdminBadge>}
         </p>
       ) : (
         <p className="text-xs text-slate-500">Không xử phạt.</p>

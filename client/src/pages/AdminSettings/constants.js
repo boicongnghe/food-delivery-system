@@ -10,3 +10,14 @@ export const SETTING_FIELDS = [
   { key: 'pickupWait', label: 'Báo admin khi shipper đã nhận nhưng chưa lấy hàng sau', min: 5, max: 120 },
   { key: 'closingCutoff', label: 'Ngừng nhận đơn trước giờ đóng cửa', min: 0, max: 180 },
 ]
+
+// Violation policy (server: ViolationSetting / violationPolicySchema), in number of penalties
+export const VIOLATION_FIELDS = [
+  {
+    key: 'autoSuspendThreshold',
+    label: 'Tự động đình chỉ khi tài khoản vi phạm đủ',
+    min: 0,
+    max: 20,
+    hint: 'Nhập 0 để tắt tự động đình chỉ',
+  },
+]

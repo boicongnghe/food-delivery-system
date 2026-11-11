@@ -1,7 +1,6 @@
-import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
-import AdminPartnerStatusBadge from '../../../components/AdminPartnerStatusBadge/AdminPartnerStatusBadge.jsx'
 import { ADMIN_TABLE_CELL, ADMIN_TABLE_HEAD } from '../../../utils/adminClassNames.js'
 import { formatDate } from '../../../utils/formatDate.js'
+import ShipperStatusCell from './ShipperStatusCell.jsx'
 
 export default function ShipperTable({ shippers, onSelect }) {
   return (
@@ -40,10 +39,7 @@ export default function ShipperTable({ shippers, onSelect }) {
               </td>
               <td className={ADMIN_TABLE_CELL}>{formatDate(shipper.createdAt)}</td>
               <td className={ADMIN_TABLE_CELL}>
-                <div className="flex flex-wrap gap-1.5">
-                  <AdminPartnerStatusBadge status={shipper.status} />
-                  {shipper.user && !shipper.user.isActive && <AdminBadge tone="red">TK bị khóa</AdminBadge>}
-                </div>
+                <ShipperStatusCell shipper={shipper} />
               </td>
               <td className={`${ADMIN_TABLE_CELL} text-right`}>
                 <button

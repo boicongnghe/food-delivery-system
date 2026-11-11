@@ -24,7 +24,11 @@ import { partnerQuerySchema, partnerStatusSchema } from '../validations/adminVal
 import { analyticsQuerySchema } from '../validations/analyticsValidation.js';
 import { commissionRuleSchema } from '../validations/commissionRuleValidation.js';
 import { idParamSchema } from '../validations/commonValidation.js';
-import { orderTimeoutSettingsSchema, shippingFeeSettingSchema } from '../validations/settingValidation.js';
+import {
+  orderTimeoutSettingsSchema,
+  shippingFeeSettingSchema,
+  violationPolicySchema,
+} from '../validations/settingValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
 import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
@@ -64,6 +68,10 @@ router.patch(
 // Order timeout rules (docs/order-timeouts.md)
 router.get('/settings/order-timeouts', settingController.getOrderTimeouts);
 router.put('/settings/order-timeouts', validate(orderTimeoutSettingsSchema), settingController.updateOrderTimeouts);
+
+// Violation policy: penalties before an account is suspended automatically (UC45)
+router.get('/settings/violations', settingController.getViolationPolicy);
+router.put('/settings/violations', validate(violationPolicySchema), settingController.updateViolationPolicy);
 
 // Shipping fee & distance limit settings (dynamic shipper pricing)
 router.get('/settings/shipping-fee', shippingFeeController.getShippingFeeSettings);

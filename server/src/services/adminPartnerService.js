@@ -1,5 +1,6 @@
 import DeliveryIssue from '../models/DeliveryIssue.js';
 import DriverDashboard from '../models/DriverDashboard.js';
+import Order from '../models/Order.js';
 import Restaurant, { PARTNER_STATUSES } from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
@@ -8,6 +9,7 @@ import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { summarizeOrders } from './adminUserService.js';
 import { countByStatus } from './feedbackPolicy.js';
+import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
 
 const CITIZEN_ID_PATTERN = /^[0-9]{9,12}$/; // same rule as the register form
 const PLACEHOLDER_ADDRESS = 'Đang cập nhật địa chỉ'; // set by registerUser when no address was given
@@ -83,6 +85,33 @@ const shipperChecks = (shipper, account) => {
       required: false,
     },
   ];
+};
+
+// ---------- Shipper availability: the "Nhận đơn" switch of the driver app (driverdashboards.isOnline) ----------
+
+/**
+ * Adds `availability: { isOnline, activeOrders }` to each shipper of the page.
+ * isOnline: the switch is on (no dashboard yet means it was never turned on).
+ * activeOrders: orders the shipper holds now (accepted, not delivered yet).
+ */
+const withShipperAvailability = async (shippers) => {
+  const userIds = shippers.map((shipper) => shipper.user?._id).filter(Boolean);
+  const [online, activeGroups] = await Promise.all([
+    DriverDashboard.find({ userId: { $in: userIds }, isOnline: true }).distinct('userId'),
+    Order.aggregate([
+      { $match: { shipper: { $in: userIds }, status: { $in: SHIPPER_ACTIVE_STATUSES } } },
+      { $group: { _id: '$shipper', count: { $sum: 1 } } },
+    ]),
+  ]);
+  const onlineSet = new Set(online.map(String));
+  const activeByUser = new Map(activeGroups.map((group) => [String(group._id), group.count]));
+  return shippers.map((shipper) => {
+    const userId = String(shipper.user?._id);
+    return {
+      ...shipper,
+      availability: { isOnline: onlineSet.has(userId), activeOrders: activeByUser.get(userId) || 0 },
+    };
+  });
 };
 
 const PARTNERS = {
@@ -194,6 +223,15 @@ export const listRestaurants = (query) => listPartners(PARTNERS.restaurant, quer
 export const getRestaurantDetail = (id) => getPartnerDetail(PARTNERS.restaurant, id);
 export const changeRestaurantStatus = (adminId, id, data) => changePartnerStatus(PARTNERS.restaurant, adminId, id, data);
 
-export const listShippers = (query) => listPartners(PARTNERS.shipper, query);
-export const getShipperDetail = (id) => getPartnerDetail(PARTNERS.shipper, id);
+// Shipper list: each shipper also carries its "Nhận đơn" switch and the orders it holds
+export const listShippers = async (query) => {
+  const result = await listPartners(PARTNERS.shipper, query);
+  return { ...result, items: await withShipperAvailability(result.items) };
+};
+
+export const getShipperDetail = async (id) => {
+  const detail = await getPartnerDetail(PARTNERS.shipper, id);
+  const [withAvailability] = await withShipperAvailability([detail]);
+  return withAvailability;
+};
 export const changeShipperStatus = (adminId, id, data) => changePartnerStatus(PARTNERS.shipper, adminId, id, data);
