@@ -82,6 +82,7 @@ function Checkout() {
   // Distance & Shipping states
   const [shippingFee, setShippingFee] = useState(15000)
   const [distanceKm, setDistanceKm] = useState(null)
+  const [maxDistanceKm, setMaxDistanceKm] = useState(10)
   const [durationMinutes, setDurationMinutes] = useState(null)
   const [isDeliverable, setIsDeliverable] = useState(true)
   const [shippingError, setShippingError] = useState('')
@@ -172,6 +173,7 @@ function Checkout() {
         const info = res.data?.data
         if (info) {
           setDistanceKm(info.distanceKm)
+          if (info.maxDistanceKm) setMaxDistanceKm(info.maxDistanceKm)
           setDurationMinutes(info.durationMinutes || null)
           setShippingFee(info.shippingFee || 15000)
           setIsDeliverable(info.isDeliverable !== false)
@@ -400,7 +402,7 @@ function Checkout() {
     if (!isDeliverable) {
       setErrorMsg(
         shippingError ||
-          `Khoảng cách giao hàng (${distanceKm} km) vượt quá bán kính phục vụ tối đa (10 km). Vui lòng chọn địa chỉ khác gần hơn.`
+          `Khoảng cách giao hàng (${distanceKm} km) vượt quá bán kính phục vụ tối đa (${maxDistanceKm || 10} km). Vui lòng chọn địa chỉ khác gần hơn.`
       )
       return
     }

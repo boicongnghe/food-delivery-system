@@ -10,6 +10,7 @@ import * as deliveryIssueController from '../controllers/deliveryIssueController
 import * as promotionRuleController from '../controllers/promotionRuleController.js';
 import * as reviewController from '../controllers/reviewController.js';
 import * as settingController from '../controllers/settingController.js';
+import * as shippingFeeController from '../controllers/shippingFeeController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import validate from '../middlewares/validate.js';
 import {
@@ -23,7 +24,7 @@ import { partnerQuerySchema, partnerStatusSchema } from '../validations/adminVal
 import { analyticsQuerySchema } from '../validations/analyticsValidation.js';
 import { commissionRuleSchema } from '../validations/commissionRuleValidation.js';
 import { idParamSchema } from '../validations/commonValidation.js';
-import { orderTimeoutSettingsSchema } from '../validations/settingValidation.js';
+import { orderTimeoutSettingsSchema, shippingFeeSettingSchema } from '../validations/settingValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
 import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
@@ -63,6 +64,10 @@ router.patch(
 // Order timeout rules (docs/order-timeouts.md)
 router.get('/settings/order-timeouts', settingController.getOrderTimeouts);
 router.put('/settings/order-timeouts', validate(orderTimeoutSettingsSchema), settingController.updateOrderTimeouts);
+
+// Shipping fee & distance limit settings (dynamic shipper pricing)
+router.get('/settings/shipping-fee', shippingFeeController.getShippingFeeSettings);
+router.put('/settings/shipping-fee', validate(shippingFeeSettingSchema), shippingFeeController.updateShippingFeeSettings);
 
 // UC37 - Accounts of every role (lock / unlock, modify role)
 router.get('/users', validate(adminUserQuerySchema, 'query'), adminUserController.listUsers);

@@ -18,6 +18,7 @@ import {
   Timer,
   UtensilsCrossed,
   HandCoins,
+  MapPin,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
 import useTheme from '../hooks/useTheme.js'
@@ -36,6 +37,7 @@ const NAV_LINKS = [
   { to: '/admin/delivery-issues', label: 'Sự cố giao hàng', icon: Siren },
   { to: '/admin/promotions', label: 'Mã khuyến mãi', icon: TicketPercent },
   { to: '/admin/commission-rules', label: 'Quy tắc hoa hồng', icon: Percent },
+  { to: '/admin/shipping-fee', label: 'Cước phí & Shipper', icon: MapPin },
   { to: '/admin/settings', label: 'Cấu hình vận hành', icon: Timer },
 ]
 

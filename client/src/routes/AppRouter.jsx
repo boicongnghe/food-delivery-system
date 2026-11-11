@@ -32,6 +32,7 @@ import AdminPromotions from '../pages/AdminPromotions/AdminPromotions.jsx'
 import AdminRestaurants from '../pages/AdminRestaurants/AdminRestaurants.jsx'
 import AdminReviews from '../pages/AdminReviews/AdminReviews.jsx'
 import AdminSettings from '../pages/AdminSettings/AdminSettings.jsx'
+import AdminShippingFee from '../pages/AdminShippingFee/AdminShippingFee.jsx'
 import AdminShippers from '../pages/AdminShippers/AdminShippers.jsx'
 import AdminUsers from '../pages/AdminUsers/AdminUsers.jsx'
 import NotFound from '../pages/NotFound/NotFound.jsx'
@@ -132,6 +133,7 @@ function AppRouter() {
               <Route path="delivery-issues" element={<AdminDeliveryIssues />} />
               <Route path="promotions" element={<AdminPromotions />} />
               <Route path="commission-rules" element={<AdminCommissionRules />} />
+              <Route path="shipping-fee" element={<AdminShippingFee />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
           </Route>

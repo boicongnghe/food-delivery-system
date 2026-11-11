@@ -19,14 +19,11 @@ import { sendRealtimeNotification } from '../socket.js';
 import User from '../models/User.js';
 import { getOrderAcceptance } from '../utils/openingHours.js';
 import { getOrderTimeouts } from './settingService.js';
+import { getShippingFeeConfig } from './shippingFeeService.js';
 import {
   getRouteDistanceAndDuration,
   resolveLocationFromAddress,
   calculateShippingFee,
-  MAX_DELIVERY_DISTANCE_KM,
-  BASE_DISTANCE_KM,
-  BASE_SHIPPING_FEE,
-  PER_KM_FEE,
 } from '../utils/distance.js';
 
 /**
@@ -304,17 +301,18 @@ export const createOrder = async (userId, data) => {
     destLng = resolved.lng;
   }
 
+  const shippingConfig = await getShippingFeeConfig();
   const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);
   const distanceKm = routeInfo.distanceKm;
 
-  if (distanceKm > MAX_DELIVERY_DISTANCE_KM) {
+  if (distanceKm > shippingConfig.maxDistanceKm) {
     throw new ApiError(
       400,
-      `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính giao hàng tối đa cho phép (${MAX_DELIVERY_DISTANCE_KM} km). Vui lòng chọn địa chỉ giao hàng gần hơn.`,
+      `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính giao hàng tối đa cho phép (${shippingConfig.maxDistanceKm} km). Vui lòng chọn địa chỉ giao hàng gần hơn.`,
     );
   }
 
-  const shippingFee = calculateShippingFee(distanceKm);
+  const shippingFee = calculateShippingFee(distanceKm, shippingConfig);
 
   // Restaurant voucher first (funded by the restaurant), then the platform voucher on what is left
   const restaurantVoucher = { voucher: null, code: null, discountAmount: 0 };
@@ -656,29 +654,30 @@ export const estimateShipping = async (userId, params) => {
     User.updateOne({ 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
   }
 
+  const shippingConfig = await getShippingFeeConfig();
   const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);
   const distanceKm = routeInfo.distanceKm;
   const durationMinutes = routeInfo.durationMinutes;
 
-  const isDeliverable = distanceKm <= MAX_DELIVERY_DISTANCE_KM;
+  const isDeliverable = distanceKm <= shippingConfig.maxDistanceKm;
 
   let shippingFee = 0;
   let message = null;
 
   if (isDeliverable) {
-    shippingFee = calculateShippingFee(distanceKm);
+    shippingFee = calculateShippingFee(distanceKm, shippingConfig);
   } else {
-    message = `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính phục vụ tối đa (${MAX_DELIVERY_DISTANCE_KM} km).`;
+    message = `Khoảng cách giao hàng theo đường thực tế là ${distanceKm} km, vượt quá bán kính phục vụ tối đa (${shippingConfig.maxDistanceKm} km).`;
   }
 
   return {
     distanceKm,
     durationMinutes,
     shippingFee,
-    baseDistanceKm: BASE_DISTANCE_KM,
-    baseFee: BASE_SHIPPING_FEE,
-    perKmFee: PER_KM_FEE,
-    maxDistanceKm: MAX_DELIVERY_DISTANCE_KM,
+    baseDistanceKm: shippingConfig.baseDistanceKm,
+    baseFee: shippingConfig.baseFee,
+    perKmFee: shippingConfig.perKmFee,
+    maxDistanceKm: shippingConfig.maxDistanceKm,
     isDeliverable,
     message,
   };

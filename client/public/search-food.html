@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tra Cứu Món Ăn - Database MongoDB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: #f8fafc;
+      color: #1e293b;
+      padding: 30px 16px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+      border: 1px solid #e2e8f0;
+    }
+
+    .header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: #64748b;
+      margin-top: 6px;
+    }
+
+    .search-box-wrapper {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .textbox-input {
+      flex: 1;
+      padding: 14px 18px;
+      font-size: 15px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      outline: none;
+      transition: all 0.2s ease;
+      background: #f8fafc;
+    }
+
+    .textbox-input:focus {
+      border-color: #f97316;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+    }
+
+    .btn-search {
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-search:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-search:active {
+      transform: translateY(0);
+    }
+
+    .quick-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+
+    .quick-tag-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .tag-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      background: #f1f5f9;
+      color: #475569;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tag-pill:hover {
+      background: #ffedd5;
+      color: #ea580c;
+      border-color: #fdba74;
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      padding: 14px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    td {
+      padding: 14px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: #fafaf9;
+    }
+
+    .food-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1px solid #e2e8f0;
+    }
+
+    .food-name {
+      font-weight: 700;
+      color: #0f172a;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .food-desc {
+      font-size: 12px;
+      color: #64748b;
+      max-width: 280px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .food-price {
+      font-weight: 800;
+      color: #ea580c;
+      font-size: 15px;
+    }
+
+    .restaurant-name {
+      font-weight: 600;
+      color: #334155;
+      font-size: 13px;
+    }
+
+    .badge-category {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-stock {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .loading-state, .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border: 3px solid #fdba74;
+      border-top-color: #ea580c;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>🍜 Tra Cứu Món Ăn Từ Database</h1>
+      <p>Nhập từ khóa vào Textbox HTML dưới đây để gọi API Backend và truy vấn trực tiếp bảng Món Ăn từ MongoDB</p>
+    </div>
+
+    <!-- 1. Ô TEXTBOX HTML -->
+    <div class="search-box-wrapper">
+      <input
+        type="text"
+        id="foodKeyword"
+        class="textbox-input"
+        placeholder="Nhập tên món ăn cần tìm (ví dụ: Cơm, Phở, Gà, Burger, Bún, Trà sữa...)"
+        autofocus
+      />
+      <button type="button" class="btn-search" onclick="handleSearch()">🔍 Tìm kiếm</button>
+    </div>
+
+    <!-- Gợi ý từ khóa nhanh -->
+    <div class="quick-tags">
+      <span class="quick-tag-label">Gợi ý nhanh:</span>
+      <span class="tag-pill" onclick="quickFill('Cơm')">🍚 Cơm</span>
+      <span class="tag-pill" onclick="quickFill('Phở')">🍜 Phở</span>
+      <span class="tag-pill" onclick="quickFill('Burger')">🍔 Burger</span>
+      <span class="tag-pill" onclick="quickFill('Gà')">🍗 Gà</span>
+      <span class="tag-pill" onclick="quickFill('Trà')">🧋 Trà sữa</span>
+      <span class="tag-pill" onclick="quickFill('')">🔄 Tất cả món</span>
+    </div>
+
+    <!-- Thanh trạng thái số lượng -->
+    <div class="status-bar">
+      <span id="resultCount">Đang tải dữ liệu...</span>
+      <span style="font-size: 12px; color: #94a3b8;">Endpoint: <code>GET /api/foods</code></span>
+    </div>
+
+    <!-- Bảng kết quả dữ liệu từ Database -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Hình ảnh</th>
+            <th>Tên Món Ăn</th>
+            <th>Nhà Hàng</th>
+            <th>Danh Mục</th>
+            <th>Giá Bán</th>
+            <th>Trạng Thái</th>
+          </tr>
+        </thead>
+        <tbody id="foodTableBody">
+          <tr>
+            <td colspan="6" class="loading-state">
+              <div class="spinner"></div>
+              <div>Đang kết nối MongoDB để lấy dữ liệu...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin.includes(':5173') ? 'http://localhost:5000' : '';
+    let debounceTimer = null;
+
+    // Hàm gọi API lấy dữ liệu từ Database
+    async function loadDishes(keyword = '') {
+      const tbody = document.getElementById('foodTableBody');
+      const countEl = document.getElementById('resultCount');
+      
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="loading-state">
+            <div class="spinner"></div>
+            <div>Đang truy vấn database cho từ khóa "<strong>${keyword || 'Tất cả'}</strong>"...</div>
+          </td>
+        </tr>
+      `;
+
+      try {
+        const query = keyword ? `?search=${encodeURIComponent(keyword)}` : '';
+        const res = await fetch(`${API_BASE}/api/foods${query}`);
+        const json = await res.json();
+        const dishes = json.data || [];
+
+        countEl.textContent = `Tìm thấy ${dishes.length} món ăn trong Database`;
+
+        if (dishes.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="empty-state">
+                <div style="font-size: 36px; margin-bottom: 8px;">🍽️</div>
+                <div style="font-weight: 700; color: #1e293b;">Không tìm thấy món ăn nào</div>
+                <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Thử nhập từ khóa khác như "Cơm", "Phở", "Bò"...</div>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        // Render từng dòng từ dữ liệu MongoDB
+        tbody.innerHTML = dishes.map((dish) => {
+          const restaurantName = dish.restaurant?.name || 'Nhà hàng đối tác';
+          const categoryName = dish.category || 'Món chính';
+          const priceFormatted = (dish.price || 0).toLocaleString('vi-VN') + 'đ';
+          const fallbackImg = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=200&q=80';
+          const imgSrc = dish.image || fallbackImg;
+
+          return `
+            <tr>
+              <td>
+                <img src="${imgSrc}" alt="${dish.name}" class="food-img" onerror="this.src='${fallbackImg}'" />
+              </td>
+              <td>
+                <span class="food-name">${dish.name}</span>
+                <span class="food-desc">${dish.description || 'Món ngon chuẩn vị'}</span>
+              </td>
+              <td>
+                <span class="restaurant-name">${restaurantName}</span>
+              </td>
+              <td>
+                <span class="badge-category">${categoryName}</span>
+              </td>
+              <td>
+                <span class="food-price">${priceFormatted}</span>
+              </td>
+              <td>
+                <span class="badge-stock">✓ Sẵn sàng</span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (err) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-state" style="color: #ef4444;">
+              <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+              <div style="font-weight: 700;">Không thể kết nối đến máy chủ Backend!</div>
+              <div style="font-size: 13px; margin-top: 4px;">Hãy kiểm tra server backend đang chạy tại port 5000 và kết nối MongoDB.</div>
+            </td>
+          </tr>
+        `;
+        countEl.textContent = 'Lỗi kết nối';
+      }
+    }
+
+    // Sự kiện bấm nút Tìm kiếm
+    function handleSearch() {
+      const kw = document.getElementById('foodKeyword').value.trim();
+      loadDishes(kw);
+    }
+
+    // Bấm vào gợi ý tag
+    function quickFill(tag) {
+      const input = document.getElementById('foodKeyword');
+      input.value = tag;
+      loadDishes(tag);
+    }
+
+    // Tìm kiếm tự động khi người dùng gõ vào textbox (Debounce 350ms)
+    document.getElementById('foodKeyword').addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadDishes(e.target.value.trim());
+      }, 350);
+    });
+
+    // Bấm Enter để tìm ngay
+    document.getElementById('foodKeyword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(debounceTimer);
+        handleSearch();
+      }
+    });
+
+    // Tự động load tất cả món ăn khi vừa mở trang
+    window.addEventListener('DOMContentLoaded', () => {
+      loadDishes('');
+    });
+  </script>
+</body>
+</html>
+
