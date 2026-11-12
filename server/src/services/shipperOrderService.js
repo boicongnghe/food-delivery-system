@@ -148,6 +148,7 @@ const toAvailableOrder = (order) => {
       type: order.delivery.type,
       expectedAt: order.delivery.expectedAt,
     },
+    distanceKm: order.distanceKm,
     itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
     estimatedPay: order.shippingFee,
     total: order.total,
@@ -167,7 +168,7 @@ export const listAvailableForPickup = async (shipperId, { page, limit }) => {
       .sort({ acceptedAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
+      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt distanceKm items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
       .lean(),
     Order.countDocuments(filter),
   ]);
@@ -182,7 +183,7 @@ export const getAvailableOrderDetail = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
   const order = await Order.findOne({ _id: orderId, ...(await getAvailableOrderFilter()) })
     .populate('restaurant', 'name address phone')
-    .select('orderCode restaurant delivery items total shippingFee payment acceptedAt kitchenDueAt readyAt status')
+    .select('orderCode restaurant delivery items total distanceKm shippingFee payment acceptedAt kitchenDueAt readyAt status')
     .lean();
   if (!order) {
     throw new ApiError(404, 'Đơn hàng không còn trong danh sách chờ nhận');
@@ -193,7 +194,7 @@ export const getAvailableOrderDetail = async (shipperId, orderId) => {
 
 export const getActiveOrders = async (shipperId) => {
   const orders = await Order.find({ shipper: shipperId, status: { $in: ACTIVE_STATUSES } })
-    .populate('restaurant', 'name address phone')
+    .populate('restaurant', 'name address phone location')
     .populate('customer', 'fullName phone')
     .sort({ shipperAcceptedAt: -1 })
     .lean();

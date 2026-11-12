@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
 import { connectSocket } from '../../services/socket.js'
 import toast from 'react-hot-toast'
+import OrderChat from '../../components/OrderChat/OrderChat.jsx'
 
 // Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
 const STATUS_STEPS = [
@@ -327,6 +328,16 @@ function OrderTracking() {
           </div>
         )}
       </div>
+
+      {order.shipper && !isCancelled && (
+        <div className="mb-6">
+          <OrderChat
+            orderId={order._id}
+            status={order.status}
+            otherPartyLabel="shipper"
+          />
+        </div>
+      )}
 
       {isDelivered && order.deliveryProof?.imageUrl && (
         <section className="mb-6 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">

@@ -7,15 +7,17 @@ import AdminPartnerStatusBadge from '../../../components/AdminPartnerStatusBadge
  * profile shows the switch instead of "Đang hoạt động"; other profiles keep their status label.
  */
 export default function ShipperStatusCell({ shipper }) {
-  const { status, availability, user } = shipper
-  const showSwitch = status === 'approved' && availability
+  const { status, availability, isOnline, user } = shipper
+  const hasLegacyOnlineStatus = status === 'approved' && !availability && typeof isOnline === 'boolean'
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {showSwitch ? (
+      {status === 'approved' && availability ? (
         <AdminBadge tone={availability.isOnline ? 'emerald' : 'slate'}>
           {availability.isOnline ? 'Đang nhận đơn' : 'Tắt nhận đơn'}
         </AdminBadge>
+      ) : hasLegacyOnlineStatus ? (
+        <AdminBadge tone={isOnline ? 'emerald' : 'slate'}>{isOnline ? 'Đang trực' : 'Ngoại tuyến'}</AdminBadge>
       ) : (
         <AdminPartnerStatusBadge status={status} />
       )}

@@ -303,7 +303,7 @@ export const createOrder = async (userId, data) => {
   if (deliveryAddress.addressId) {
     const savedAddress = await Address.findById(deliveryAddress.addressId);
     if (savedAddress) {
-      destText = destText || savedAddress.addressLine;
+      destText = savedAddress.addressLine || destText;
       if ((destLat == null || destLng == null) && savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
         destLat = savedAddress.location.lat;
         destLng = savedAddress.location.lng;
@@ -312,9 +312,7 @@ export const createOrder = async (userId, data) => {
       const user = await User.findOne({ 'addresses._id': deliveryAddress.addressId }, 'addresses');
       const embedded = user?.addresses?.id(deliveryAddress.addressId);
       if (embedded) {
-        destText =
-          destText ||
-          [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ');
+        destText = [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ') || destText;
         if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
           destLat = embedded.location.lat;
           destLng = embedded.location.lng;
@@ -323,9 +321,8 @@ export const createOrder = async (userId, data) => {
     }
   }
 
-  // Tự động phát hiện và sửa chữa nếu tọa độ bị xung đột với tên địa chỉ (vd: địa chỉ ghi HCM nhưng tọa độ ở Hòa Lạc)
-  if (isLocationMismatch(destText, destLat, destLng) || ((destLat == null || destLng == null) && destText)) {
-    const resolved = await resolveLocationFromAddress(destText);
+  if (destLat == null || destLng == null || isLocationMismatch(destText, destLat, destLng)) {
+    const resolved = await resolveLocationFromAddress(destText, { allowDefault: false });
     destLat = resolved.lat;
     destLng = resolved.lng;
     if (deliveryAddress.addressId) {
@@ -760,9 +757,8 @@ export const estimateShipping = async (userId, params) => {
     }
   }
 
-  // 3. Tự động phát hiện xung đột tọa độ (vd: địa chỉ ghi TP.HCM nhưng tọa độ ở Hòa Lạc) hoặc chưa có tọa độ
-  if (isLocationMismatch(destinationAddressText, destLat, destLng) || ((destLat == null || destLng == null) && destinationAddressText)) {
-    const resolved = await resolveLocationFromAddress(destinationAddressText);
+  if (destLat == null || destLng == null || isLocationMismatch(destinationAddressText, destLat, destLng)) {
+    const resolved = await resolveLocationFromAddress(destinationAddressText, { allowDefault: false });
     destLat = resolved.lat;
     destLng = resolved.lng;
 

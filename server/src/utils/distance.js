@@ -10,9 +10,7 @@ export const PER_KM_FEE = SHIPPING_FEE_DEFAULTS.perKmFee;
 export const DEFAULT_HOA_LAC_COORDINATES = { lat: 21.0131, lng: 105.5255 };
 
 /**
- * Kiểm tra xem tọa độ đã lưu có bị xung đột địa lý rõ rệt với tên địa chỉ dạng text hay không.
- * Ví dụ: Địa chỉ ghi "Hồ Chí Minh" nhưng tọa độ lại ở miền Bắc (lat > 18 - Hòa Lạc/Hà Nội),
- * hoặc địa chỉ ghi "Hà Nội" nhưng tọa độ ở miền Nam (lat < 16).
+ * Detects a clear mismatch between the address's region and its stored coordinates.
  * @param {string} addressText
  * @param {number} lat
  * @param {number} lng
@@ -22,36 +20,36 @@ export const isLocationMismatch = (addressText, lat, lng) => {
   if (!addressText || typeof addressText !== 'string' || lat == null || lng == null) return false;
   const lower = addressText.toLowerCase();
 
-  // Địa chỉ ở miền Nam nhưng tọa độ miền Bắc (lat > 18)
   const isSouthText = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|bình dương|đồng nai|cần thơ|vũng tàu)/i.test(lower);
   if (isSouthText && lat > 18.0) return true;
 
-  // Địa chỉ ở miền Bắc nhưng tọa độ miền Nam (lat < 16)
   const isNorthText = /(hà nội|thạch thất|hòa lạc|hải phòng|bắc ninh|quảng ninh|thái nguyên)/i.test(lower);
-  if (isNorthText && lat < 16.0) return true;
-
-  return false;
+  return isNorthText && lat < 16.0;
 };
 
 /**
  * Tự động tìm tọa độ GPS từ chuỗi địa chỉ bằng OpenStreetMap Nominatim Geocoding API.
- * Hoàn toàn động, không fix cứng bất kỳ danh sách hay từ khóa regex nào.
  * @param {string} addressString Địa chỉ dạng text
+ * @param {{ allowDefault?: boolean }} options
  * @returns {Promise<{ lat: number, lng: number }>}
  */
-export const resolveLocationFromAddress = async (addressString) => {
+export const resolveLocationFromAddress = async (addressString, { allowDefault = true } = {}) => {
   if (!addressString || typeof addressString !== 'string' || !addressString.trim()) {
+    if (!allowDefault) {
+      throw new ApiError(400, 'Vui lòng cung cấp địa chỉ để xác định tọa độ GPS.');
+    }
     return DEFAULT_HOA_LAC_COORDINATES;
   }
 
   const cleanText = addressString.trim();
+  let lookupFailed = false;
 
   const fetchNominatim = async (query) => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=1`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=vn&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
+    try {
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
@@ -59,35 +57,40 @@ export const resolveLocationFromAddress = async (addressString) => {
           'Accept-Language': 'vi',
         },
       });
-      clearTimeout(timeoutId);
+      if (!res.ok) {
+        lookupFailed = true;
+        return null;
+      }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
-          return {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon),
-          };
-        }
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
     } catch {
-      // ignore geocoding fetch error
+      lookupFailed = true;
+    } finally {
+      clearTimeout(timeoutId);
     }
+
     return null;
   };
 
-  // 1. Tìm kiếm trực tiếp chuỗi địa chỉ người dùng nhập
   let coords = await fetchNominatim(cleanText);
   if (coords) return coords;
 
-  // 2. Nếu không tìm thấy và chuỗi không nhắc tới các tỉnh/thành khác, thử tìm trong phạm vi Thạch Thất, Hà Nội
   const hasOtherCity = /(hồ chí minh|tphcm|tp\.hcm|hcm|sài gòn|đà nẵng|hải phòng|cần thơ|huế|nha trang|bình dương|đồng nai|vũng tàu)/i.test(cleanText);
   if (!hasOtherCity) {
     coords = await fetchNominatim(`${cleanText}, Thạch Thất, Hà Nội`);
     if (coords) return coords;
   }
 
-  // 3. Fallback mặc định khu vực trung tâm Hòa Lạc nếu hoàn toàn không tìm thấy
+  if (!allowDefault) {
+    if (lookupFailed) {
+      throw new ApiError(503, 'Không thể xác định tọa độ GPS hiện tại. Vui lòng thử lại sau.');
+    }
+    throw new ApiError(422, 'Không tìm thấy tọa độ GPS cho địa chỉ đã nhập. Vui lòng kiểm tra địa chỉ.');
+  }
+
   return DEFAULT_HOA_LAC_COORDINATES;
 };
 

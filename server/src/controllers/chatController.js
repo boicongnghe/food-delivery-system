@@ -1,5 +1,6 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import * as aiChatService from '../services/aiChatService.js';
+import * as orderChatService from '../services/orderChatService.js';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
@@ -44,3 +45,12 @@ export const sendMessageToAssistant = asyncHandler(async (req, res) => {
   });
 });
 
+export const listOrderMessages = asyncHandler(async (req, res) => {
+  const data = await orderChatService.listOrderMessages(req.params.orderId, req.user);
+  res.status(200).json({ success: true, data, message: 'Lấy tin nhắn đơn hàng thành công' });
+});
+
+export const sendOrderMessage = asyncHandler(async (req, res) => {
+  const data = await orderChatService.createOrderMessage(req.params.orderId, req.user, req.body.message);
+  res.status(201).json({ success: true, data, message: 'Gửi tin nhắn thành công' });
+});

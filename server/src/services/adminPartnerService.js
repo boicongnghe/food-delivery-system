@@ -167,7 +167,22 @@ const listPartners = async (config, { page, limit, keyword, status }) => {
     config.Model.countDocuments(filter),
     countByStatus(config.Model, baseFilter, PARTNER_STATUSES),
   ]);
-  return { ...toPage(items, { page, limit }, totalItems), counts };
+  const paginated = toPage(items, { page, limit }, totalItems);
+  if (config !== PARTNERS.shipper || paginated.items.length === 0) {
+    return { ...paginated, counts };
+  }
+
+  const userIds = paginated.items.map((shipper) => shipper.user?._id).filter(Boolean);
+  const dashboards = await DriverDashboard.find({ userId: { $in: userIds } }).select('userId isOnline').lean();
+  const onlineByUserId = new Map(dashboards.map((dashboard) => [dashboard.userId.toString(), dashboard.isOnline]));
+  return {
+    ...paginated,
+    items: paginated.items.map((shipper) => ({
+      ...shipper,
+      isOnline: Boolean(shipper.user && onlineByUserId.get(shipper.user._id.toString())),
+    })),
+    counts,
+  };
 };
 
 const getPartnerDetail = async (config, id) => {
@@ -180,11 +195,20 @@ const getPartnerDetail = async (config, id) => {
   }
 
   const account = partner[config.accountField];
-  const [orderStats, violationCount] = await Promise.all([
+  const [orderStats, violationCount, dashboard] = await Promise.all([
     summarizeOrders(config.getOrderMatch(partner)),
     account ? DeliveryIssue.countDocuments({ 'resolution.penalty.targetUser': account._id }) : 0,
+    config === PARTNERS.shipper && account
+      ? DriverDashboard.findOne({ userId: account._id }).select('isOnline').lean()
+      : null,
   ]);
-  return { ...partner, registrationChecks: config.getChecks(partner, account), orderStats, violationCount };
+  return {
+    ...partner,
+    ...(config === PARTNERS.shipper && { isOnline: Boolean(dashboard?.isOnline) }),
+    registrationChecks: config.getChecks(partner, account),
+    orderStats,
+    violationCount,
+  };
 };
 
 const changePartnerStatus = async (config, adminId, id, { status, note }) => {
