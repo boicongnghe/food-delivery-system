@@ -203,6 +203,7 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `restaurants.payoutAccounts` | (trong `Restaurant.js`) | Tối đa 5 tài khoản ngân hàng nhận tiền rút `{ bankName, accountNumber, accountHolder, isDefault }`; `restaurants.payoutAccount` là bản sao của tài khoản mặc định |
 | `restaurant_wallets` | `RestaurantWallet.js` | Ví của quán (mỗi quán một document): `withdrawnTotal`, `weekStart`/`weekCount` (giới hạn 3 lần rút/tuần), `version` (compare-and-set). Số dư tính từ đơn, xem [restaurant-wallet.md](restaurant-wallet.md) |
 | `restaurant_withdrawals` | `RestaurantWithdrawal.js` | Lệnh rút tiền `RT-0001`: `amount`, bản sao `bankAccount`, `status` `processing → succeeded \| failed`, `providerRef`, `idempotencyKey` (unique theo quán) |
+| `order_messages` | `OrderMessage.js` | Tin nhắn theo đơn: `order`, `sender`, `message`; chỉ khách đặt đơn và shipper đang được gán có quyền đọc/gửi |
 
 ## 7. `platform_settings`
 

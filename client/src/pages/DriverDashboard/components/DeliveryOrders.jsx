@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Camera, Lock, MapPin, Package, Phone, Power, RefreshCw, ShieldAlert, WifiOff, X } from 'lucide-react'
+import { Camera, Lock, MapPin, Navigation, Package, Phone, Power, RefreshCw, ShieldAlert, WifiOff, X } from 'lucide-react'
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import orderApi from '../../../api/orderApi.js'
 import uploadApi from '../../../api/uploadApi.js'
+import OrderChat from '../../../components/OrderChat/OrderChat.jsx'
 import useAuth from '../../../hooks/useAuth.js'
 import { connectSocket } from '../../../services/socket.js'
 
@@ -29,6 +30,14 @@ const formatMoney = amount => `${Number(amount || 0).toLocaleString('vi-VN')}đ`
 const formatAddress = order =>
   order.delivery?.address || order.deliveryAddress?.addressLine || 'Chưa có địa chỉ giao hàng'
 const recipientPhone = order => order.delivery?.phone || order.deliveryAddress?.phone || ''
+const getMapDirectionsUrl = location => {
+  const lat = Number(location?.lat)
+  const lng = Number(location?.lng)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    return ''
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+}
 const hasWaitingRequirement = type => ['customer_unreachable', 'customer_refused'].includes(type)
 const POOL_STATUS_LABELS = {
   confirmed: 'Quán đã nhận · chờ bạn để nấu',
@@ -526,6 +535,16 @@ function DeliveryOrders({ onOrderChanged }) {
                           <div>
                             <h3 className="font-semibold text-slate-900">Nhận tại: {order.restaurant?.name}</h3>
                             <p className="text-sm text-slate-600">{order.restaurant?.address}</p>
+                            {getMapDirectionsUrl(order.restaurant?.location) && (
+                              <a
+                                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+                                href={getMapDirectionsUrl(order.restaurant.location)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <Navigation size={14} /> Chỉ đường đến nhà hàng
+                              </a>
+                            )}
                             {order.restaurant?.phone && (
                               <a className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline" href={`tel:${order.restaurant.phone}`}>
                                 <Phone size={14} /> Gọi nhà hàng: {order.restaurant.phone}
@@ -574,6 +593,19 @@ function DeliveryOrders({ onOrderChanged }) {
                             <div>
                               <h3 className="font-semibold text-slate-900">Địa chỉ nhận hàng: {order.delivery?.recipientName || order.customer?.fullName}</h3>
                               <p className="text-sm text-slate-600">{formatAddress(order)}</p>
+                              {getMapDirectionsUrl(order.delivery?.location || order.deliveryAddress?.location) && (
+                                <a
+                                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+                                  href={getMapDirectionsUrl(order.delivery?.location || order.deliveryAddress?.location)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <Navigation size={14} /> Chỉ đường đến khách
+                                </a>
+                              )}
+                              {Number.isFinite(Number(order.distanceKm)) && Number(order.distanceKm) > 0 && (
+                                <p className="mt-2 text-xs text-slate-500">Quãng đường tính phí: {order.distanceKm} km</p>
+                              )}
                               {recipientPhone(order) && (
                                 <a className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline" href={`tel:${recipientPhone(order)}`}>
                                   <Phone size={14} /> Gọi khách: {recipientPhone(order)}
@@ -655,6 +687,11 @@ function DeliveryOrders({ onOrderChanged }) {
                           )}
                         </section>
                       )}
+                      <OrderChat
+                        orderId={order._id}
+                        status={order.status}
+                        otherPartyLabel={order.customer?.fullName || 'khách hàng'}
+                      />
                       {order.deliveryIssueFlagged && (
                         <p className="flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                           <ShieldAlert size={14} /> Đơn đang được Admin xem xét sự cố.
@@ -802,6 +839,9 @@ function DeliveryOrders({ onOrderChanged }) {
                       </div>
                       <div className="flex flex-wrap gap-1.5 text-xs">
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><MapPin size={12} /> Điểm giao: {order.delivery.area}</span>
+                        {Number.isFinite(Number(order.distanceKm)) && Number(order.distanceKm) > 0 && (
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Quãng đường tính phí: {order.distanceKm} km</span>
+                        )}
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><Package size={12} /> {order.itemCount} món</span>
                         <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-800">
                           Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong>
