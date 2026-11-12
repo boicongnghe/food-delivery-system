@@ -15,8 +15,9 @@ import { creditWalletRefund } from './walletService.js';
 import { validateAndApplyPromotion } from './promotionService.js';
 import { resolveVoucherForOrder } from './restaurantVoucherService.js';
 import { completeDelivery } from './shipperOrderService.js';
-import { sendRealtimeNotification } from '../socket.js';
+import { sendRealtimeNotification, emitWalletUpdate } from '../socket.js';
 import User from '../models/User.js';
+import WalletTransaction from '../models/WalletTransaction.js';
 import { getOrderAcceptance } from '../utils/openingHours.js';
 import { getOrderTimeouts } from './settingService.js';
 import { getShippingFeeConfig } from './shippingFeeService.js';
@@ -255,8 +256,8 @@ const generateOrderNumber = () => {
 export const createOrder = async (userId, data) => {
   const { restaurantId, items, deliveryAddress, paymentMethod = 'banking', promotionCode, restaurantVoucherCode } = data;
 
-  if (paymentMethod !== 'banking') {
-    throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
+  if (!['banking', 'wallet'].includes(paymentMethod)) {
+    throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng hoặc ví ảo');
   }
 
   if (!restaurantId || !Array.isArray(items) || items.length === 0) {
@@ -377,6 +378,29 @@ export const createOrder = async (userId, data) => {
   const totalDiscount = restaurantVoucher.discountAmount + discountAmount;
   const totalPrice = Math.max(0, subtotal + shippingFee - totalDiscount);
 
+  // Nếu thanh toán bằng ví ảo, kiểm tra và trừ số dư ví trước khi tạo đơn
+  let updatedUser = null;
+  const isWalletPaid = paymentMethod === 'wallet';
+  if (isWalletPaid) {
+    const userDoc = await User.findById(userId).select('walletBalance').lean();
+    const balance = userDoc?.walletBalance || 0;
+    if (balance < totalPrice) {
+      throw new ApiError(
+        400,
+        `Số dư ví không đủ (hiện có: ${balance.toLocaleString('vi-VN')}đ, cần: ${totalPrice.toLocaleString('vi-VN')}đ). Vui lòng nạp thêm tiền vào ví.`
+      );
+    }
+
+    updatedUser = await User.findOneAndUpdate(
+      { _id: userId, walletBalance: { $gte: totalPrice } },
+      { $inc: { walletBalance: -totalPrice } },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!updatedUser) {
+      throw new ApiError(400, 'Số dư ví không đủ để thanh toán đơn hàng này.');
+    }
+  }
+
   const orderNumber = generateOrderNumber();
 
   const order = await Order.create({
@@ -403,18 +427,43 @@ export const createOrder = async (userId, data) => {
     restaurantVoucher,
     totalPrice,
     paymentMethod,
-    paymentStatus: 'pending',
+    paymentStatus: isWalletPaid ? 'paid' : 'pending',
     status: 'pending',
     refundStatus: 'not_applicable',
+    ...(isWalletPaid
+      ? {
+          payment: {
+            method: 'wallet',
+            status: 'paid',
+            paidAt: new Date(),
+          },
+        }
+      : {}),
   });
+
+  // Nếu thanh toán ví, ghi nhận biến động số dư và bắn realtime cập nhật ví
+  if (isWalletPaid && updatedUser) {
+    await WalletTransaction.create({
+      user: userId,
+      type: 'payment',
+      amount: -totalPrice,
+      balanceAfter: updatedUser.walletBalance,
+      order: order._id,
+      status: 'completed',
+      description: `Thanh toán đơn hàng #${order.orderNumber}`,
+    });
+    emitWalletUpdate(userId, updatedUser.walletBalance);
+  }
 
   // Record initial status history
   await OrderStatusHistory.create({
     order: order._id,
     fromStatus: null,
     toStatus: 'pending',
-    action: 'Tạo đơn hàng',
-    note: 'Khách hàng đã đặt đơn thành công',
+    action: isWalletPaid ? 'Tạo & Thanh toán bằng Ví' : 'Tạo đơn hàng',
+    note: isWalletPaid
+      ? `Khách hàng đã thanh toán ${totalPrice.toLocaleString('vi-VN')}đ bằng Ví ảo`
+      : 'Khách hàng đã đặt đơn thành công',
     changedByRole: 'customer',
   });
 
@@ -487,7 +536,9 @@ export const createOrder = async (userId, data) => {
 
   sendRealtimeNotification(userId, {
     title: `Đặt hàng thành công #${shortCode} 🎉`,
-    message: `Đơn hàng của bạn đã gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`,
+    message: isWalletPaid
+      ? `Đơn hàng của bạn đã được thanh toán bằng ví (${totalPrice.toLocaleString('vi-VN')}đ) và gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`
+      : `Đơn hàng của bạn đã gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`,
     type: 'order',
     orderId: order._id,
     link: `/orders/${order._id}`,

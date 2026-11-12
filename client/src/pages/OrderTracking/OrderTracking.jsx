@@ -4,6 +4,7 @@ import { orderApi } from '../../api/orderApi.js'
 import { connectSocket } from '../../services/socket.js'
 import toast from 'react-hot-toast'
 import OrderChat from '../../components/OrderChat/OrderChat.jsx'
+import useAuth from '../../hooks/useAuth.js'
 
 // Quán nhận đơn -> shipper nhận đơn -> bếp mới nấu (server: docs/order-flow.md)
 const STATUS_STEPS = [
@@ -17,6 +18,7 @@ const STATUS_STEPS = [
 
 function OrderTracking() {
   const { id } = useParams()
+  const { refreshUser } = useAuth()
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState(false)
@@ -79,6 +81,11 @@ function OrderTracking() {
       setOrder({ ...order, ...(res.data?.data || res.data) })
       setShowCancelModal(false)
       setActionMsg(res.message || res.data?.message || 'Đã hủy đơn hàng thành công')
+      
+      // Cập nhật số dư ví ảo trên Header ngay lập tức không cần F5
+      if (typeof refreshUser === 'function') refreshUser()
+      window.dispatchEvent(new CustomEvent('wallet_updated', { detail: {} }))
+
       fetchOrderDetails()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Không thể hủy đơn hàng lúc này')
@@ -427,7 +434,7 @@ function OrderTracking() {
             💳 Thông tin thanh toán
           </h3>
           <p className="text-sm mt-0 mb-1 mx-0">
-            Phương thức: <strong>{order.paymentMethod === 'banking' ? 'Chuyển khoản Ngân hàng (VietQR)' : order.paymentMethod?.toUpperCase()}</strong>
+            Phương thức: <strong>{order.paymentMethod === 'wallet' ? 'Ví ảo FoodDelivery' : order.paymentMethod === 'banking' ? 'Chuyển khoản Ngân hàng (VietQR)' : order.paymentMethod?.toUpperCase()}</strong>
           </p>
           <p className="text-sm m-0">
             Trạng thái:{' '}

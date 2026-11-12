@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import authApi from '../api/authApi.js'
 import { AuthContext } from './authContext.js'
-import { disconnectSocket } from '../services/socket.js'
+import { connectSocket, disconnectSocket } from '../services/socket.js'
 
 const DEMO_ACCOUNTS = {
   'khachhang@fooddelivery.vn': {
@@ -449,6 +449,62 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const refreshUser = async () => {
+    try {
+      const response = await authApi.getMe()
+      if (response?.data) {
+        setUser(response.data)
+        return response.data
+      }
+    } catch {
+      // ignore refresh errors
+    }
+    return null
+  }
+
+  // Lắng nghe cập nhật số dư ví ảo theo thời gian thực (qua Socket.io và CustomEvent)
+  useEffect(() => {
+    const handleWalletCustomEvent = (e) => {
+      const newBalance = e.detail?.walletBalance
+      if (typeof newBalance === 'number') {
+        setUser((prev) => (prev ? { ...prev, walletBalance: newBalance } : prev))
+      } else {
+        refreshUser()
+      }
+    }
+    window.addEventListener('wallet_updated', handleWalletCustomEvent)
+
+    let cleanup = null
+    if (token && !token.startsWith('mock-token-')) {
+      const socket = connectSocket(token)
+      if (socket) {
+        const handleSocketWallet = (data) => {
+          if (data && typeof data.walletBalance === 'number') {
+            setUser((prev) => (prev ? { ...prev, walletBalance: data.walletBalance } : prev))
+          } else {
+            refreshUser()
+          }
+        }
+        const handleNotification = (notif) => {
+          if (notif?.type === 'wallet') {
+            refreshUser()
+          }
+        }
+        socket.on('wallet_updated', handleSocketWallet)
+        socket.on('new_notification', handleNotification)
+        cleanup = () => {
+          socket.off('wallet_updated', handleSocketWallet)
+          socket.off('new_notification', handleNotification)
+        }
+      }
+    }
+
+    return () => {
+      window.removeEventListener('wallet_updated', handleWalletCustomEvent)
+      if (cleanup) cleanup()
+    }
+  }, [token])
+
   const value = {
     user,
     token,
@@ -464,6 +520,7 @@ export function AuthProvider({ children }) {
     updateProfile,
     deleteAccount,
     setUser,
+    refreshUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

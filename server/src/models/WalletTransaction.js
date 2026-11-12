@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-export const TRANSACTION_TYPES = ['refund', 'withdraw', 'withdraw_rejected'];
+export const TRANSACTION_TYPES = ['refund', 'withdraw', 'withdraw_rejected', 'deposit', 'payment'];
 export const TRANSACTION_STATUSES = ['completed', 'pending', 'rejected'];
 
 const walletTransactionSchema = new mongoose.Schema(

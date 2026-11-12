@@ -86,3 +86,12 @@ export const broadcastRealtimeNotification = (role, event, data) => {
     io.to(`role:${role}`).emit(event, data);
   }
 };
+
+/**
+ * Bắn sự kiện cập nhật số dư ví ảo theo thời gian thực tới user
+ */
+export const emitWalletUpdate = (userId, newBalance) => {
+  if (io && userId) {
+    io.to(`user:${userId}`).emit('wallet_updated', { walletBalance: newBalance });
+  }
+};

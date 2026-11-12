@@ -64,7 +64,7 @@ export const ORDER_STATUSES = [
   'delivered',
   'cancelled',
 ];
-export const PAYMENT_METHODS = ['cod', 'momo', 'vnpay', 'banking'];
+export const PAYMENT_METHODS = ['cod', 'momo', 'vnpay', 'banking', 'wallet'];
 export const PAYMENT_STATUSES = ['pending', 'unpaid', 'paid', 'failed', 'refunded', 'cancelled'];
 export const ACTOR_ROLES = ['customer', 'restaurant', 'shipper', 'system'];
 // none -> pending (paid order cancelled) -> succeeded | failed (failed can be confirmed again later)
