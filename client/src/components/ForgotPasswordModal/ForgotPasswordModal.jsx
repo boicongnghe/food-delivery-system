@@ -9,8 +9,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   X,
-  Sparkles,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import authApi from '../../api/authApi.js'
@@ -19,10 +19,10 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
   const [step, setStep] = useState(1) // 1: Email, 2: OTP & New Password, 3: Success
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
-  const [otpDemo, setOtpDemo] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
 
@@ -31,10 +31,10 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
       setEmail(initialEmail || '')
       setStep(1)
       setOtp('')
-      setOtpDemo('')
       setNewPassword('')
       setConfirmPassword('')
       setShowPassword(false)
+      setShowConfirmPassword(false)
       setCountdown(0)
     }
   }, [isOpen, initialEmail])
@@ -65,9 +65,6 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
       setLoading(false)
 
       toast.success(response.message || 'Mã xác thực OTP đã được gửi thành công!')
-      if (response.data?.otpDemo) {
-        setOtpDemo(response.data.otpDemo)
-      }
       setStep(2)
       setCountdown(60)
     } catch (err) {
@@ -229,7 +226,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-2/3 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-md shadow-primary/25 hover:shadow-primary/40 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2"
+                  className="w-2/3 py-2.5 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:opacity-95 text-white text-xs font-bold shadow-md shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -247,26 +244,21 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
           {/* STEP 2: ENTER OTP & NEW PASSWORD */}
           {step === 2 && (
             <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                <p className="text-slate-600">
-                  Mã OTP đã được gửi đến:{' '}
-                  <span className="font-bold text-slate-900">{email}</span>
-                </p>
-                {otpDemo && (
-                  <div className="mt-1 pt-1 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-500" /> Mã OTP kiểm thử:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOtp(otpDemo)}
-                      className="px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 font-mono font-bold text-xs transition-colors"
-                      title="Bấm để tự điền mã OTP này"
-                    >
-                      {otpDemo} (Bấm điền)
-                    </button>
+              {/* Info Card */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <Mail className="w-4 h-4" />
                   </div>
-                )}
+                  <div className="min-w-0 flex-1 text-xs">
+                    <p className="text-slate-600 font-medium">Mã OTP đã được gửi đến:</p>
+                    <p className="font-bold text-slate-900 break-all text-xs mt-0.5">{email}</p>
+                    <div className="mt-2 pt-2 border-t border-amber-200/60 flex items-center gap-1.5 text-[11px] text-amber-800 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Mã xác thực có hiệu lực trong vòng <strong>2 phút</strong>. Vui lòng kiểm tra email của bạn.</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* OTP Input */}
@@ -279,13 +271,14 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
                   <input
                     id="forgot-otp"
                     type="text"
+                    inputMode="numeric"
                     maxLength={6}
-                    placeholder="123456"
+                    placeholder="● ● ● ● ● ●"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
                     required
                     autoFocus
-                    className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono tracking-widest text-base font-bold"
+                    className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 placeholder:tracking-widest focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-mono tracking-widest text-base font-bold"
                   />
                 </div>
               </div>
@@ -309,7 +302,8 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 transition-colors"
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -325,13 +319,21 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
                   <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     id="forgot-confirm-pass"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Nhập lại mật khẩu mới"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full pl-11 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    className="w-full pl-11 pr-11 py-2.5 text-sm rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 transition-colors"
+                    title={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -348,7 +350,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
                   type="button"
                   onClick={() => handleRequestOtp()}
                   disabled={countdown > 0 || loading}
-                  className="text-primary hover:underline font-bold disabled:text-slate-400 disabled:no-underline transition-colors flex items-center gap-1"
+                  className="text-primary hover:underline font-bold disabled:text-slate-400 disabled:no-underline transition-colors flex items-center gap-1.5"
                 >
                   <Clock className="w-3.5 h-3.5" />
                   {countdown > 0 ? `Gửi lại mã sau (${countdown}s)` : 'Gửi lại mã OTP'}
@@ -358,7 +360,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-md shadow-primary/25 hover:shadow-primary/40 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#FF4B2B] to-[#FF416C] hover:opacity-95 text-white text-xs font-bold shadow-md shadow-orange-500/25 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? (
                   <>

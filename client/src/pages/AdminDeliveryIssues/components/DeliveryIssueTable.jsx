@@ -1,6 +1,10 @@
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import { ADMIN_TABLE_CELL, ADMIN_TABLE_HEAD } from '../../../utils/adminClassNames.js'
-import { DELIVERY_ISSUE_STATUSES, DELIVERY_ISSUE_TYPE_LABELS } from '../../../utils/deliveryIssueLabels.js'
+import {
+  DELIVERY_ISSUE_STATUSES,
+  DELIVERY_ISSUE_TYPE_LABELS,
+  HEARING_STATES,
+} from '../../../utils/deliveryIssueLabels.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 
 export default function DeliveryIssueTable({ issues, onSelect }) {
@@ -41,7 +45,15 @@ export default function DeliveryIssueTable({ issues, onSelect }) {
                 </td>
                 <td className={`${ADMIN_TABLE_CELL} whitespace-nowrap text-xs`}>{formatDateTime(issue.createdAt)}</td>
                 <td className={ADMIN_TABLE_CELL}>
-                  <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                  <div className="flex flex-col items-start gap-1">
+                    <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                    {/* Open reports only: "waiting for the hearing" / "hearing over, ready for a decision" */}
+                    {issue.status === 'open' && issue.hearingState !== 'none' && (
+                      <AdminBadge tone={HEARING_STATES[issue.hearingState].tone}>
+                        {issue.hearingState === 'open' ? 'Đang đối chất' : 'Chờ kết luận'}
+                      </AdminBadge>
+                    )}
+                  </div>
                 </td>
                 <td className={`${ADMIN_TABLE_CELL} text-right`}>
                   <button

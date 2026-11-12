@@ -1,6 +1,7 @@
 import Joi from 'joi';
 import { COMPLAINT_CATEGORIES, COMPLAINT_STATUSES } from '../models/Complaint.js';
 import { cloudinaryImageUrl, keywordQuery, pageQueryKeys } from './commonValidation.js';
+import { penaltySchema } from './hearingValidation.js';
 
 export const MAX_EVIDENCE_IMAGES = 3;
 
@@ -47,7 +48,7 @@ export const resolutionNote = Joi.string().trim().min(5).max(500).required().mes
   'any.required': 'Vui lòng nhập nội dung phản hồi',
 });
 
-// PATCH /api/admin/complaints/:id/resolution - the refund limit is checked against the order in the service
+// PATCH /api/admin/complaints/:id/resolution - the refund limit and the hearing are checked in the service
 export const resolveComplaintSchema = Joi.object({
   decision: Joi.string()
     .valid('resolved', 'rejected')
@@ -63,4 +64,6 @@ export const resolveComplaintSchema = Joi.object({
     'number.min': 'Số tiền hoàn không được âm',
     'number.integer': 'Số tiền hoàn phải là số nguyên (VND)',
   }),
+  // Party at fault, with either decision (e.g. the customer of an abusive complaint). Needs an ended hearing
+  penalty: penaltySchema.allow(null).default(null),
 });

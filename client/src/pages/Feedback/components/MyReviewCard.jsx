@@ -17,6 +17,24 @@ export default function MyReviewCard({ review }) {
       </div>
       {review.comment && <p className="mt-2 text-sm text-slate-700">{review.comment}</p>}
 
+      {review.dishReviews && review.dishReviews.length > 0 && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Món ăn đã đánh giá:</p>
+          <div className="space-y-1.5">
+            {review.dishReviews.map((item, idx) => (
+              <div key={idx} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                <div>
+                  <span className="font-bold text-slate-800">{item.dishName}</span>
+                  {item.optionsSummary && <span className="ml-1 text-slate-400">({item.optionsSummary})</span>}
+                  {item.comment && <p className="mt-0.5 text-slate-600 italic">"{item.comment}"</p>}
+                </div>
+                <StarRating value={item.rating} size="sm" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {review.shipperRating && (
         <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm">
           <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">

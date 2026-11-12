@@ -288,22 +288,30 @@ export const forgotPassword = async (email) => {
 
   // Tạo mã OTP ngẫu nhiên 6 chữ số
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Có hiệu lực 15 phút
+  const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // Có hiệu lực 2 phút
 
   user.resetPasswordOtp = otp;
   user.resetPasswordExpires = expiresAt;
   await user.save();
 
+  // Gửi email thực tế chứa mã OTP đặt lại mật khẩu
+  await emailService.sendResetPasswordOtpEmail({
+    email: user.email,
+    fullName: user.fullName,
+    otp,
+  });
+
   return {
-    message: 'Mã xác thực OTP đã được gửi thành công.',
+    message: `Mã xác thực OTP đã được gửi đến ${user.email}. Vui lòng kiểm tra hộp thư! (Mã có hiệu lực trong 2 phút)`,
     email: normalizedEmail,
-    otpDemo: otp,
   };
 };
 
 export const resetPassword = async ({ email, otp, newPassword }) => {
   const normalizedEmail = (email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    '+resetPasswordOtp +resetPasswordExpires'
+  );
 
   if (!user) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
@@ -314,7 +322,7 @@ export const resetPassword = async ({ email, otp, newPassword }) => {
   }
 
   if (!user.resetPasswordExpires || new Date() > new Date(user.resetPasswordExpires)) {
-    throw new ApiError(400, 'Mã OTP xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
+    throw new ApiError(400, 'Mã OTP xác thực đã hết hạn (chỉ có hiệu lực trong 2 phút). Vui lòng yêu cầu mã mới');
   }
 
   // Đổi mật khẩu mới (hook pre-save sẽ tự động hash mật khẩu)

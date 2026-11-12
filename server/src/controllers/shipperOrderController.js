@@ -19,6 +19,14 @@ export const getAvailableOrderDetail = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data, message: 'Lấy chi tiết đơn giao hàng thành công' });
 });
 
+export const releaseOrderHold = asyncHandler(async (req, res) => {
+  const data = await shipperOrderService.releaseOrderHold(
+    req.user._id,
+    req.params.id,
+  );
+  res.status(200).json({ success: true, data, message: 'Đã hủy giữ chỗ đơn hàng' });
+});
+
 export const getActiveOrders = asyncHandler(async (req, res) => {
   const data = await shipperOrderService.getActiveOrders(req.user._id);
   res.status(200).json({ success: true, data, message: 'Lấy đơn giao hàng đang thực hiện thành công' });

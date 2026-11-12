@@ -4,7 +4,20 @@ import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { getNextSequence } from './counterService.js';
+import {
+  assertHearingEndedForPenalty,
+  countHearingMessages,
+  getHearingState,
+  notifyHearingOutcome,
+  notifyHearingUpdated,
+} from './hearingService.js';
 import { PLACED_ORDER_FILTER, isNeverPaidOnline } from './orderPolicy.js';
+import {
+  applySuspension,
+  assertShipperCanBeLocked,
+  buildPenaltyRecord,
+  getViolationSummary,
+} from './violationService.js';
 import {
   COMPLAINT_WINDOW_DAYS,
   FEEDBACK_ORDER_FIELDS,
@@ -126,28 +139,48 @@ export const listComplaints = async ({ page, limit, keyword, status, category })
     Complaint.countDocuments(filter),
     countByStatus(Complaint, baseFilter, COMPLAINT_STATUSES),
   ]);
-  return { ...toPage(items, { page, limit }, totalItems), counts };
+  const withHearing = items.map((complaint) => ({ ...complaint, hearingState: getHearingState(complaint) }));
+  return { ...toPage(withHearing, { page, limit }, totalItems), counts };
 };
 
 export const getComplaintDetail = async (complaintId) => {
   const complaint = await Complaint.findById(complaintId)
     .populate('customer', 'fullName email phone avatar isActive')
-    .populate('restaurant', 'name phone address status')
-    .populate('shipper', 'fullName phone')
+    .populate('restaurant', 'name phone address status owner')
+    .populate('shipper', 'fullName phone isActive')
     .populate(
       'order',
       'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory cancellation createdAt',
     )
     .populate('resolution.by', 'fullName')
+    .populate('hearing.openedBy', 'fullName')
     .lean();
   if (!complaint) {
     throw new ApiError(404, 'Không tìm thấy khiếu nại');
   }
-  return { ...complaint, maxRefund: getRefundableAmount(complaint.order) };
+  const [summary, hearingMessageCount] = await Promise.all([
+    getViolationSummary(complaint),
+    countHearingMessages('complaint', complaint._id),
+  ]);
+  return {
+    ...complaint,
+    ...summary,
+    maxRefund: getRefundableAmount(complaint.order),
+    hearingState: getHearingState(complaint),
+    hearingMessageCount,
+  };
 };
 
-export const resolveComplaint = async (adminId, complaintId, { decision, note, refundAmount = 0 }) => {
-  const complaint = await Complaint.findById(complaintId).populate('order', 'total payment').lean();
+/**
+ * Answer to the customer: accept (optional refund) or reject. Both can penalize the party at fault (restaurant,
+ * shipper, or the customer for an abusive complaint), but only once a hearing between the parties has ended.
+ * Accepting or rejecting without a penalty is possible at any time.
+ */
+export const resolveComplaint = async (adminId, complaintId, { decision, note, refundAmount = 0, penalty = null }) => {
+  const complaint = await Complaint.findById(complaintId)
+    .populate('order', 'total payment')
+    .populate('restaurant', 'owner')
+    .lean();
   if (!complaint) {
     throw new ApiError(404, 'Không tìm thấy khiếu nại');
   }
@@ -160,15 +193,26 @@ export const resolveComplaint = async (adminId, complaintId, { decision, note, r
       { field: 'refundAmount', message: `Số tiền hoàn tối đa ${maxRefund.toLocaleString('vi-VN')}đ` },
     ]);
   }
+  if (penalty) assertHearingEndedForPenalty(complaint);
+  const { record: penaltyRecord, threshold } = await buildPenaltyRecord(complaint, penalty);
+  await assertShipperCanBeLocked(penaltyRecord, 'Chờ shipper giao xong đơn đang giữ, hoặc chọn hình thức phạt khác');
 
   // Only an open complaint can be resolved: two admins answering at once cannot both win
   const resolved = await Complaint.findOneAndUpdate(
     { _id: complaintId, status: 'open' },
-    { $set: { status: decision, resolution: { note, refundAmount, by: adminId, at: new Date() } } },
+    {
+      $set: {
+        status: decision,
+        resolution: { note, refundAmount, penalty: penaltyRecord, by: adminId, at: new Date() },
+      },
+    },
     { returnDocument: 'after', runValidators: true },
   );
   if (!resolved) {
     throw new ApiError(409, 'Khiếu nại vừa được xử lý bởi người khác, vui lòng tải lại');
   }
+  await applySuspension(adminId, complaint, penaltyRecord, { threshold, caseLabel: `khiếu nại ${complaint.code}` });
+  notifyHearingUpdated('complaint', complaint);
+  await notifyHearingOutcome('complaint', complaint, { status: decision, note, penalty: penaltyRecord, refundAmount });
   return getComplaintDetail(complaintId);
 };

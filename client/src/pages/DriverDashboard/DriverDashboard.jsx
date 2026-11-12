@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { CircleAlert, Headphones, Landmark, ReceiptText, Settings, Wallet, X } from 'lucide-react'
+import { CircleAlert, Headphones, Landmark, ReceiptText, Scale, Settings, Wallet, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
 import walletApi from '../../api/walletApi.js'
@@ -16,6 +16,7 @@ import TripLedger from './components/TripLedger'
 import CustomerPraise from './components/CustomerPraise'
 import DriverSettings from './components/DriverSettings'
 import DeliveryOrders from './components/DeliveryOrders'
+import Hearings from '../Hearings/Hearings.jsx'
 
 // Bank accounts of the shipper (same card and rules as the restaurant / customer wallets)
 const USER_ACCOUNT_API = {
@@ -36,9 +37,10 @@ const SHIPPER_NAV_ITEMS = [
 const SHIPPER_MENU_ITEMS = [
   { to: '/shipper/wallet', label: 'Ví & rút tiền', icon: Wallet },
   { to: '/shipper/support', label: 'Hỗ trợ', icon: Headphones },
+  { to: '/shipper/hearings', label: 'Đối chất', icon: Scale },
   { to: '/shipper/settings', label: 'Cài đặt tài khoản', icon: Settings },
 ]
-const SHIPPER_TABS = ['dashboard', 'orders', 'history', 'wallet', 'ranking', 'support', 'settings']
+const SHIPPER_TABS = ['dashboard', 'orders', 'history', 'wallet', 'ranking', 'support', 'hearings', 'settings']
 const PERIOD_TABS = ['dashboard', 'history', 'ranking'] // screens filtered by Hôm nay / Tuần / Tháng
 
 const DATE_TABS = [
@@ -217,10 +219,11 @@ function DriverDashboard() {
     : ''
 
   return (
-    <div className="flex min-h-screen flex-col bg-cream">
+    <div className="shipper-portal flex min-h-screen flex-col bg-cream">
       <Header
         subtitle="Kênh Tài Xế"
         navItems={SHIPPER_NAV_ITEMS}
+        showThemeToggle
         status={dashboard ? { label: dashboard.isOnline ? 'Đang trực' : 'Ngoại tuyến', isOpen: Boolean(dashboard.isOnline) } : null}
         accountImage={profile?.avatarUrl}
         accountName={profile?.name}
@@ -291,7 +294,7 @@ function DriverDashboard() {
                       forecast={summary.forecast || []}
                       periodLabel={periodLabel}
                     />
-                    <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+                    <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
                   </div>
                   <div className="space-y-6">
                     <CustomerPraise
@@ -306,7 +309,7 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'history' && (
-              <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+              <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
             )}
 
             {activeTab === 'wallet' && (
@@ -359,6 +362,8 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'support' && <SupportCenter />}
+
+            {activeTab === 'hearings' && <Hearings embedded />}
 
             {activeTab === 'orders' && (
               <DeliveryOrders onOrderChanged={() => setReloadCount(count => count + 1)} />

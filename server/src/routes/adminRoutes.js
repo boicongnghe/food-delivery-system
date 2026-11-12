@@ -7,12 +7,15 @@ import * as analyticsController from '../controllers/analyticsController.js';
 import * as commissionRuleController from '../controllers/commissionRuleController.js';
 import * as complaintController from '../controllers/complaintController.js';
 import * as deliveryIssueController from '../controllers/deliveryIssueController.js';
+import * as hearingController from '../controllers/hearingController.js';
 import * as promotionRuleController from '../controllers/promotionRuleController.js';
 import * as reviewController from '../controllers/reviewController.js';
 import * as settingController from '../controllers/settingController.js';
 import * as shippingFeeController from '../controllers/shippingFeeController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
+import { forCase } from '../middlewares/caseTypeMiddleware.js';
 import validate from '../middlewares/validate.js';
+import { HEARING_CASE_SEGMENTS } from '../models/HearingMessage.js';
 import {
   adminCancelOrderSchema,
   adminOrderQuerySchema,
@@ -30,7 +33,12 @@ import {
   violationPolicySchema,
 } from '../validations/settingValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
-import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
+import {
+  adminDeliveryIssueQuerySchema,
+  issueOrderActionSchema,
+  resolveDeliveryIssueSchema,
+} from '../validations/deliveryIssueValidation.js';
+import { hearingMessageSchema, openHearingSchema } from '../validations/hearingValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
 import { adminReviewQuerySchema, reviewVisibilitySchema } from '../validations/reviewValidation.js';
 
@@ -127,5 +135,21 @@ router.patch(
   validate(resolveDeliveryIssueSchema),
   deliveryIssueController.resolveDeliveryIssue,
 );
+// Cancel / release the order of the report right away, apart from the decision
+router.patch(
+  '/delivery-issues/:id/order-action',
+  validateId,
+  validate(issueOrderActionSchema),
+  deliveryIssueController.applyOrderAction,
+);
+// Hearings (UC42, UC45): free chat between the parties of the order before a penalty
+for (const [segment, caseType] of Object.entries(HEARING_CASE_SEGMENTS)) {
+  const base = `/${segment}/:id`;
+  const ofCase = forCase(caseType);
+  router.patch(`${base}/hearing`, validateId, validate(openHearingSchema), ofCase, hearingController.openHearing);
+  router.patch(`${base}/hearing/close`, validateId, ofCase, hearingController.closeHearing);
+  router.get(`${base}/messages`, validateId, ofCase, hearingController.listMessages);
+  router.post(`${base}/messages`, validateId, validate(hearingMessageSchema), ofCase, hearingController.sendMessage);
+}
 
 export default router;

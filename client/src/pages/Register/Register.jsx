@@ -23,6 +23,7 @@ import {
   Star,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   RefreshCw,
   Inbox,
   Image as ImageIcon,
@@ -57,6 +58,16 @@ const SUGGESTED_ITEMS = [
   '🍲 Lẩu & Nướng mang về',
 ]
 
+function FieldError({ error }) {
+  if (!error) return null
+  return (
+    <p className="text-[11px] font-semibold text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1 animate-in fade-in">
+      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+      <span>{error}</span>
+    </p>
+  )
+}
+
 export default function Register() {
   const navigate = useNavigate()
   const { register, resendVerification } = useAuth()
@@ -65,6 +76,7 @@ export default function Register() {
   const [registeredData, setRegisteredData] = useState(null)
   const [resending, setResending] = useState(false)
   const [currentStep, setCurrentStep] = useState(1) // 1: Thông tin cơ bản, 2: Thông tin đối tác & giấy tờ
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -113,6 +125,9 @@ export default function Register() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+    if (fieldErrors[name] || fieldErrors.general) {
+      setFieldErrors((prev) => ({ ...prev, [name]: '', general: '' }))
+    }
   }
 
   const handleToggleTag = (tag) => {
@@ -328,41 +343,41 @@ export default function Register() {
 
   // Xác thực sơ bộ Bước 1: Tài khoản cơ bản
   const validateStep1 = () => {
+    const errors = {}
+
     if (!formData.fullName.trim()) {
-      toast.error('Vui lòng nhập họ và tên.')
-      return false
+      errors.fullName = 'Vui lòng nhập họ và tên.'
     }
 
     if (!formData.email.trim()) {
-      toast.error('Vui lòng nhập địa chỉ email.')
-      return false
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(formData.email.trim())) {
-      toast.error('Địa chỉ email không đúng định dạng.')
-      return false
+      errors.email = 'Vui lòng nhập địa chỉ email.'
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email.trim())) {
+        errors.email = 'Địa chỉ email không đúng định dạng.'
+      }
     }
 
     const cleanPhone = formData.phone.trim().replace(/[\s.-]/g, '')
     if (!cleanPhone) {
-      toast.error('Vui lòng nhập số điện thoại liên hệ.')
-      return false
+      errors.phone = 'Vui lòng nhập số điện thoại liên hệ.'
+    } else {
+      const phoneRegex = /^(0|\+84)[0-9]{9}$/
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.phone = 'Số điện thoại không hợp lệ (gồm 10 số, ví dụ: 0912345678).'
+      }
     }
 
-    const phoneRegex = /^(0|\+84)[0-9]{9}$/
-    if (!phoneRegex.test(cleanPhone)) {
-      toast.error('Số điện thoại không hợp lệ (gồm 10 số, ví dụ: 0912345678).')
-      return false
-    }
-
-    if (formData.password.length < 6) {
-      toast.error('Mật khẩu phải có ít nhất 6 ký tự.')
-      return false
+    if (!formData.password || formData.password.length < 6) {
+      errors.password = 'Mật khẩu phải có ít nhất 6 ký tự.'
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Mật khẩu xác nhận không khớp.')
+      errors.confirmPassword = 'Mật khẩu xác nhận không khớp.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors((prev) => ({ ...prev, ...errors }))
       return false
     }
 
@@ -393,8 +408,51 @@ export default function Register() {
       return
     }
 
+    const errors = {}
+
+    if (formData.role === 'restaurant_owner') {
+      if (!formData.restaurantName.trim()) {
+        errors.restaurantName = 'Vui lòng nhập tên nhà hàng / quán ăn.'
+      }
+      if (!formData.restaurantAddress.trim()) {
+        errors.restaurantAddress = 'Vui lòng nhập địa chỉ cụ thể của nhà hàng.'
+      }
+      if (!formData.businessItems.trim()) {
+        errors.businessItems = 'Vui lòng cho biết nhà hàng muốn bán sản phẩm / món ăn gì.'
+      }
+      if (!/^[0-9]{9,12}$/.test(formData.ownerCitizenId.trim())) {
+        errors.ownerCitizenId = 'Số CCCD của chủ quán phải gồm từ 9 đến 12 chữ số hợp lệ.'
+      }
+      if (!formData.businessLicense || !formData.businessLicense.fileData) {
+        errors.businessLicense = 'Bắt buộc phải tải lên hình ảnh hoặc file PDF Giấy phép kinh doanh của nhà hàng.'
+      }
+    } else if (formData.role === 'shipper') {
+      if (!formData.dateOfBirth) {
+        errors.dateOfBirth = 'Vui lòng chọn ngày tháng năm sinh của tài xế.'
+      } else {
+        const age = calculateAge(formData.dateOfBirth)
+        if (age !== null && age < 18) {
+          errors.dateOfBirth = 'Tài xế đối tác phải đủ từ 18 tuổi trở lên theo quy định.'
+        }
+      }
+      if (!/^[0-9]{9,12}$/.test(formData.driverCitizenId.trim())) {
+        errors.driverCitizenId = 'Số CCCD của tài xế phải gồm từ 9 đến 12 chữ số hợp lệ.'
+      }
+      if (!formData.vehicleInfo.trim()) {
+        errors.vehicleInfo = 'Vui lòng cung cấp thông tin giấy tờ xe / loại xe và biển số xe.'
+      }
+
+      if (!formData.depositConfirmed) {
+        errors.depositConfirmed = 'Vui lòng quét mã VietQR chuyển khoản tiền cọc 500.000đ và tích xác nhận để hoàn tất đăng ký tài xế.'
+      }
+    }
+
     if (!formData.agreeTerms) {
-      toast.error('Bạn cần đồng ý với Điều khoản dịch vụ và Chính sách.')
+      errors.agreeTerms = 'Bạn cần đồng ý với Điều khoản dịch vụ và Chính sách.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors((prev) => ({ ...prev, ...errors }))
       return
     }
 
@@ -408,27 +466,6 @@ export default function Register() {
     }
 
     if (formData.role === 'restaurant_owner') {
-      if (!formData.restaurantName.trim()) {
-        toast.error('Vui lòng nhập tên nhà hàng / quán ăn.')
-        return
-      }
-      if (!formData.restaurantAddress.trim()) {
-        toast.error('Vui lòng nhập địa chỉ cụ thể của nhà hàng.')
-        return
-      }
-      if (!formData.businessItems.trim()) {
-        toast.error('Vui lòng cho biết nhà hàng muốn bán sản phẩm / món ăn gì.')
-        return
-      }
-      if (!/^[0-9]{9,12}$/.test(formData.ownerCitizenId.trim())) {
-        toast.error('Số CCCD của chủ quán phải gồm từ 9 đến 12 chữ số hợp lệ.')
-        return
-      }
-      if (!formData.businessLicense || !formData.businessLicense.fileData) {
-        toast.error('Bắt buộc phải tải lên hình ảnh hoặc file PDF Giấy phép kinh doanh của nhà hàng.')
-        return
-      }
-
       payload.restaurantDetails = {
         restaurantName: formData.restaurantName.trim(),
         restaurantAddress: formData.restaurantAddress.trim(),
@@ -437,29 +474,6 @@ export default function Register() {
         businessLicense: formData.businessLicense,
       }
     } else if (formData.role === 'shipper') {
-      if (!formData.dateOfBirth) {
-        toast.error('Vui lòng chọn ngày tháng năm sinh của tài xế.')
-        return
-      }
-      const age = calculateAge(formData.dateOfBirth)
-      if (age !== null && age < 18) {
-        toast.error('Tài xế đối tác phải đủ từ 18 tuổi trở lên theo quy định.')
-        return
-      }
-      if (!/^[0-9]{9,12}$/.test(formData.driverCitizenId.trim())) {
-        toast.error('Số CCCD của tài xế phải gồm từ 9 đến 12 chữ số hợp lệ.')
-        return
-      }
-      if (!formData.vehicleInfo.trim()) {
-        toast.error('Vui lòng cung cấp thông tin giấy tờ xe / loại xe và biển số xe.')
-        return
-      }
-
-      if (!formData.depositConfirmed) {
-        toast.error('Vui lòng quét mã VietQR chuyển khoản tiền cọc 500.000đ và tích xác nhận để hoàn tất đăng ký tài xế.')
-        return
-      }
-
       payload.shipperDetails = {
         dateOfBirth: formData.dateOfBirth,
         citizenId: formData.driverCitizenId.trim(),
@@ -475,6 +489,7 @@ export default function Register() {
       }
     }
 
+    setFieldErrors({})
     setLoading(true)
     const result = await register(payload)
     setLoading(false)
@@ -507,9 +522,16 @@ export default function Register() {
         }
       }, 500)
     } else {
-      toast.error(
-        result.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.'
-      )
+      const msg = result.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.'
+      if (msg.toLowerCase().includes('email')) {
+        setFieldErrors((prev) => ({ ...prev, email: msg }))
+        if (formData.role !== 'customer') setCurrentStep(1)
+      } else if (msg.toLowerCase().includes('điện thoại') || msg.toLowerCase().includes('phone')) {
+        setFieldErrors((prev) => ({ ...prev, phone: msg }))
+        if (formData.role !== 'customer') setCurrentStep(1)
+      } else {
+        setFieldErrors((prev) => ({ ...prev, general: msg }))
+      }
     }
   }
 
@@ -714,7 +736,7 @@ export default function Register() {
                     <span className="text-white text-xs font-black ml-1">4.9/5</span>
                   </div>
                   <span className="text-slate-200 text-xs font-semibold">
-                    1.200+ Quán &bull; 50K+ Khách hàng
+                    100+ Quán &bull; 50K+ Khách hàng
                   </span>
                 </div>
               </div>
@@ -928,9 +950,14 @@ export default function Register() {
                           value={formData.fullName}
                           onChange={handleChange}
                           required
-                          className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                          className={`w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.fullName
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium`}
                         />
                       </div>
+                      <FieldError error={fieldErrors.fullName} />
                     </div>
 
                     {/* Email & Phone */}
@@ -949,9 +976,14 @@ export default function Register() {
                             value={formData.email}
                             onChange={handleChange}
                             required
-                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                            className={`w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                              fieldErrors.email
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : 'border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                            } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium`}
                           />
                         </div>
+                        <FieldError error={fieldErrors.email} />
                       </div>
 
                       <div>
@@ -968,9 +1000,14 @@ export default function Register() {
                             value={formData.phone}
                             onChange={handleChange}
                             required
-                            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                            className={`w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                              fieldErrors.phone
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : 'border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                            } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium`}
                           />
                         </div>
+                        <FieldError error={fieldErrors.phone} />
                       </div>
                     </div>
 
@@ -990,7 +1027,11 @@ export default function Register() {
                             value={formData.password}
                             onChange={handleChange}
                             required
-                            className="w-full pl-11 pr-11 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                            className={`w-full pl-11 pr-11 py-3 text-xs sm:text-sm rounded-xl border ${
+                              fieldErrors.password
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : 'border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20'
+                            } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium`}
                           />
                           <button
                             type="button"
@@ -1001,6 +1042,7 @@ export default function Register() {
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
+                        <FieldError error={fieldErrors.password} />
                       </div>
 
                       <div>
@@ -1018,7 +1060,7 @@ export default function Register() {
                             onChange={handleChange}
                             required
                             className={`w-full pl-11 pr-10 py-3 text-xs sm:text-sm rounded-xl border bg-white dark:bg-[#181A20] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none transition-all font-medium ${
-                              isPasswordMismatch
+                              isPasswordMismatch || fieldErrors.confirmPassword
                                 ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
                                 : isPasswordMatch
                                   ? 'border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-900/30'
@@ -1035,6 +1077,7 @@ export default function Register() {
                             </div>
                           )}
                         </div>
+                        <FieldError error={fieldErrors.confirmPassword} />
                         {isPasswordMismatch && (
                           <p className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1 animate-in fade-in">
                             <XCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1087,8 +1130,13 @@ export default function Register() {
                           placeholder="Ví dụ: Cơm Tấm Ba Ghiền"
                           value={formData.restaurantName}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                          className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.restaurantName
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-primary'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                         />
+                        <FieldError error={fieldErrors.restaurantName} />
                       </div>
 
                       <div>
@@ -1101,8 +1149,13 @@ export default function Register() {
                           placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành"
                           value={formData.restaurantAddress}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                          className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.restaurantAddress
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-primary'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                         />
+                        <FieldError error={fieldErrors.restaurantAddress} />
                       </div>
 
                       <div>
@@ -1115,8 +1168,13 @@ export default function Register() {
                           placeholder="Ví dụ: Cơm tấm sườn bì chả, canh rong biển..."
                           value={formData.businessItems}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary mb-2"
+                          className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.businessItems
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-primary'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none mb-2`}
                         />
+                        <FieldError error={fieldErrors.businessItems} />
 
                         {/* Suggested Tag Pills */}
                         <div className="flex flex-wrap gap-1.5">
@@ -1143,8 +1201,13 @@ export default function Register() {
                           placeholder="Gồm 9 đến 12 chữ số"
                           value={formData.ownerCitizenId}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                          className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.ownerCitizenId
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-primary'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                         />
+                        <FieldError error={fieldErrors.ownerCitizenId} />
                       </div>
 
                       {/* Image / PDF Upload Box */}
@@ -1152,6 +1215,7 @@ export default function Register() {
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                           Hình ảnh hoặc File PDF Giấy phép kinh doanh / Vệ sinh ATTP <span className="text-red-500">*</span>
                         </label>
+                        <FieldError error={fieldErrors.businessLicense} />
                         <input
                           ref={pdfInputRef}
                           type="file"
@@ -1242,8 +1306,13 @@ export default function Register() {
                             name="dateOfBirth"
                             value={formData.dateOfBirth}
                             onChange={handleChange}
-                            className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                            className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                              fieldErrors.dateOfBirth
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'
+                            } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                           />
+                          <FieldError error={fieldErrors.dateOfBirth} />
                           {shipperAge !== null && (
                             <span
                               className={`text-[11px] font-bold block mt-1 ${
@@ -1265,8 +1334,13 @@ export default function Register() {
                             placeholder="Gồm 9 đến 12 chữ số"
                             value={formData.driverCitizenId}
                             onChange={handleChange}
-                            className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                            className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                              fieldErrors.driverCitizenId
+                                ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                                : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'
+                            } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                           />
+                          <FieldError error={fieldErrors.driverCitizenId} />
                         </div>
                       </div>
 
@@ -1280,8 +1354,13 @@ export default function Register() {
                           placeholder="Ví dụ: Honda Wave Alpha - Biển số: 59-P1 888.88"
                           value={formData.vehicleInfo}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                          className={`w-full px-4 py-3 text-xs sm:text-sm rounded-xl border ${
+                            fieldErrors.vehicleInfo
+                              ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:focus:ring-red-900/30'
+                              : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'
+                          } bg-white dark:bg-[#181A20] text-slate-900 dark:text-white focus:outline-none`}
                         />
+                        <FieldError error={fieldErrors.vehicleInfo} />
                       </div>
 
                       <div className="pt-2">
@@ -1408,6 +1487,7 @@ export default function Register() {
                             Tôi xác nhận đã chuyển khoản trước 500.000đ tiền cọc ký quỹ tài xế qua mã VietQR trên <span className="text-red-500">*</span>
                           </span>
                         </label>
+                        <FieldError error={fieldErrors.depositConfirmed} />
 
                         <div>
                           <input
@@ -1443,6 +1523,15 @@ export default function Register() {
                           của FoodDelivery.
                         </span>
                       </label>
+                      <FieldError error={fieldErrors.agreeTerms} />
+                    </div>
+                  )}
+
+                  {/* Thông báo lỗi tổng quát (nếu có từ server) */}
+                  {fieldErrors.general && (
+                    <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs font-bold text-red-600 dark:text-red-400 flex items-start gap-2 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                      <span>{fieldErrors.general}</span>
                     </div>
                   )}
 

@@ -21,6 +21,11 @@ export default function OperationsSummary({ complaints, deliveryIssues }) {
           <AdminInfoRow label="Đã giải quyết">{complaints.resolved}</AdminInfoRow>
           <AdminInfoRow label="Không chấp nhận">{complaints.rejected}</AdminInfoRow>
           <AdminInfoRow label="Hoàn tiền khiếu nại">{formatCurrency(complaints.refundAmount)}</AdminInfoRow>
+          {Object.entries(PENALTY_ACTION_LABELS).map(([action, label]) => (
+            <AdminInfoRow key={action} label={`Xử phạt: ${label.toLowerCase()}`}>
+              {complaints.penalties?.[action] || 0}
+            </AdminInfoRow>
+          ))}
         </div>
       </div>
 

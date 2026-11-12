@@ -235,6 +235,16 @@ const orderSchema = new mongoose.Schema(
       note: { type: String, trim: true, default: '' },
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     },
+    // Temporary soft-lock when a shipper opens details to review before accepting (e.g. 20s window)
+    holdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    heldUntil: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

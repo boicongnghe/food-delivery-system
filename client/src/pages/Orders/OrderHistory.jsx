@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { orderApi } from '../../api/orderApi.js'
+
+const ITEMS_PER_PAGE = 10
 
 function OrderHistory() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -20,6 +24,38 @@ function OrderHistory() {
     }
     fetchOrders()
   }, [])
+
+  const totalPages = Math.ceil(orders.length / ITEMS_PER_PAGE) || 1
+
+  // Khi danh sách đơn thay đổi, đảm bảo currentPage không vượt quá totalPages
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1)
+    }
+  }, [totalPages, currentPage])
+
+  const displayedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return orders.slice(start, start + ITEMS_PER_PAGE)
+  }, [orders, currentPage])
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, '...', totalPages]
+    }
+    if (currentPage >= totalPages - 3) {
+      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    }
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
+  }
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -77,14 +113,14 @@ function OrderHistory() {
 
       {!loading && orders.length > 0 && (
         <div className="flex flex-col gap-4">
-          {orders.map((ord) => (
-            <div key={ord._id} className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 mb-3.5 pb-3.5">
+          {displayedOrders.map((ord) => (
+            <div key={ord._id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#181A20] shadow-sm transition hover:shadow-md p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 mb-3.5 pb-3.5">
                 <div>
-                  <div className="font-extrabold text-base">
+                  <div className="font-extrabold text-base text-slate-900 dark:text-white">
                     #{ord.orderNumber}
                   </div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-slate-500 dark:text-slate-400">
                     {new Date(ord.createdAt).toLocaleString('vi-VN')} • Quán: <strong>{ord.restaurant?.name || 'Nhà hàng'}</strong>
                   </div>
                 </div>
@@ -98,17 +134,79 @@ function OrderHistory() {
               </div>
 
               {/* Items preview */}
-              <div className="text-sm text-slate-500 mb-4">
+              <div className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                 {ord.items?.map((it) => `${it.quantity}x ${it.name}`).join(', ')}
               </div>
 
               <div className="flex justify-end gap-2.5">
-                <Link to={`/orders/${ord._id}`} className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50">
+                {ord.status === 'delivered' && (
+                  <Link
+                    to="/feedback"
+                    className="inline-flex items-center justify-center gap-1.5 border font-bold transition rounded-lg px-3 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white border-transparent shadow-sm"
+                  >
+                    ⭐ Đánh giá món ăn
+                  </Link>
+                )}
+                <Link to={`/orders/${ord._id}`} className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 dark:border-slate-800 bg-white dark:bg-[#14151a] text-slate-900 dark:text-slate-200 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Chi tiết & Theo dõi tiến trình ➔
                 </Link>
               </div>
             </div>
           ))}
+
+          {/* Phân trang: 10 đơn / trang */}
+          {orders.length > ITEMS_PER_PAGE && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-8 mt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+                Hiển thị <span className="font-bold text-slate-800 dark:text-slate-200">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> -{' '}
+                <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min(currentPage * ITEMS_PER_PAGE, orders.length)}</span>{' '}
+                trên tổng số <span className="font-bold text-slate-800 dark:text-slate-200">{orders.length}</span> đơn hàng
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#181A20] text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Trước</span>
+                </button>
+
+                {getPageNumbers().map((pageNum, idx) =>
+                  pageNum === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 text-slate-400 select-none">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`min-w-8 h-8 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                        pageNum === currentPage
+                          ? 'bg-primary text-white shadow-md shadow-orange-500/25'
+                          : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#181A20] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#181A20] text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <span>Sau</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

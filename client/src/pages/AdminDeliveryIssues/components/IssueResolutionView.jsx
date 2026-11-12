@@ -27,7 +27,11 @@ export default function IssueResolutionView({ resolution }) {
         <p className="text-xs text-slate-500">Không xử phạt.</p>
       )}
       {resolution.orderAction && resolution.orderAction !== 'none' && (
-        <p className="text-xs text-slate-500">Đơn hàng: {ISSUE_ORDER_ACTION_LABELS[resolution.orderAction]}</p>
+        <p className="text-xs text-slate-500">
+          Đơn hàng: {ISSUE_ORDER_ACTION_LABELS[resolution.orderAction]}
+          {resolution.orderActionAt &&
+            ` (${resolution.orderActionBy?.fullName || 'quản trị viên'} · ${formatDateTime(resolution.orderActionAt)})`}
+        </p>
       )}
       <p className="text-xs text-slate-500">
         {resolution.by?.fullName} · {formatDateTime(resolution.at)}

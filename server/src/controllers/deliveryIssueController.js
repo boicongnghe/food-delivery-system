@@ -35,6 +35,19 @@ export const getDeliveryIssueDetail = asyncHandler(async (req, res) => {
   });
 });
 
+export const applyOrderAction = asyncHandler(async (req, res) => {
+  const issue = await deliveryIssueService.applyIssueOrderAction(req.user._id, req.params.id, req.body);
+
+  res.status(200).json({
+    success: true,
+    data: issue,
+    message:
+      req.body.orderAction === 'cancel'
+        ? `Đã hủy đơn #${issue.orderCode} do sự cố giao hàng`
+        : `Đã trả đơn #${issue.orderCode} về hàng chờ cho shipper khác`,
+  });
+});
+
 export const resolveDeliveryIssue = asyncHandler(async (req, res) => {
   const issue = await deliveryIssueService.resolveDeliveryIssue(req.user._id, req.params.id, req.body);
 

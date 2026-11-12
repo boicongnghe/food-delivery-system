@@ -1,5 +1,4 @@
 import Complaint from '../models/Complaint.js';
-import DeliveryIssue from '../models/DeliveryIssue.js';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
 import Review from '../models/Review.js';
@@ -10,6 +9,7 @@ import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
+import { listViolations } from './violationService.js';
 
 // confirmed: still written by the demo progress tool of the customer order screen
 const UNFINISHED_ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'delivering'];
@@ -62,16 +62,11 @@ export const getUserDetail = async (userId) => {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
   }
 
-  const violationFilter = { 'resolution.penalty.targetUser': user._id };
-  const [restaurant, shipperProfile, violationTotal, violations, savedAddresses] = await Promise.all([
+  const [restaurant, shipperProfile, violations, savedAddresses] = await Promise.all([
     Restaurant.findOne({ owner: user._id }).select('name status rating ratingCount address phone createdAt').lean(),
     Shipper.findOne({ user: user._id }).select('status vehicleInfo rating createdAt').lean(),
-    DeliveryIssue.countDocuments(violationFilter),
-    DeliveryIssue.find(violationFilter)
-      .select('code orderCode type resolution.penalty resolution.note resolution.at')
-      .sort({ 'resolution.at': -1 })
-      .limit(10)
-      .lean(),
+    // Penalties from delivery issues and complaints, newest first
+    listViolations(user._id, 10),
     Address.find({ user: user._id }).lean(),
   ]);
   user.addresses = savedAddresses || [];
@@ -95,7 +90,7 @@ export const getUserDetail = async (userId) => {
     shipperProfile,
     orderStats,
     feedback: { reviews: reviewCount, complaints: complaintCount },
-    violations: { total: violationTotal, items: violations },
+    violations,
   };
 };
 
