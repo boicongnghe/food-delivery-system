@@ -18,6 +18,33 @@ export const createReviewSchema = Joi.object({
   shipperComment: Joi.string().trim().max(300).allow('').default('').messages({
     'string.max': 'Nhận xét về shipper tối đa 300 ký tự',
   }),
+  dishReviews: Joi.array()
+    .items(
+      Joi.object({
+        menuItem: Joi.string().hex().length(24).allow(null, '').default(null),
+        food: Joi.string().hex().length(24).allow(null, '').default(null),
+        dishName: Joi.string().trim().required(),
+        dishImage: Joi.string().allow('').default(''),
+        optionsSummary: Joi.string().allow('').default(''),
+        rating: rating.required(),
+        comment: Joi.string().trim().max(500).allow('').default(''),
+      }),
+    )
+    .default([]),
+});
+
+export const dishReviewSchema = Joi.object({
+  rating: rating.required().messages({ 'any.required': 'Vui lòng chọn số sao đánh giá món ăn' }),
+  comment: Joi.string().trim().max(500).allow('').default('').messages({
+    'string.max': 'Nhận xét tối đa 500 ký tự',
+  }),
+  orderId: Joi.string().hex().length(24).allow(null, '').default(null),
+});
+
+export const foodReviewsQuerySchema = Joi.object({
+  ...pageQueryKeys,
+  rating: Joi.number().integer().min(1).max(5).allow('').default(''),
+  hasComment: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
 });
 
 export const myListQuerySchema = Joi.object(pageQueryKeys);

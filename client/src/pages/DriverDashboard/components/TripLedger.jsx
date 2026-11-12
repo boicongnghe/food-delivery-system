@@ -1,12 +1,20 @@
+import { useState } from 'react'
 import { Check, ReceiptText } from 'lucide-react'
+import Pagination from '../../../components/Pagination/Pagination.jsx'
 import SectionCard from './SectionCard.jsx'
+
+const TRIPS_PER_PAGE = 10
 
 function formatVND(amount) {
   return `${Number(amount || 0).toLocaleString('vi-VN')}đ`
 }
 
 function TripLedger({ trips, periodLabel }) {
+  const [page, setPage] = useState(1)
   const total = trips.reduce((sum, trip) => sum + Number(trip.baseFare || 0) + Number(trip.bonus || 0), 0)
+  const totalPages = Math.ceil(trips.length / TRIPS_PER_PAGE)
+  const currentPage = Math.min(page, Math.max(totalPages, 1))
+  const visibleTrips = trips.slice((currentPage - 1) * TRIPS_PER_PAGE, currentPage * TRIPS_PER_PAGE)
 
   return (
     <SectionCard
@@ -29,7 +37,7 @@ function TripLedger({ trips, periodLabel }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {trips.map(trip => (
+            {visibleTrips.map(trip => (
               <tr key={trip.id} className="hover:bg-brand-light/30">
                 <td className="px-4 py-2.5">
                   <span className="font-mono text-xs font-semibold text-slate-900">{trip.id}</span>
@@ -65,6 +73,17 @@ function TripLedger({ trips, periodLabel }) {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        pagination={{
+          page: currentPage,
+          limit: TRIPS_PER_PAGE,
+          totalItems: trips.length,
+          totalPages,
+        }}
+        onPageChange={setPage}
+        unit="cuốc xe"
+      />
 
       <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
         <div>

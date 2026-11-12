@@ -284,3 +284,93 @@ html.dark body {
   background-color: #0f1014;
   color: #f8fafc;
 }
+
+html.dark .shipper-portal {
+  background-color: #0f1014;
+  color: #f8fafc;
+}
+
+html.dark .shipper-portal header,
+html.dark .shipper-portal footer {
+  background-color: #0f1014;
+}
+
+html.dark .shipper-portal .bg-cream,
+html.dark .shipper-portal .bg-brand-light,
+html.dark .shipper-portal [class*="bg-brand-light/"],
+html.dark .shipper-portal [class*="bg-brand-soft"],
+html.dark .shipper-portal .bg-slate-50,
+html.dark .shipper-portal .bg-slate-100,
+html.dark .shipper-portal .bg-white {
+  background-color: #181a20;
+}
+
+html.dark .shipper-portal .bg-orange-50,
+html.dark .shipper-portal [class*="bg-orange-50/"] {
+  background-color: #181a20;
+}
+
+html.dark .shipper-portal .text-slate-900,
+html.dark .shipper-portal .text-slate-800 {
+  color: #f8fafc;
+}
+
+html.dark .shipper-portal .text-slate-700,
+html.dark .shipper-portal .text-slate-600 {
+  color: #cbd5e1;
+}
+
+html.dark .shipper-portal .text-slate-500,
+html.dark .shipper-portal .text-slate-400 {
+  color: #94a3b8;
+}
+
+html.dark .shipper-portal .border-slate-100,
+html.dark .shipper-portal .border-slate-200,
+html.dark .shipper-portal .border-slate-300,
+html.dark .shipper-portal [class*="border-brand-soft"] {
+  border-color: #272a34;
+}
+
+html.dark .shipper-portal .bg-emerald-50 {
+  background-color: #064e3b;
+}
+
+html.dark .shipper-portal .bg-emerald-100 {
+  background-color: #022c22;
+}
+
+html.dark .shipper-portal .bg-amber-50 {
+  background-color: #713f12;
+}
+
+html.dark .shipper-portal .bg-amber-100 {
+  background-color: #451a03;
+}
+
+html.dark .shipper-portal .bg-red-50 {
+  background-color: #7f1d1d;
+}
+
+html.dark .shipper-portal .bg-sky-50 {
+  background-color: #0c4a6e;
+}
+
+html.dark .shipper-portal .text-emerald-700,
+html.dark .shipper-portal .text-emerald-800 {
+  color: #6ee7b7;
+}
+
+html.dark .shipper-portal .text-amber-700,
+html.dark .shipper-portal .text-amber-800 {
+  color: #fcd34d;
+}
+
+html.dark .shipper-portal .text-red-700 {
+  color: #fca5a5;
+}
+
+html.dark .shipper-portal .text-sky-700,
+html.dark .shipper-portal .text-sky-900 {
+  color: #7dd3fc;
+}

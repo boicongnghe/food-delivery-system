@@ -52,6 +52,8 @@ const menuItemSchema = new mongoose.Schema(
     isVisible: { type: Boolean, default: true },
     soldOutAt: { type: Date, default: null },
     optionGroups: { type: [optionGroupSchema], default: [] },
+    rating: { type: Number, default: 5, min: 0, max: 5 },
+    reviewsCount: { type: Number, default: 0, min: 0 },
     // Soft delete: orders placed earlier may still reference this item
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null },

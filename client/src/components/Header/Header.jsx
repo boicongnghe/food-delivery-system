@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { UtensilsCrossed, House, LogOut, ChefHat, Scale, Store, Wallet } from 'lucide-react'
+import { UtensilsCrossed, House, LogOut, ChefHat, Scale, Store, Wallet, Moon, Sun } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
+import useTheme from '../../hooks/useTheme.js'
 import NotificationBell from '../NotificationBell/NotificationBell.jsx'
 
 /**
@@ -33,8 +34,10 @@ export default function Header({
   accountName = '',
   accountCaption = '',
   menuItems = RESTAURANT_MENU_ITEMS,
+  showThemeToggle = false,
 }) {
   const { user, logout } = useAuth()
+  const { isDark, toggleTheme } = useTheme()
   // Restaurant portal (accountName given): the account IS the restaurant, so only its logo is shown
   const avatarSrc = accountName ? accountImage : accountImage || user?.avatar || ''
   const displayName = accountName || user?.fullName || 'Chủ quán'
@@ -90,17 +93,31 @@ export default function Header({
           <Link
             to="/"
             id="back-to-homepage-btn"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-orange-200 hover:border-primary/50 bg-orange-50/70 hover:bg-orange-100 text-primary transition-all shadow-xs"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50/70 text-primary shadow-xs transition-all hover:border-primary/50 hover:bg-orange-100 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
             title="Về Trang chủ FoodDelivery"
             aria-label="Về Trang chủ"
           >
             <House className="w-4 h-4" />
           </Link>
 
+          {showThemeToggle && (
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 shadow-xs transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800/80 dark:text-amber-400 dark:hover:bg-slate-700"
+              title={isDark ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
+              aria-label={isDark ? 'Chuyển sang chế độ Sáng' : 'Chuyển sang chế độ Tối'}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          )}
+
           {status && (
             <span
               className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase ${
-                status.isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                status.isOpen
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${status.isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />

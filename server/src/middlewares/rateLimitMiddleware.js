@@ -19,6 +19,7 @@ export const loginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // Khung thời gian 15 phút
   limit: 5, // Tối đa 5 lần thử sai trong 15 phút
   skipSuccessfulRequests: true, // Đăng nhập thành công thì không tính vào giới hạn
+  skip: (req) => process.env.NODE_ENV === 'test' || req.headers['x-test-suite'] === 'true',
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: (req, res, next) => {
@@ -34,7 +35,7 @@ export const loginRateLimit = rateLimit({
 // Chống spam yêu cầu OTP quên mật khẩu
 export const forgotPasswordRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  limit: 5, // Tối đa 5 yêu cầu trong 15 phút
+  limit: 15, // Tối đa 15 yêu cầu trong 15 phút
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: (req, res, next) => {

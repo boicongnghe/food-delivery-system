@@ -48,6 +48,13 @@ router.patch(
   validateId,
   shipperOrderController.acceptOrder,
 );
+router.post(
+  '/:id/shipper/release-hold',
+  protect,
+  authorize('shipper'),
+  validateId,
+  shipperOrderController.releaseOrderHold,
+);
 router.patch(
   '/:id/shipper/cancel-acceptance',
   protect,

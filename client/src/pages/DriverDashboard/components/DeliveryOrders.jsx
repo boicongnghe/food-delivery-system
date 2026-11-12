@@ -138,7 +138,7 @@ function ItemChecklist({ title, items }) {
 }
 
 function DeliveryOrders({ onOrderChanged }) {
-  const { token } = useAuth()
+  const { user, token } = useAuth()
   const [availableOrders, setAvailableOrders] = useState([])
   const [availablePagination, setAvailablePagination] = useState(EMPTY_PAGINATION)
   const [availablePage, setAvailablePage] = useState(1)
@@ -231,18 +231,49 @@ function DeliveryOrders({ onOrderChanged }) {
       if (!document.hidden) refreshOrders(true)
     }
 
+    const handleOrderHeld = payload => {
+      if (!payload?.orderId) return
+      setAvailableOrders(orders => orders.map(order => {
+        if (order._id !== payload.orderId) return order
+        const isMe = user?._id && String(payload.holderId) === String(user._id)
+        return {
+          ...order,
+          holdExpiresAt: payload.heldUntil,
+          isHeldByMe: isMe,
+          isHeldByOther: !isMe,
+        }
+      }))
+    }
+
+    const handleOrderReleased = payload => {
+      if (!payload?.orderId) return
+      setAvailableOrders(orders => orders.map(order => {
+        if (order._id !== payload.orderId) return order
+        return {
+          ...order,
+          holdExpiresAt: null,
+          isHeldByMe: false,
+          isHeldByOther: false,
+        }
+      }))
+    }
+
     socket.on('connect', refreshIfVisible)
     socket.on('new_pickup_order', refreshIfVisible)
     socket.on('new_notification', handleOrderNotification)
+    socket.on('order_held', handleOrderHeld)
+    socket.on('order_released', handleOrderReleased)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       socket.off('connect', refreshIfVisible)
       socket.off('new_pickup_order', refreshIfVisible)
       socket.off('new_notification', handleOrderNotification)
+      socket.off('order_held', handleOrderHeld)
+      socket.off('order_released', handleOrderReleased)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [token, refreshOrders])
+  }, [token, user?._id, refreshOrders])
 
   // While the kitchen cooks the shipper's order, check often so "Xác nhận đã lấy" unlocks soon after it is ready
   const hasCookingOrder = activeOrders.some(order => order.status === 'preparing')
@@ -321,10 +352,25 @@ function DeliveryOrders({ onOrderChanged }) {
     }
   }
 
-  const handleShowDetails = async orderId => {
-    if (selectedDetails === orderId) {
+  const handleReleaseHold = async (orderId) => {
+    try {
+      await orderApi.releaseOrderHold(orderId)
+      setAvailableOrders(orders => orders.map(order =>
+        order._id === orderId
+          ? { ...order, holdExpiresAt: null, isHeldByMe: false, isHeldByOther: false }
+          : order
+      ))
+    } catch {
+      // ignore
+    } finally {
       setSelectedDetails('')
       setAcceptConfirmId('')
+    }
+  }
+
+  const handleShowDetails = async orderId => {
+    if (selectedDetails === orderId) {
+      await handleReleaseHold(orderId)
       return
     }
     setAcceptConfirmId('')
@@ -332,9 +378,18 @@ function DeliveryOrders({ onOrderChanged }) {
     setActionError('')
     try {
       const response = await orderApi.getAvailableOrderDetail(orderId)
+      const data = response.data
       setSelectedDetails(orderId)
       setAvailableOrders(orders => orders.map(order =>
-        order._id === orderId ? { ...order, detail: response.data } : order,
+        order._id === orderId
+          ? {
+              ...order,
+              detail: data,
+              isHeldByMe: true,
+              isHeldByOther: false,
+              holdExpiresAt: data?.holdExpiresAt,
+            }
+          : order,
       ))
     } catch (requestError) {
       setActionError(getErrorMessage(requestError))
@@ -342,6 +397,20 @@ function DeliveryOrders({ onOrderChanged }) {
       setBusyOrderId('')
     }
   }
+
+  // Model 2: If hold timer expires while user is viewing details, automatically close and notify
+  useEffect(() => {
+    if (!selectedDetails) return
+    const currentOrder = availableOrders.find(o => o._id === selectedDetails)
+    if (!currentOrder?.holdExpiresAt) return
+
+    const diff = new Date(currentOrder.holdExpiresAt).getTime() - (now || Date.now())
+    if (diff <= 0) {
+      setSelectedDetails('')
+      setAcceptConfirmId('')
+      setActionError('Đã hết thời gian 20s giữ chỗ xem đơn. Đơn đã được mở lại cho các tài xế khác.')
+    }
+  }, [now, selectedDetails, availableOrders])
 
   const startIssueReport = order => {
     setIssueOrder(order)
@@ -573,7 +642,7 @@ function DeliveryOrders({ onOrderChanged }) {
                             <button
                               type="button"
                               className={`${primaryButtonClass} flex-1`}
-                              disabled={busyOrderId === order._id}
+                              disabled={busyOrderId === order._id || order.status !== 'ready_for_pickup'}
                               onClick={() => runOrderAction(order._id, () =>
                                 orderApi.confirmDeliveryPickup(order._id),
                               )}
@@ -827,92 +896,158 @@ function DeliveryOrders({ onOrderChanged }) {
             ) : (
               <>
                 <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-                  {availableOrders.map(order => (
-                    <article className="flex flex-col gap-3 rounded-xl border border-brand-soft/70 p-4 transition hover:shadow-md" key={order._id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <strong className="font-mono text-sm text-slate-900">{order.orderCode}</strong>
-                        <span className={statusBadgeClass('ready')}>{POOL_STATUS_LABELS[order.status] || 'Chờ shipper'}</span>
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-900">{order.restaurant.name}</h3>
-                        <p className="text-sm text-slate-600">{order.restaurant.address}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><MapPin size={12} /> Điểm giao: {order.delivery.area}</span>
-                        {Number.isFinite(Number(order.distanceKm)) && Number(order.distanceKm) > 0 && (
-                          <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Quãng đường tính phí: {order.distanceKm} km</span>
-                        )}
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><Package size={12} /> {order.itemCount} món</span>
-                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-800">
-                          Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong>
-                        </span>
-                        {order.status === 'preparing' && order.kitchenDueAt && (
-                          <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Bếp dự kiến xong lúc {formatTime(order.kitchenDueAt)}</span>
-                        )}
-                        {order.amountToCollect > 0 && (
-                          <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">
-                            Thu hộ COD: <strong>{formatMoney(order.amountToCollect)}</strong>
-                          </span>
-                        )}
-                      </div>
-                      {selectedDetails === order._id && order.detail && (
-                        <div className="space-y-1 rounded-lg bg-brand-light/60 px-3 py-3 text-sm text-slate-700">
-                          <strong className="block text-slate-900">Bước 2 · Xem chi tiết đơn</strong>
-                          <p>Điểm nhận: {order.detail.restaurant?.address || order.restaurant.address}</p>
-                          <p>Khu vực giao: {order.detail.delivery?.area || order.delivery.area}</p>
-                          <p>Tiền thu hộ COD: {formatMoney(order.amountToCollect)}</p>
-                          <p>Thu nhập chuyến dự kiến: {formatMoney(order.estimatedPay)}</p>
-                          <button
-                            type="button"
-                            className={`${primaryButtonClass} mt-2 w-full`}
-                            disabled={Boolean(activeOrders.length)}
-                            onClick={() => setAcceptConfirmId(order._id)}
-                          >
-                            Tiếp tục nhận đơn
-                          </button>
+                  {availableOrders.map(order => {
+                    const diffMs = order.holdExpiresAt ? new Date(order.holdExpiresAt).getTime() - (now || Date.now()) : 0
+                    const holdSec = Math.max(0, Math.ceil(diffMs / 1000))
+                    const isHeldByOther = Boolean(order.isHeldByOther && holdSec > 0)
+                    const isHeldByMe = Boolean((order.isHeldByMe || selectedDetails === order._id) && holdSec > 0)
+
+                    return (
+                      <article
+                        className={`flex flex-col gap-3 rounded-xl border p-4 transition ${
+                          isHeldByOther
+                            ? 'border-amber-200 bg-amber-50/40 opacity-75'
+                            : isHeldByMe
+                              ? 'border-brand bg-brand-light/30 ring-2 ring-brand/20'
+                              : 'border-brand-soft/70 hover:shadow-md'
+                        }`}
+                        key={order._id}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="font-mono text-sm text-slate-900">{order.orderCode}</strong>
+                            {isHeldByOther && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 animate-pulse">
+                                <Lock size={11} /> Đang có người xem ({holdSec}s)
+                              </span>
+                            )}
+                            {isHeldByMe && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                                ⏱️ Giữ chỗ cho bạn ({holdSec}s)
+                              </span>
+                            )}
+                          </div>
+                          <span className={statusBadgeClass('ready')}>{POOL_STATUS_LABELS[order.status] || 'Chờ shipper'}</span>
                         </div>
-                      )}
-                      <div className="mt-auto flex justify-end">
-                        <button
-                          type="button"
-                          className={secondaryButtonClass}
-                          disabled={busyOrderId === order._id}
-                          onClick={() => handleShowDetails(order._id)}
-                        >
-                          {selectedDetails === order._id ? 'Thu gọn' : 'Chi tiết'}
-                        </button>
-                      </div>
-                      {acceptConfirmId === order._id && (
-                        <div className="space-y-1 rounded-lg border border-brand/30 bg-white px-3 py-3 text-sm text-slate-700">
-                          <strong className="block text-slate-900">Bước 3 · Xác nhận nhận đơn</strong>
-                          <p>Bạn sẽ phụ trách lấy đơn tại {order.restaurant.name}, giao đến {order.delivery.area}.</p>
-                          <p>Sau khi nhận, bạn cần hoàn tất đơn hiện tại trước khi nhận đơn khác.</p>
-                          <div className="flex flex-wrap justify-end gap-2 pt-2">
+                        <div>
+                          <h3 className="font-semibold text-slate-900">{order.restaurant.name}</h3>
+                          <p className="text-sm text-slate-600">{order.restaurant.address}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 text-xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><MapPin size={12} /> Điểm giao: {order.delivery.area}</span>
+                          {Number.isFinite(Number(order.distanceKm)) && Number(order.distanceKm) > 0 && (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Quãng đường tính phí: {order.distanceKm} km</span>
+                          )}
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-700"><Package size={12} /> {order.itemCount} món</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-800">
+                            Thu nhập dự kiến: <strong>{formatMoney(order.estimatedPay)}</strong>
+                          </span>
+                          {order.status === 'preparing' && order.kitchenDueAt && (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">Bếp dự kiến xong lúc {formatTime(order.kitchenDueAt)}</span>
+                          )}
+                          {order.amountToCollect > 0 && (
+                            <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">
+                              Thu hộ COD: <strong>{formatMoney(order.amountToCollect)}</strong>
+                            </span>
+                          )}
+                        </div>
+                        {selectedDetails === order._id && order.detail && (
+                          <div className="space-y-2 rounded-lg bg-brand-light/60 p-3 text-sm text-slate-700 border border-brand/20">
+                            {isHeldByMe && (
+                              <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 border border-amber-200">
+                                <span className="flex items-center gap-1.5 font-bold">
+                                  <Lock size={14} className="text-amber-600" />
+                                  Đang giữ chỗ cho bạn: còn {holdSec}s để quyết định!
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleReleaseHold(order._id)}
+                                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline"
+                                >
+                                  Bỏ qua (nhả đơn)
+                                </button>
+                              </div>
+                            )}
+                            <strong className="block text-slate-900">Bước 2 · Xem chi tiết đơn</strong>
+                            <p>Điểm nhận: {order.detail.restaurant?.address || order.restaurant.address}</p>
+                            <p>Khu vực giao: {order.detail.delivery?.area || order.delivery.area}</p>
+                            <p>Tiền thu hộ COD: {formatMoney(order.amountToCollect)}</p>
+                            <p>Thu nhập chuyến dự kiến: {formatMoney(order.estimatedPay)}</p>
+                            <div className="flex gap-2 pt-1">
+                              <button
+                                type="button"
+                                className={`${primaryButtonClass} flex-1`}
+                                disabled={Boolean(activeOrders.length)}
+                                onClick={() => setAcceptConfirmId(order._id)}
+                              >
+                                Tiếp tục nhận đơn
+                              </button>
+                              <button
+                                type="button"
+                                className={secondaryButtonClass}
+                                onClick={() => handleReleaseHold(order._id)}
+                              >
+                                Bỏ qua
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-auto flex justify-end">
+                          {isHeldByOther ? (
+                            <button
+                              type="button"
+                              disabled
+                              className={`${secondaryButtonClass} opacity-60 cursor-not-allowed text-amber-800 bg-amber-50 border-amber-200`}
+                              title="Tài xế khác đang mở xem xét đơn này"
+                            >
+                              <Lock size={14} className="mr-1 inline text-amber-600" />
+                              Đang có người xem ({holdSec}s)
+                            </button>
+                          ) : (
                             <button
                               type="button"
                               className={secondaryButtonClass}
-                              onClick={() => setAcceptConfirmId('')}
+                              disabled={busyOrderId === order._id}
+                              onClick={() => handleShowDetails(order._id)}
                             >
-                              Quay lại chi tiết
+                              {selectedDetails === order._id ? 'Thu gọn' : 'Chi tiết & Nhận'}
                             </button>
-                            <button
-                              type="button"
-                              className={primaryButtonClass}
-                              disabled={Boolean(activeOrders.length) || busyOrderId === order._id}
-                              onClick={() => runOrderAction(order._id, () =>
-                                orderApi.acceptDeliveryOrder(order._id),
-                              )}
-                            >
-                              {busyOrderId === order._id ? 'Đang nhận đơn…' : 'Xác nhận nhận đơn'}
-                            </button>
-                          </div>
+                          )}
                         </div>
-                      )}
-                      {activeOrders.length > 0 && (
-                        <p className="text-xs text-slate-500">Hoàn tất đơn đang giao trước khi nhận đơn mới.</p>
-                      )}
-                    </article>
-                  ))}
+                        {acceptConfirmId === order._id && (
+                          <div className="space-y-1 rounded-lg border border-brand/30 bg-white px-3 py-3 text-sm text-slate-700">
+                            <strong className="block text-slate-900">Bước 3 · Xác nhận nhận đơn</strong>
+                            <p>Bạn sẽ phụ trách lấy đơn tại {order.restaurant.name}, giao đến {order.delivery.area}.</p>
+                            <p>Sau khi nhận, bạn cần hoàn tất đơn hiện tại trước khi nhận đơn khác.</p>
+                            <div className="flex flex-wrap justify-end gap-2 pt-2">
+                              <button
+                                type="button"
+                                className={secondaryButtonClass}
+                                onClick={() => setAcceptConfirmId('')}
+                              >
+                                Quay lại chi tiết
+                              </button>
+                              <button
+                                type="button"
+                                className={primaryButtonClass}
+                                disabled={Boolean(activeOrders.length) || busyOrderId === order._id}
+                                onClick={() => runOrderAction(order._id, async () => {
+                                  await orderApi.acceptDeliveryOrder(order._id)
+                                  setSelectedDetails('')
+                                  setAcceptConfirmId('')
+                                })}
+                              >
+                                {busyOrderId === order._id ? 'Đang nhận đơn…' : 'Xác nhận nhận đơn'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {activeOrders.length > 0 && (
+                          <p className="text-xs text-slate-500">Hoàn tất đơn đang giao trước khi nhận đơn mới.</p>
+                        )}
+                      </article>
+                    )
+                  })}
                 </div>
                 {availablePagination.totalPages > 1 && (
                   <nav

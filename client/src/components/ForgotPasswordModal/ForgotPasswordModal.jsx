@@ -9,8 +9,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   X,
-  Sparkles,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import authApi from '../../api/authApi.js'
@@ -19,7 +19,6 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
   const [step, setStep] = useState(1) // 1: Email, 2: OTP & New Password, 3: Success
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
-  const [otpDemo, setOtpDemo] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -31,7 +30,6 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
       setEmail(initialEmail || '')
       setStep(1)
       setOtp('')
-      setOtpDemo('')
       setNewPassword('')
       setConfirmPassword('')
       setShowPassword(false)
@@ -65,9 +63,6 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
       setLoading(false)
 
       toast.success(response.message || 'Mã xác thực OTP đã được gửi thành công!')
-      if (response.data?.otpDemo) {
-        setOtpDemo(response.data.otpDemo)
-      }
       setStep(2)
       setCountdown(60)
     } catch (err) {
@@ -247,26 +242,15 @@ export default function ForgotPasswordModal({ isOpen, onClose, initialEmail = ''
           {/* STEP 2: ENTER OTP & NEW PASSWORD */}
           {step === 2 && (
             <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
                 <p className="text-slate-600">
                   Mã OTP đã được gửi đến:{' '}
                   <span className="font-bold text-slate-900">{email}</span>
                 </p>
-                {otpDemo && (
-                  <div className="mt-1 pt-1 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-500" /> Mã OTP kiểm thử:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOtp(otpDemo)}
-                      className="px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 font-mono font-bold text-xs transition-colors"
-                      title="Bấm để tự điền mã OTP này"
-                    >
-                      {otpDemo} (Bấm điền)
-                    </button>
-                  </div>
-                )}
+                <p className="text-[11px] text-amber-700 flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  Mã xác thực có hiệu lực trong vòng <strong>2 phút</strong>. Vui lòng kiểm tra email của bạn.
+                </p>
               </div>
 
               {/* OTP Input */}
