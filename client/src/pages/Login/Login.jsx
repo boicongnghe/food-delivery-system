@@ -187,8 +187,8 @@ export default function Login() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
-    if (fieldErrors[name]) {
-      setFieldErrors((prev) => ({ ...prev, [name]: '' }))
+    if (fieldErrors[name] || fieldErrors.general) {
+      setFieldErrors((prev) => ({ ...prev, [name]: '', general: '' }))
     }
 
     if (name === 'email') {
@@ -253,7 +253,6 @@ export default function Login() {
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
-      toast.error('Vui lòng kiểm tra lại thông tin đăng nhập.')
       return
     }
 
@@ -278,7 +277,14 @@ export default function Login() {
       if (result.requiresVerification) {
         setUnverifiedEmail(result.unverifiedEmail || formData.email.trim())
       }
-      toast.error(result.message || 'Đăng nhập thất bại')
+      const msg = result.message || 'Email hoặc mật khẩu không chính xác'
+      if (msg.toLowerCase().includes('mật khẩu') || msg.toLowerCase().includes('password')) {
+        setFieldErrors({ password: msg })
+      } else if (msg.toLowerCase().includes('email') || msg.toLowerCase().includes('tài khoản')) {
+        setFieldErrors({ email: msg })
+      } else {
+        setFieldErrors({ general: msg })
+      }
     }
   }
 
@@ -523,7 +529,7 @@ export default function Login() {
                 </h2>
 
                 <p className="text-xs sm:text-sm text-slate-200 leading-relaxed drop-shadow-xs">
-                  Hơn 1.200 quán ăn đối tác tuyển chọn tại Hòa Lạc, nhận món đúng giờ, chuẩn vị và an tâm tuyệt đối.
+                  Hơn 100+ quán ăn đối tác tuyển chọn tại Hòa Lạc, nhận món đúng giờ, chuẩn vị và an tâm tuyệt đối.
                 </p>
 
                 {/* Rating & Social Proof */}
@@ -770,6 +776,13 @@ export default function Login() {
                       </button>
                     </div>
                   </div>
+
+                  {fieldErrors.general && (
+                    <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-2 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{fieldErrors.general}</span>
+                    </div>
+                  )}
 
                   {/* Submit Button */}
                   <button

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   Search,
@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Copy,
   Check,
-  Ticket,
   Store,
   Percent,
   Timer,
@@ -61,6 +60,109 @@ const toModalOptions = (optionGroups = []) => {
           stock: option.stock !== undefined ? option.stock : 50,
         }))
       ),
+  }
+}
+
+// Khớp danh mục linh hoạt giữa tab chọn trên UI và thực đơn trong database
+const matchDishCategory = (dish, categoryId) => {
+  if (!categoryId || categoryId === 'all') return true
+
+  const catLower = (dish.category || '').toLowerCase()
+  const nameLower = (dish.name || '').toLowerCase()
+  const descLower = (dish.description || '').toLowerCase()
+
+  switch (categoryId) {
+    case 'trang-mieng':
+    case 'banh':
+      return (
+        catLower.includes('tráng miệng') ||
+        catLower.includes('bánh ngọt') ||
+        catLower.includes('bánh kem') ||
+        catLower.includes('chè') ||
+        catLower.includes('kem') ||
+        catLower.includes('ngọt') ||
+        catLower.includes('dessert') ||
+        (catLower.includes('bánh') && !catLower.includes('bánh mì') && !catLower.includes('bánh cuốn') && !catLower.includes('bánh đa')) ||
+        nameLower.includes('su kem') ||
+        nameLower.includes('mousse') ||
+        nameLower.includes('tiramisu') ||
+        nameLower.includes('croissant') ||
+        nameLower.includes('bông lan') ||
+        nameLower.includes('chè') ||
+        nameLower.includes('bánh ngọt') ||
+        nameLower.includes('bánh kem') ||
+        nameLower.includes('flan') ||
+        nameLower.includes('pudding') ||
+        nameLower.includes('tart') ||
+        (nameLower.includes('bánh') && !nameLower.includes('bánh mì') && !nameLower.includes('bánh cuốn') && !nameLower.includes('bánh đa') && !nameLower.includes('bánh tráng'))
+      )
+    case 'com-mi':
+      return (
+        catLower.includes('cơm') ||
+        catLower.includes('mì') ||
+        catLower.includes('phở') ||
+        catLower.includes('bún') ||
+        nameLower.includes('cơm') ||
+        nameLower.includes('mì') ||
+        nameLower.includes('phở') ||
+        nameLower.includes('bún') ||
+        nameLower.includes('miến') ||
+        nameLower.includes('hủ tiếu') ||
+        nameLower.includes('xôi')
+      )
+    case 'fast-food':
+      return (
+        catLower.includes('fast-food') ||
+        catLower.includes('gà rán') ||
+        catLower.includes('burger') ||
+        nameLower.includes('burger') ||
+        nameLower.includes('gà rán') ||
+        nameLower.includes('pizza') ||
+        nameLower.includes('sandwich') ||
+        nameLower.includes('khoai tây') ||
+        nameLower.includes('hotdog')
+      )
+    case 'an-vat':
+      return (
+        catLower.includes('ăn vặt') ||
+        catLower.includes('kèm') ||
+        nameLower.includes('quẩy') ||
+        nameLower.includes('ăn vặt') ||
+        nameLower.includes('nem') ||
+        nameLower.includes('chân gà') ||
+        nameLower.includes('khoai lắc') ||
+        nameLower.includes('trứng') ||
+        nameLower.includes('tóp mỡ')
+      )
+    case 'do-uong':
+      return (
+        catLower.includes('đồ uống') ||
+        catLower.includes('giải khát') ||
+        catLower.includes('trà') ||
+        nameLower.includes('trà') ||
+        nameLower.includes('cà phê') ||
+        nameLower.includes('sấu') ||
+        nameLower.includes('nước') ||
+        nameLower.includes('sinh tố') ||
+        nameLower.includes('chanh')
+      )
+    case 'mon-chay':
+      return (
+        catLower.includes('chay') ||
+        catLower.includes('healthy') ||
+        nameLower.includes('chay') ||
+        nameLower.includes('salad') ||
+        nameLower.includes('rau') ||
+        nameLower.includes('nấm') ||
+        nameLower.includes('thực dưỡng')
+      )
+    default:
+      return (
+        catLower.includes(categoryId.toLowerCase()) ||
+        nameLower.includes(categoryId.toLowerCase()) ||
+        descLower.includes(categoryId.toLowerCase()) ||
+        dish.category === categoryId
+      )
   }
 }
 
@@ -194,14 +296,16 @@ export default function Home() {
             name: f.name,
             restaurant: f.restaurant?.name || 'Quán Ăn Ngon',
             restaurantId: f.restaurant?._id || f.restaurant,
+            restaurantOpeningHours: f.restaurant?.openingHours,
+            restaurantIsAcceptingOrders: f.restaurant?.isAcceptingOrders,
             price: f.price,
             originalPrice: f.originalPrice && f.originalPrice > f.price ? f.originalPrice : undefined,
             image:
               f.image ||
               'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
-            category: f.category || (idx % 2 === 0 ? 'com-mi' : 'fast-food'),
-            rating: f.rating || 4.8,
-            reviewsCount: f.reviewsCount || 120,
+            category: f.category || '',
+            rating: typeof f.rating === 'number' ? Number(f.rating.toFixed(1)) : 5,
+            reviewsCount: typeof f.reviewsCount === 'number' ? f.reviewsCount : 0,
             deliveryTime: f.deliveryTime || '15-25 phút',
             distance: f.distance || '1.5 km',
             tag: idx === 0 ? 'Bán chạy' : (f.tag || undefined),
@@ -230,8 +334,8 @@ export default function Home() {
             name: r.name,
             address: r.address || '',
             category: r.description || 'Quán ăn đặc sản đối tác',
-            rating: r.rating || 4.8,
-            reviewsCount: r.ratingCount || 120 + idx * 25,
+            rating: typeof r.rating === 'number' && r.rating > 0 ? Number(r.rating.toFixed(1)) : 5,
+            reviewsCount: typeof r.ratingCount === 'number' ? r.ratingCount : (r.reviewsCount || 0),
             deliveryTime: '15-25 phút',
             distance: `${(1.0 + idx * 0.4).toFixed(1)} km`,
             badge: idx % 2 === 0 ? 'Chuẩn 5 Sao' : 'Freeship',
@@ -296,27 +400,58 @@ export default function Home() {
     }
   }, [location.state, isAuthenticated, user])
 
+  // Lấy trạng thái hoạt động (mở/đóng cửa) của quán ăn sở hữu món này
+  const getDishRestaurantStatus = useCallback((dish) => {
+    if (!dish) return { isOpen: true, hoursText: '' }
+    const partner = allPartners.find(
+      (p) =>
+        (dish.restaurantId && (String(p.id) === String(dish.restaurantId) || String(p._id) === String(dish.restaurantId))) ||
+        (p.name &&
+          dish.restaurant &&
+          p.name.trim().toLowerCase() ===
+            (typeof dish.restaurant === 'string' ? dish.restaurant.trim().toLowerCase() : (dish.restaurant?.name || '').trim().toLowerCase()))
+    )
+    if (partner) {
+      const { isOpen, hoursText } = getPartnerStatus(partner)
+      return { isOpen, hoursText, partner }
+    }
+    // Fallback if dish has populated restaurant openingHours
+    if (dish.restaurantOpeningHours) {
+      const isAccepting = dish.restaurantIsAcceptingOrders !== false
+      const isOpen = isAccepting && isOpenNow(dish.restaurantOpeningHours)
+      const hoursText = getOpeningHoursText(dish.restaurantOpeningHours)
+      return { isOpen, hoursText }
+    }
+    return { isOpen: true, hoursText: '' }
+  }, [allPartners])
+
   // Filtered and sorted dishes
   const filteredDishes = useMemo(() => {
     return allDishes
       .filter((dish) => {
-        // Category filter
-        if (selectedCategory !== 'all' && dish.category !== selectedCategory) {
+        // 1. Chỉ hiện những món từ quán ĐANG MỞ CỬA ở mục "Món Ngon Sẵn Sàng Giao Ngay"
+        const restStatus = getDishRestaurantStatus(dish)
+        if (!restStatus.isOpen) return false
+        if (dish.isAvailable === false) return false
+
+        // 2. Category filter linh hoạt (hỗ trợ chọn bánh ngọt, tráng miệng, cơm, đồ uống...)
+        if (selectedCategory !== 'all' && !matchDishCategory(dish, selectedCategory)) {
           return false
         }
 
-        // Search query
+        // 3. Search query
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase().trim()
+          const restName = typeof dish.restaurant === 'string' ? dish.restaurant : (dish.restaurant?.name || '')
           const matchesName = dish.name.toLowerCase().includes(query)
-          const matchesRestaurant = dish.restaurant?.toLowerCase().includes(query)
+          const matchesRestaurant = restName.toLowerCase().includes(query)
           const matchesDesc = dish.description?.toLowerCase().includes(query)
           if (!matchesName && !matchesRestaurant && !matchesDesc) {
             return false
           }
         }
 
-        // Price filter
+        // 4. Price filter
         if (priceFilter === 'under50' && dish.price >= 50000) return false
         if (priceFilter === '50to100' && (dish.price < 50000 || dish.price > 100000)) return false
         if (priceFilter === 'over100' && dish.price <= 100000) return false
@@ -329,7 +464,7 @@ export default function Home() {
         if (sortBy === 'priceDesc') return b.price - a.price
         return (b.reviewsCount || 0) - (a.reviewsCount || 0)
       })
-  }, [allDishes, selectedCategory, searchQuery, priceFilter, sortBy])
+  }, [allDishes, getDishRestaurantStatus, selectedCategory, searchQuery, priceFilter, sortBy])
 
   // Toggle Favorite
   const handleToggleFavorite = (e, dishId) => {
@@ -345,22 +480,6 @@ export default function Home() {
       }
       return next
     })
-  }
-
-  // Lấy trạng thái hoạt động (mở/đóng cửa) của quán ăn sở hữu món này
-  const getDishRestaurantStatus = (dish) => {
-    if (!dish) return { isOpen: true, hoursText: '' }
-    const partner = allPartners.find(
-      (p) =>
-        (dish.restaurantId && (p.id === dish.restaurantId || p._id === dish.restaurantId)) ||
-        (p.name &&
-          dish.restaurant &&
-          p.name.trim().toLowerCase() ===
-            (typeof dish.restaurant === 'string' ? dish.restaurant.trim().toLowerCase() : dish.restaurant?.name?.trim().toLowerCase()))
-    )
-    if (!partner) return { isOpen: true, hoursText: '' }
-    const { isOpen, hoursText } = getPartnerStatus(partner)
-    return { isOpen, hoursText, partner }
   }
 
   // Click on a dish item
@@ -450,7 +569,7 @@ export default function Home() {
         <div className="animate-marquee flex items-center gap-8 text-xs sm:text-sm font-extrabold tracking-wide uppercase select-none">
           <span className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-300 animate-bounce" />
-            Nhập mã <strong className="underline text-amber-200">FREESHIP15K</strong> Miễn phí ship toàn quốc
+            Nhập mã <strong className="underline text-amber-200">FREESHIP15K</strong> Miễn phí ship toàn Hòa Lạc
           </span>
           <span className="opacity-40">•</span>
           <span className="flex items-center gap-2">
@@ -465,13 +584,13 @@ export default function Home() {
           <span className="opacity-40">•</span>
           <span className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            1.200+ Nhà hàng đối tác đạt chuẩn vệ sinh an toàn thực phẩm
+            100+ Nhà hàng đối tác đạt chuẩn vệ sinh an toàn thực phẩm
           </span>
           <span className="opacity-40">•</span>
           {/* Duplicate set for seamless continuous marquee loop */}
           <span className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-300 animate-bounce" />
-            Nhập mã <strong className="underline text-amber-200">FREESHIP15K</strong> Miễn phí ship toàn quốc
+            Nhập mã <strong className="underline text-amber-200">FREESHIP15K</strong> Miễn phí ship toàn Hòa Lạc
           </span>
           <span className="opacity-40">•</span>
           <span className="flex items-center gap-2">
@@ -523,7 +642,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 backdrop-blur-xl border border-white/15 text-xs sm:text-sm font-bold text-amber-300 shadow-lg shadow-orange-500/10">
               <span className="w-2.5 h-2.5 rounded-full bg-primary animate-ping" />
               <span className="w-2.5 h-2.5 rounded-full bg-primary -ml-5" />
-              <span>⚡ Giao siêu tốc 20 phút • Freeship toàn quốc</span>
+              <span>⚡ Giao siêu tốc 20 phút • Freeship toàn Hòa Lạc</span>
             </div>
 
             {/* Main Headline with Animated Gradient Text */}
@@ -535,7 +654,7 @@ export default function Home() {
             </h1>
 
             <p className="text-slate-300 text-sm sm:text-base lg:text-lg max-w-2xl leading-relaxed">
-              Hơn 1.200+ nhà hàng quán ăn hàng đầu, từ cơm tấm sườn nướng, phở bò truyền thống đến burger phô mai và trà sữa béo ngậy. Đặt món một chạm, giao nhanh trong 20 phút.
+              Hơn 100+ nhà hàng quán ăn hàng đầu, từ cơm tấm sườn nướng, phở bò truyền thống đến burger phô mai và trà sữa béo ngậy. Đặt món một chạm, giao nhanh trong 20 phút.
             </p>
 
             {/* Search & Location Bar inside Hero */}
@@ -599,7 +718,7 @@ export default function Home() {
             {/* 3 Columns Trust Stats */}
             <div className="grid grid-cols-3 gap-4 sm:gap-6 pt-4 border-t border-white/10 max-w-xl text-slate-300">
               <div className="border-l-2 border-primary pl-3 sm:pl-4">
-                <p className="text-2xl sm:text-3xl font-black text-white">1.200+</p>
+                <p className="text-2xl sm:text-3xl font-black text-white">100+</p>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">Quán ăn đối tác</p>
               </div>
               <div className="border-l-2 border-amber-400 pl-3 sm:pl-4">
@@ -681,8 +800,8 @@ export default function Home() {
                   'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=700&q=80'
                 const featuredName = featuredDish?.name || 'Món ngon nổi bật'
                 const featuredRest = featuredDish?.restaurant || 'Quán ăn đối tác'
-                const featuredRating = featuredDish?.rating || 4.9
-                const featuredReviews = featuredDish?.reviewsCount || 382
+                const featuredRating = featuredDish?.rating || 5
+                const featuredReviews = featuredDish?.reviewsCount || 0
 
                 return (
                   <div
@@ -709,7 +828,7 @@ export default function Home() {
                           {featuredName}
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {featuredRest} • {featuredRating} ★ ({featuredReviews} đánh giá)
+                          {featuredRest} • {featuredRating} ★ ({featuredReviews > 0 ? `${featuredReviews} đánh giá` : 'Mới'})
                         </p>
                       </div>
 
@@ -834,7 +953,7 @@ export default function Home() {
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-bold">
                         <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
                           <Star className="w-3.5 h-3.5 fill-amber-300" />
-                          {partner.rating} ({partner.reviewsCount})
+                          {partner.rating > 0 ? partner.rating : '5.0'} ({partner.reviewsCount > 0 ? partner.reviewsCount : 'Mới'})
                         </span>
                         <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-slate-200 font-medium">
                           <Clock className="w-3.5 h-3.5" />
@@ -1118,7 +1237,7 @@ export default function Home() {
                     <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs font-bold">
                       <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-300">
                         <Star className="w-3.5 h-3.5 fill-amber-300" />
-                        {dish.rating || 4.8} ({dish.reviewsCount || 40})
+                        {dish.rating > 0 ? dish.rating : '5.0'} ({dish.reviewsCount > 0 ? dish.reviewsCount : 'Mới'})
                       </span>
                       <span className="inline-flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl text-white font-medium">
                         <Clock className="w-3.5 h-3.5 text-slate-300" />

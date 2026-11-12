@@ -13,6 +13,18 @@ export const foodApi = {
     const response = await axiosClient.get(`/foods/${id}`)
     return response.data
   },
+  getFoodReviews: async (id, params) => {
+    const response = await axiosClient.get(`/foods/${id}/reviews`, { params })
+    return response.data
+  },
+  getMyDishReviewStatus: async (id) => {
+    const response = await axiosClient.get(`/foods/${id}/my-review-status`)
+    return response.data
+  },
+  createDishReview: async (id, data) => {
+    const response = await axiosClient.post(`/foods/${id}/reviews`, data)
+    return response.data
+  },
 }
 
 export default foodApi

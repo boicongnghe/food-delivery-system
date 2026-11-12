@@ -12,7 +12,8 @@ export const hoursAgo = (hours) => new Date(Date.now() - hours * HOUR_MS);
 export const daysAgo = (days) => hoursAgo(days * 24);
 
 // Fields needed for the order cards of the feedback page (no address or phone)
-export const FEEDBACK_ORDER_FIELDS = 'orderCode status restaurant shipper items.name items.quantity total statusHistory updatedAt';
+export const FEEDBACK_ORDER_FIELDS =
+  'orderCode status restaurant shipper items.menuItem items.food items.name items.image items.options items.quantity total statusHistory updatedAt';
 
 // When the order reached its current status (delivered at, cancelled at). Old data without history: updatedAt.
 export const getStatusChangedAt = (order) => {
@@ -34,7 +35,14 @@ export const toFeedbackOrder = (order, windowDays) => {
     status: order.status,
     restaurant: order.restaurant && { _id: order.restaurant._id, name: order.restaurant.name, logo: order.restaurant.logo },
     shipper: order.shipper && { _id: order.shipper._id, fullName: order.shipper.fullName },
-    items: order.items.map(({ name, quantity }) => ({ name, quantity })),
+    items: order.items.map((it) => ({
+      menuItem: it.menuItem,
+      food: it.food,
+      name: it.name,
+      image: it.image || '',
+      options: it.options || [],
+      quantity: it.quantity,
+    })),
     total: order.total,
     closedAt,
     deadline: new Date(new Date(closedAt).getTime() + windowDays * 24 * HOUR_MS),
