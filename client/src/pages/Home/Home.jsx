@@ -8,7 +8,6 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Plus,
-  Heart,
   Flame,
   Zap,
   Tag,
@@ -189,7 +188,6 @@ export default function Home() {
   const [apiPartners, setApiPartners] = useState([])
   const [loadingFoods, setLoadingFoods] = useState(true)
   const [loadingPartners, setLoadingPartners] = useState(true)
-  const [favorites, setFavorites] = useState(new Set())
 
   // Modal State for Order - initialized with dish if user just logged in from dish selection
   const [activeDish, setActiveDish] = useState(() => location.state?.continueOrder || null)
@@ -465,22 +463,6 @@ export default function Home() {
         return (b.reviewsCount || 0) - (a.reviewsCount || 0)
       })
   }, [allDishes, getDishRestaurantStatus, selectedCategory, searchQuery, priceFilter, sortBy])
-
-  // Toggle Favorite
-  const handleToggleFavorite = (e, dishId) => {
-    e.stopPropagation()
-    setFavorites((prev) => {
-      const next = new Set(prev)
-      if (next.has(dishId)) {
-        next.delete(dishId)
-        toast('Đã bỏ thích món ăn', { icon: '🤍' })
-      } else {
-        next.add(dishId)
-        toast.success('Đã lưu vào danh sách món yêu thích! ❤️')
-      }
-      return next
-    })
-  }
 
   // Click on a dish item
   const handleDishClick = (dish) => {
@@ -1181,7 +1163,6 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDishes.map((dish) => {
-              const isFav = favorites.has(dish.id)
               const { isOpen: isDishOpen, hoursText: dishHoursText } = getDishRestaurantStatus(dish)
               return (
                 <div
@@ -1218,20 +1199,6 @@ export default function Home() {
                         🔴 Quán đóng cửa
                       </span>
                     )}
-
-                    {/* Heart Favorite Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleFavorite(e, dish.id)}
-                      className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all backdrop-blur-md ${
-                        isFav
-                          ? 'bg-red-500 text-white animate-heart-pop shadow-md shadow-red-500/30'
-                          : 'bg-black/50 text-white hover:bg-black/70'
-                      }`}
-                      aria-label="Thêm vào yêu thích"
-                    >
-                      <Heart className={`w-4 h-4 ${isFav ? 'fill-white' : ''}`} />
-                    </button>
 
                     {/* Rating & Delivery Time Badge */}
                     <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs font-bold">
