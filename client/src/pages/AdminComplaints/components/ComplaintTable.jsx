@@ -1,6 +1,7 @@
 import { ImageIcon } from 'lucide-react'
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import { ADMIN_TABLE_CELL, ADMIN_TABLE_HEAD } from '../../../utils/adminClassNames.js'
+import { HEARING_STATES } from '../../../utils/deliveryIssueLabels.js'
 import { COMPLAINT_CATEGORY_LABELS, COMPLAINT_STATUS_LABELS } from '../../../utils/feedbackLabels.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { COMPLAINT_STATUS_TONES } from '../constants.js'
@@ -44,9 +45,17 @@ export default function ComplaintTable({ complaints, onSelect }) {
               </td>
               <td className={`${ADMIN_TABLE_CELL} whitespace-nowrap text-xs`}>{formatDateTime(complaint.createdAt)}</td>
               <td className={ADMIN_TABLE_CELL}>
-                <AdminBadge tone={COMPLAINT_STATUS_TONES[complaint.status]}>
-                  {COMPLAINT_STATUS_LABELS[complaint.status]}
-                </AdminBadge>
+                <div className="flex flex-col items-start gap-1">
+                  <AdminBadge tone={COMPLAINT_STATUS_TONES[complaint.status]}>
+                    {COMPLAINT_STATUS_LABELS[complaint.status]}
+                  </AdminBadge>
+                  {/* Open complaints only: hearing running / over and waiting for the answer */}
+                  {complaint.status === 'open' && complaint.hearingState !== 'none' && (
+                    <AdminBadge tone={HEARING_STATES[complaint.hearingState].tone}>
+                      {complaint.hearingState === 'open' ? 'Đang đối chất' : 'Chờ kết luận'}
+                    </AdminBadge>
+                  )}
+                </div>
               </td>
               <td className={`${ADMIN_TABLE_CELL} text-right`}>
                 <button

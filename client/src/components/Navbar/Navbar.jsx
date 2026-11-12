@@ -345,12 +345,12 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                       </Link>
 
                       <Link
-                        to="/delivery-issues"
+                        to="/hearings"
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary rounded-xl transition-colors"
                       >
                         <Scale className="w-4 h-4 text-slate-400" />
-                        <span>Đối chất sự cố</span>
+                        <span>Đối chất</span>
                       </Link>
                     </div>
 

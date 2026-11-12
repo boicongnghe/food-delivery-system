@@ -40,7 +40,10 @@ export const HEARING_STATES = {
   closed: { label: 'Đã kết thúc đối chất', tone: 'brand' },
 }
 
+// Same limits as the server (models/DeliveryIssue.js, models/HearingMessage.js)
 export const HEARING_MAX_HOURS = 24
+export const HEARING_MESSAGE_MAX_LENGTH = 1000
+export const PENALTY_FINE_LIMITS = { min: 10000, max: 5000000 }
 
 export const PENALTY_ACTION_LABELS = {
   warning: 'Cảnh cáo',

@@ -7,9 +7,11 @@ Thành viên 5 phụ trách: UC17, UC18, UC37, UC40, UC41, UC42, UC43, UC44, UC4
 | Đường dẫn | Vai trò | Use case |
 | --- | --- | --- |
 | `/feedback` | customer | UC17 đánh giá, UC18 khiếu nại (menu avatar → "Đánh giá & Khiếu nại") |
-| `/delivery-issues` | customer | Đối chất sự cố giao hàng (menu avatar → "Đối chất sự cố"). `?id=<issueId>` mở thẳng một phiên (link trong thông báo mời) |
-| `/restaurant/delivery-issues` | restaurant_owner | Như trên, cho chủ quán (menu tài khoản → "Đối chất sự cố") |
-| `/shipper/issues` | shipper | Như trên, cho shipper (menu tài khoản → "Đối chất sự cố") |
+| `/hearings` | customer | Đối chất sự cố giao hàng và khiếu nại (menu avatar → "Đối chất"). `?type=delivery-issues\|complaints&id=<id>` mở thẳng một phiên (link trong thông báo mời) |
+| `/restaurant/hearings` | restaurant_owner | Như trên, cho chủ quán (menu tài khoản → "Đối chất") |
+| `/shipper/hearings` | shipper | Như trên, cho shipper (menu tài khoản → "Đối chất") |
+
+Đường dẫn cũ `/delivery-issues`, `/restaurant/delivery-issues`, `/shipper/issues` (thông báo đã gửi trước đây) tự chuyển sang trang mới, giữ `?id=` và hiểu là sự cố giao hàng.
 | `/admin/users` | admin | UC37 quản lý tài khoản khách hàng và quản trị viên |
 | `/admin/restaurants` | admin | Danh sách nhà hàng, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
 | `/admin/shippers` | admin | Danh sách tài xế, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
@@ -44,16 +46,16 @@ Mọi endpoint đều cần `Authorization: Bearer <jwt>`. Danh sách có phân 
 
 ### Các bên của đơn trong phiên đối chất (role `customer`, `shipper`, `restaurant_owner`)
 
-Chỉ shipper, khách và chủ quán của đúng báo cáo đó, và chỉ khi admin đã mở đối chất. Người ngoài nhận 404.
+Dùng cho cả sự cố giao hàng và khiếu nại. Chỉ các bên của đúng vụ việc đó (khiếu nại trên đơn không có shipper thì chỉ có khách và chủ quán), và chỉ khi admin đã mở đối chất. Người ngoài nhận 404. `:segment` là `delivery-issues` hoặc `complaints`; trong dữ liệu trả về `caseType` là `delivery_issue` hoặc `complaint`.
 
 | Method | Endpoint | Ghi chú |
 | --- | --- | --- |
-| GET | `/api/delivery-issues/me/hearings?page&limit` | Các phiên đối chất mình được mời, mới nhất trước: `{ code, orderCode, type, status, restaurantName, deadline, hearingState }` |
-| GET | `/api/delivery-issues/:id` | Báo cáo của shipper, tên 3 bên, `hearing: { openedAt, deadline, closedAt }`, `hearingState`, `myParty`. Không kèm số điện thoại, lịch sử vi phạm |
-| GET | `/api/delivery-issues/:id/messages` | Tối đa 200 tin gần nhất, cũ trước: `{ _id, issue, sender, senderName, party, message, createdAt }` |
-| POST | `/api/delivery-issues/:id/messages` | `{ message }` (1–1000 ký tự). Chỉ khi phiên đang mở (409 nếu chưa mở / đã kết thúc) |
+| GET | `/api/hearings/me?page&limit` | Các phiên đối chất mình được mời (cả hai loại), mới nhất trước: `{ caseType, code, orderCode, kind, status, restaurantName, openedAt, deadline, hearingState }`. `kind` là loại sự cố hoặc nhóm khiếu nại |
+| GET | `/api/hearings/:segment/:id` | Nội dung được báo cáo (`reportedBy`: `shipper` \| `customer`), tên các bên (`parties.shipper = null` nếu đơn không có shipper), `hearing: { openedAt, deadline, closedAt }`, `hearingState`, `myParty`. Không kèm số điện thoại, lịch sử vi phạm |
+| GET | `/api/hearings/:segment/:id/messages` | Tối đa 200 tin gần nhất, cũ trước: `{ _id, caseType, caseId, sender, senderName, party, message, createdAt }` |
+| POST | `/api/hearings/:segment/:id/messages` | `{ message }` (1–1000 ký tự). Chỉ khi phiên đang mở (409 nếu chưa mở / đã kết thúc) |
 
-Realtime qua Socket.io (room `user:<id>` của 3 bên và `role:admin`): `issue_hearing_message` (tin mới, cùng dạng như trên), `issue_hearing_updated` (`{ issueId }`: phiên mở / kết thúc / báo cáo đã kết luận).
+Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hearing_message` (tin mới, cùng dạng như trên), `hearing_updated` (`{ caseType, caseId }`: phiên mở / kết thúc / vụ việc đã kết luận).
 
 ### Admin (`/api/admin/...`, role `admin`)
 
@@ -79,9 +81,11 @@ Realtime qua Socket.io (room `user:<id>` của 3 bên và `role:admin`): `issue_
 | PUT, DELETE | `/commission-rules/:id` | UC40 |
 | GET, POST | `/promotion-rules` | UC41. Lọc `status`: `active` \| `scheduled` \| `expired` \| `disabled` \| `exhausted` |
 | PUT, DELETE | `/promotion-rules/:id` | UC41 |
-| GET | `/complaints?status&category&keyword` | UC42. Mặc định `status=open` |
-| GET | `/complaints/:id` | UC42. Kèm `maxRefund` |
-| PATCH | `/complaints/:id/resolution` | UC42. `{ decision: 'resolved' \| 'rejected', note, refundAmount? }` |
+| GET | `/complaints?status&category&keyword` | UC42. Mặc định `status=open`. Mỗi khiếu nại kèm `hearingState` |
+| GET | `/complaints/:id` | UC42. Kèm `maxRefund`, `violationCounts`, `autoSuspend`, `hearingState`, `hearingMessageCount` (như chi tiết sự cố) |
+| PATCH | `/complaints/:id/hearing`, `/complaints/:id/hearing/close` | UC42. Mở / kết thúc sớm đối chất, như sự cố |
+| GET, POST | `/complaints/:id/messages` | UC42. Admin đọc / gửi tin trong phiên đối chất |
+| PATCH | `/complaints/:id/resolution` | UC42. `{ decision: 'resolved' \| 'rejected', note, refundAmount?, penalty: { target, action, fineAmount? } \| null }`. `penalty` dùng được với cả hai quyết định, nhưng phiên đối chất phải đã kết thúc (409 nếu chưa) |
 | GET | `/reviews?visibility&rating&keyword` | UC43 |
 | GET | `/reviews/:id` | UC43 |
 | PATCH | `/reviews/:id/visibility` | UC43. `{ isHidden: true, reason, note }` hoặc `{ isHidden: false }` |
@@ -103,23 +107,31 @@ Realtime qua Socket.io (room `user:<id>` của 3 bên và `role:admin`): `issue_
 - **Đánh giá (UC17):** chỉ đơn `delivered`, trong 7 ngày kể từ lúc giao, mỗi đơn một lần. Đơn có shipper thì bắt buộc chấm sao shipper.
 - **Kiểm duyệt (UC43):** ẩn đánh giá phải chọn lý do (`spam`, `offensive`, `irrelevant`, `personal_info`, `other` kèm ghi chú). Ẩn hoặc hiện lại đều tính lại điểm nhà hàng và shipper. Khách vẫn thấy đánh giá của mình kèm lý do bị ẩn.
 - **Khiếu nại (UC18 → UC42):** đơn `delivered` hoặc `cancelled`, trong 7 ngày, mỗi đơn một lần, tối đa 3 ảnh. Không khiếu nại được đơn online chưa từng thanh toán (khách hủy ở trang thanh toán). Admin chấp nhận (có thể hoàn tiền) hoặc từ chối, luôn kèm phản hồi cho khách. Số tiền hoàn ≤ số khách đã trả (`payment.status` là `paid`/`refunded`) trừ phần đã hoàn khi hủy. Hoàn tiền hiện là **mô phỏng**.
+  - Chấp nhận, hoàn tiền hoặc từ chối mà **không xử phạt**: làm được ngay, không cần đối chất.
+  - Muốn **xử phạt** một bên (nhà hàng, shipper nếu đơn có shipper, hoặc khách khi khiếu nại sai sự thật), admin phải mở **đối chất** giữa khách, chủ quán và shipper và chờ phiên kết thúc. Xử phạt dùng được với cả quyết định chấp nhận lẫn từ chối. Quy tắc đối chất và xử phạt dùng chung với sự cố, xem mục "Đối chất & xử phạt" bên dưới.
 - **Sự cố (UC34 → UC45):** shipper chỉ báo cáo được khi đơn mình đang giữ ở `preparing`/`ready_for_pickup`/`delivering`; đơn đã kết thúc thì không báo được nữa. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Admin xử lý theo 3 bước tách rời:
   1. **Xử lý đơn hàng** (`/order-action`, làm ngay, không chờ đối chất hay kết luận), chỉ khi báo cáo còn mở và shipper báo cáo vẫn đang giữ đơn; mỗi báo cáo một lần. Không làm gì thì shipper tiếp tục giao (`resolution.orderAction` giữ `none`):
      - `release`: trả đơn về hàng chờ cho shipper khác, chỉ khi shipper **chưa lấy hàng**.
      - `cancel`: hủy đơn (`cancellation.by = system`, `reason = delivery_issue`, không tính lỗi cho quán). Đơn đã trả tiền có yêu cầu hoàn tiền (tab "Chờ hoàn tiền").
      - Cả hai đều giải phóng shipper để nhận đơn mới. Lệnh đổi đơn có điều kiện theo trạng thái và shipper vừa đọc. Kết quả lưu ở `resolution.orderAction/orderActionBy/orderActionAt` và được giữ nguyên khi kết luận.
-  2. **Đối chất** (bắt buộc trước khi xử phạt): admin mời shipper, khách và chủ quán vào **chat tự do** với nhau (admin cũng nhắn được), thời hạn 1–24 giờ.
-     - Mở: 3 bên nhận thông báo kèm link vào trang đối chất của cổng mình.
-     - Phiên kết thúc khi hết hạn, khi admin bấm "Kết thúc đối chất sớm", hoặc khi báo cáo được kết luận. Sau đó chỉ xem lại được.
-     - Phiên đã kết thúc có thể mở lại (thời hạn mới, giữ tin nhắn cũ) khi báo cáo còn mở. Không mở 2 phiên cùng lúc (409).
-     - Mỗi bên chỉ thấy tên các bên và nội dung, không thấy số điện thoại hay lịch sử vi phạm.
-  3. **Kết luận** (`/resolution`):
-     - Bác bỏ (`dismissed`), hoặc xác nhận không xử phạt: làm được bất cứ lúc nào, không cần đối chất.
-     - Xác nhận có xử phạt một bên: phiên đối chất phải **đã kết thúc** (chưa mở hoặc đang diễn ra → 409).
-       - `warning`, `fine` (10.000–5.000.000đ, mô phỏng): chỉ ghi nhận vào lịch sử vi phạm.
-       - `suspend`: nhà hàng chuyển `suspended` (không nhận đơn mới, vẫn hoàn tất được đơn đang có); shipper hoặc khách bị **khóa tài khoản**, mở lại ở UC37.
-  - Khóa shipper (`suspend` hoặc tự động) khi shipper còn giữ bất kỳ đơn nào đang giao sẽ bị từ chối (409): phải hủy hoặc trả đơn về hàng chờ ở bước 1 trước.
-  - **Tự động đình chỉ:** mỗi lần phạt (`warning`, `fine` hoặc `suspend`) tính là một lần vi phạm của tài khoản bị phạt (vi phạm của nhà hàng tính cho chủ quán). Khi một lần phạt làm số vi phạm **kể từ lần đình chỉ gần nhất** đạt `autoSuspendThreshold` (mặc định 3, chỉnh ở `/admin/settings`, `0` = tắt), tài khoản bị đình chỉ như `suspend` và lần phạt được đánh dấu `autoSuspended`.
+  2. **Đối chất** giữa shipper, khách và chủ quán (bắt buộc trước khi xử phạt, xem mục dưới).
+  3. **Kết luận** (`/resolution`): bác bỏ (`dismissed`) hoặc xác nhận không xử phạt làm được bất cứ lúc nào; xác nhận có xử phạt cần phiên đối chất đã kết thúc. Chỉ xác nhận (`resolved`) mới kèm xử phạt.
+  - Khóa shipper khi shipper còn giữ đơn đang giao: phải hủy hoặc trả đơn về hàng chờ ở bước 1 trước.
+- **Đối chất & xử phạt (dùng chung cho sự cố UC45 và khiếu nại UC42):**
+  - **Đối chất:** admin mời các bên của đơn (shipper, khách, chủ quán; khiếu nại trên đơn không có shipper thì chỉ khách và chủ quán) vào **chat tự do** với nhau (admin cũng nhắn được), thời hạn 1–24 giờ.
+    - Mở: các bên nhận thông báo kèm link vào trang đối chất của cổng mình.
+    - **Nhắc trước hạn:** job chạy mỗi phút trong server (`startHearingReminderJobs`, tắt bằng `DISABLE_ORDER_JOBS=true` như job hạn xử lý đơn). Khi phiên còn dưới 2 giờ (phiên ngắn hơn 4 giờ: còn dưới một nửa thời hạn), bên nào **chưa nhắn tin nào trong phiên này** nhận một thông báo nhắc. Mỗi phiên nhắc một lần (`hearing.remindedAt`); mở lại phiên thì nhắc lại được.
+    - Phiên kết thúc khi hết hạn, khi admin bấm "Kết thúc đối chất sớm", hoặc khi vụ việc được kết luận. Sau đó chỉ xem lại được.
+    - **Thông báo kết luận:** vụ việc đã từng mở đối chất thì khi admin kết luận, mọi bên của phiên nhận thông báo: kết quả và nội dung kết luận. Riêng khách nhận thêm số tiền được hoàn (khiếu nại), còn bên bị phạt nhận thêm hình thức phạt (vi phạm của nhà hàng gửi cho chủ quán). Các bên khác không biết ai bị phạt. Vụ việc kết luận mà chưa từng đối chất thì không gửi thông báo này.
+    - Phiên đã kết thúc có thể mở lại (thời hạn mới, giữ tin nhắn cũ) khi vụ việc còn mở. Không mở 2 phiên cùng lúc (409).
+    - Mỗi bên chỉ thấy tên các bên và nội dung, không thấy số điện thoại hay lịch sử vi phạm.
+  - **Xử phạt** một bên chỉ khi phiên đối chất **đã kết thúc** (chưa mở hoặc đang diễn ra → 409):
+    - `warning`, `fine` (10.000–5.000.000đ, mô phỏng): chỉ ghi nhận vào lịch sử vi phạm.
+    - `suspend`: nhà hàng chuyển `suspended` (không nhận đơn mới, vẫn hoàn tất được đơn đang có); shipper hoặc khách bị **khóa tài khoản**, mở lại ở UC37.
+    - Phạt bên không có trong đơn (shipper của đơn không có shipper) → 400.
+    - Khóa shipper (`suspend` hoặc tự động) khi shipper còn giữ bất kỳ đơn nào đang giao bị từ chối (409).
+  - **Lịch sử vi phạm chung:** lần phạt từ sự cố và từ khiếu nại cùng tính vào lịch sử vi phạm của tài khoản (vi phạm của nhà hàng tính cho chủ quán), hiện ở UC37, hồ sơ nhà hàng / tài xế và thống kê UC44.
+  - **Tự động đình chỉ:** mỗi lần phạt (`warning`, `fine` hoặc `suspend`, từ sự cố hay khiếu nại) tính là một lần vi phạm. Khi một lần phạt làm số vi phạm **kể từ lần đình chỉ gần nhất** đạt `autoSuspendThreshold` (mặc định 3, chỉnh ở `/admin/settings`, `0` = tắt), tài khoản bị đình chỉ như `suspend` và lần phạt được đánh dấu `autoSuspended`.
     - Bộ đếm bắt đầu lại sau mỗi lần đình chỉ: mở lại tài khoản thì lần phạt kế tiếp không khóa ngay.
     - Ràng buộc shipper còn giữ đơn ở trên vẫn áp dụng khi tự động khóa shipper.
     - Đổi ngưỡng chỉ áp dụng cho lần phạt tiếp theo, không đình chỉ ngược các tài khoản đã vượt ngưỡng mới.
@@ -155,4 +167,4 @@ Realtime qua Socket.io (room `user:<id>` của 3 bên và `role:admin`): `issue_
 cd server && npm run seed:feedback   # cần chạy seed.js, seed:menu, seed:orders trước
 ```
 
-Script tạo khoảng 100 đơn trong 45 ngày gần nhất (cho biểu đồ), đánh giá (1 đánh giá đã bị ẩn), 3 khiếu nại, 4 báo cáo sự cố (1 báo cáo đang đối chất, có sẵn tin nhắn của 3 bên và admin), 4 quy tắc hoa hồng và 6 mã khuyến mãi (mỗi trạng thái một mã). Script **ghi đè**: toàn bộ quy tắc hoa hồng; các mã demo; đánh giá, khiếu nại, sự cố của nhà hàng demo; và các đơn do chính script tạo ở lần chạy trước.
+Script tạo khoảng 100 đơn trong 45 ngày gần nhất (cho biểu đồ), đánh giá (1 đánh giá đã bị ẩn), 3 khiếu nại (1 khiếu nại đang đối chất), 4 báo cáo sự cố (1 báo cáo đang đối chất), mỗi phiên có sẵn tin nhắn của các bên và admin, 4 quy tắc hoa hồng và 6 mã khuyến mãi (mỗi trạng thái một mã). Script **ghi đè**: toàn bộ quy tắc hoa hồng; các mã demo; đánh giá, khiếu nại, sự cố của nhà hàng demo; và các đơn do chính script tạo ở lần chạy trước.

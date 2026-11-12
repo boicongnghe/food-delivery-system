@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import deliveryIssueApi from '../../../api/deliveryIssueApi.js'
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import AdminDrawer from '../../../components/AdminDrawer/AdminDrawer.jsx'
+import AdminHearingSection from '../../../components/AdminHearingSection/AdminHearingSection.jsx'
 import AdminInfoRow from '../../../components/AdminInfoRow/AdminInfoRow.jsx'
 import AdminOrderSnapshot from '../../../components/AdminOrderSnapshot/AdminOrderSnapshot.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
@@ -15,15 +16,15 @@ import {
   PENALTY_TARGET_LABELS,
 } from '../../../utils/deliveryIssueLabels.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
+import { willAutoSuspend, willSuspend } from '../../../utils/autoSuspend.js'
 import { getHearingState } from '../../../utils/hearingState.js'
-import { willAutoSuspend, willSuspend } from '../autoSuspend.js'
-import HearingSection from './HearingSection.jsx'
+import { EMPTY_PENALTY_FIELDS, toPenalty, validatePenalty } from '../../../utils/penaltyForm.js'
 import IssueResolutionView from './IssueResolutionView.jsx'
 import OrderActionSection from './OrderActionSection.jsx'
 import ResolveIssueForm from './ResolveIssueForm.jsx'
 
 const FORM_ID = 'resolve-issue-form'
-const EMPTY_FORM = { decision: 'resolved', hasPenalty: false, target: '', action: '', fineAmount: '', note: '' }
+const EMPTY_FORM = { decision: 'resolved', ...EMPTY_PENALTY_FIELDS, note: '' }
 const SHIPPER_ACTIVE_STATUSES = ['preparing', 'ready_for_pickup', 'delivering']
 
 // Same rule as the server: the order can be cancelled / released only while the reporting shipper still holds it
@@ -33,43 +34,36 @@ const getHeldOrderStatus = (issue) => {
   return held ? order.status : null
 }
 
-const isShipperLock = (form, autoSuspend) => form.target === 'shipper' && willSuspend(form, autoSuspend)
+// Only an upheld report penalizes someone
+const getPenalty = (form) => (form.decision === 'resolved' ? toPenalty(form) : null)
 
-const getConfirmMessage = (form, autoSuspend) => {
-  if (willAutoSuspend(form, autoSuspend)) {
-    return `${PENALTY_TARGET_LABELS[form.target]} đạt ${autoSuspend.threshold} lần vi phạm và sẽ bị tự động đình chỉ ngay sau khi lưu. Bạn chắc chắn chứ?`
+const getConfirmMessage = (penalty, autoSuspend) => {
+  if (willAutoSuspend(penalty, autoSuspend)) {
+    return `${PENALTY_TARGET_LABELS[penalty.target]} đạt ${autoSuspend.threshold} lần vi phạm và sẽ bị tự động đình chỉ ngay sau khi lưu. Bạn chắc chắn chứ?`
   }
-  return `${PENALTY_TARGET_LABELS[form.target] || ''} sẽ bị đình chỉ ngay sau khi lưu. Bạn chắc chắn chứ?`
+  return `${PENALTY_TARGET_LABELS[penalty?.target] || ''} sẽ bị đình chỉ ngay sau khi lưu. Bạn chắc chắn chứ?`
 }
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
 const validate = (form, { heldOrderStatus, autoSuspend, hearingState }) => {
-  const errors = {}
+  const errors = form.decision === 'resolved' ? validatePenalty(form, hearingState) : {}
   if (form.note.trim().length < 5) errors.note = 'Kết luận xử lý ít nhất 5 ký tự'
-  if (form.decision === 'resolved' && form.hasPenalty) {
-    if (hearingState !== 'closed') errors.penalty = 'Cần kết thúc phiên đối chất trước khi xử phạt'
-    if (!form.target) errors['penalty.target'] = 'Vui lòng chọn bên vi phạm'
-    if (!form.action) errors['penalty.action'] = 'Vui lòng chọn hình thức xử phạt'
-    if (form.action === 'fine' && !form.fineAmount) errors['penalty.fineAmount'] = 'Vui lòng nhập số tiền phạt'
-    if (isShipperLock(form, autoSuspend) && heldOrderStatus) {
-      errors['penalty.action'] = 'Shipper đang giữ đơn: xử lý đơn hàng ở mục trên trước khi khóa tài khoản'
-    }
+  const penalty = getPenalty(form)
+  if (penalty?.target === 'shipper' && willSuspend(penalty, autoSuspend) && heldOrderStatus) {
+    errors['penalty.action'] = 'Shipper đang giữ đơn: xử lý đơn hàng ở mục trên trước khi khóa tài khoản'
   }
   return errors
 }
 
-const toPayload = (form) => ({
-  decision: form.decision,
-  note: form.note.trim(),
-  penalty:
-    form.decision === 'resolved' && form.hasPenalty
-      ? {
-          target: form.target,
-          action: form.action,
-          ...(form.action === 'fine' && { fineAmount: Number(form.fineAmount) }),
-        }
-      : null,
-})
+const toPayload = (form) => ({ decision: form.decision, note: form.note.trim(), penalty: getPenalty(form) })
+
+// Delivery issue endpoints of the shared hearing block
+const HEARING_API = {
+  openHearing: deliveryIssueApi.openHearing,
+  closeHearing: deliveryIssueApi.closeHearing,
+  getAdminHearingMessages: deliveryIssueApi.getAdminHearingMessages,
+  sendAdminHearingMessage: deliveryIssueApi.sendAdminHearingMessage,
+}
 
 /**
  * UC45 - delivery issue report from a shipper (UC34). Steps: handle the stuck order right away if needed,
@@ -145,7 +139,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       return
     }
     // Suspending (picked or automatic: locks an account / stops a restaurant): ask once more
-    if (willSuspend(form, issue.autoSuspend)) {
+    if (willSuspend(getPenalty(form), issue.autoSuspend)) {
       setConfirming(true)
       return
     }
@@ -232,11 +226,13 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
 
           <AdminSection title="Đối chất giữa các bên">
             {issue.hearing || isOpen ? (
-              <HearingSection
-                issue={issue}
+              <AdminHearingSection
+                caseDoc={issue}
                 hearingState={hearingState}
                 now={now}
-                onIssueChange={handleIssueChange}
+                api={HEARING_API}
+                partiesLabel="shipper, khách hàng và chủ quán"
+                onCaseChange={handleIssueChange}
                 onReload={loadIssue}
               />
             ) : (
@@ -270,7 +266,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
       <ConfirmDialog
         open={confirming}
         title="Xác nhận kết quả xử lý"
-        message={getConfirmMessage(form, issue?.autoSuspend)}
+        message={getConfirmMessage(getPenalty(form), issue?.autoSuspend)}
         confirmLabel="Xác nhận"
         loading={saving}
         onConfirm={submit}
