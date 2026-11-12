@@ -7,6 +7,7 @@ import * as analyticsController from '../controllers/analyticsController.js';
 import * as commissionRuleController from '../controllers/commissionRuleController.js';
 import * as complaintController from '../controllers/complaintController.js';
 import * as deliveryIssueController from '../controllers/deliveryIssueController.js';
+import * as issueHearingController from '../controllers/issueHearingController.js';
 import * as promotionRuleController from '../controllers/promotionRuleController.js';
 import * as reviewController from '../controllers/reviewController.js';
 import * as settingController from '../controllers/settingController.js';
@@ -30,7 +31,13 @@ import {
   violationPolicySchema,
 } from '../validations/settingValidation.js';
 import { adminComplaintQuerySchema, resolveComplaintSchema } from '../validations/complaintValidation.js';
-import { adminDeliveryIssueQuerySchema, resolveDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
+import {
+  adminDeliveryIssueQuerySchema,
+  hearingMessageSchema,
+  issueOrderActionSchema,
+  openHearingSchema,
+  resolveDeliveryIssueSchema,
+} from '../validations/deliveryIssueValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
 import { adminReviewQuerySchema, reviewVisibilitySchema } from '../validations/reviewValidation.js';
 
@@ -126,6 +133,23 @@ router.patch(
   validateId,
   validate(resolveDeliveryIssueSchema),
   deliveryIssueController.resolveDeliveryIssue,
+);
+// Cancel / release the order of the report right away, apart from the decision
+router.patch(
+  '/delivery-issues/:id/order-action',
+  validateId,
+  validate(issueOrderActionSchema),
+  deliveryIssueController.applyOrderAction,
+);
+// Hearing: free chat between shipper, customer and restaurant before a penalty
+router.patch('/delivery-issues/:id/hearing', validateId, validate(openHearingSchema), issueHearingController.openHearing);
+router.patch('/delivery-issues/:id/hearing/close', validateId, issueHearingController.closeHearing);
+router.get('/delivery-issues/:id/messages', validateId, issueHearingController.listMessages);
+router.post(
+  '/delivery-issues/:id/messages',
+  validateId,
+  validate(hearingMessageSchema),
+  issueHearingController.sendMessage,
 );
 
 export default router;

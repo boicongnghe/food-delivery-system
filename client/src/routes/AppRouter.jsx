@@ -26,6 +26,7 @@ const PaymentResult = lazy(() => import('../pages/Payment/PaymentResult.jsx'))
 const OrderTracking = lazy(() => import('../pages/OrderTracking/OrderTracking.jsx'))
 const OrderHistory = lazy(() => import('../pages/Orders/OrderHistory.jsx'))
 const Feedback = lazy(() => import('../pages/Feedback/Feedback.jsx'))
+const IssueHearing = lazy(() => import('../pages/IssueHearing/IssueHearing.jsx'))
 
 const Login = lazy(() => import('../pages/Login/Login.jsx'))
 const Register = lazy(() => import('../pages/Register/Register.jsx'))
@@ -106,6 +107,7 @@ function AppRouter() {
                 <Route path="/orders" element={<OrderHistory />} />
                 <Route path="/orders/:id" element={<OrderTracking />} />
                 <Route path="/feedback" element={<Feedback />} />
+                <Route path="/delivery-issues" element={<IssueHearing />} />
               </Route>
 
               {/* Guest only routes: logged-in users redirected to their dashboards */}
@@ -132,6 +134,7 @@ function AppRouter() {
                 <Route path="/restaurant/orders" element={<OrderBoard />} />
                 <Route path="/restaurant/revenue" element={<RevenueReport />} />
                 <Route path="/restaurant/vouchers" element={<RestaurantVouchers />} />
+                <Route path="/restaurant/delivery-issues" element={<IssueHearing />} />
                 <Route path="/restaurant/*" element={<NotFound />} />
               </Route>
             </Route>

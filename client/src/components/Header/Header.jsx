@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { UtensilsCrossed, House, LogOut, ChefHat, Store, Wallet } from 'lucide-react'
+import { UtensilsCrossed, House, LogOut, ChefHat, Scale, Store, Wallet } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import NotificationBell from '../NotificationBell/NotificationBell.jsx'
 
@@ -21,6 +21,7 @@ const RESTAURANT_MENU_ITEMS = [
   { to: '/restaurant/orders', label: 'Đơn hàng bếp', icon: ChefHat },
   { to: '/restaurant/profile', label: 'Hồ sơ quán · đổi logo', icon: Store },
   { to: '/restaurant/revenue?tab=wallet', label: 'Ví & rút tiền', icon: Wallet },
+  { to: '/restaurant/delivery-issues', label: 'Đối chất sự cố', icon: Scale },
 ]
 
 export default function Header({
