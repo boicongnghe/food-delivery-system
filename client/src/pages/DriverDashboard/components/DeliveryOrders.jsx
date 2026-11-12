@@ -642,7 +642,7 @@ function DeliveryOrders({ onOrderChanged }) {
                             <button
                               type="button"
                               className={`${primaryButtonClass} flex-1`}
-                              disabled={busyOrderId === order._id}
+                              disabled={busyOrderId === order._id || order.status !== 'ready_for_pickup'}
                               onClick={() => runOrderAction(order._id, () =>
                                 orderApi.confirmDeliveryPickup(order._id),
                               )}

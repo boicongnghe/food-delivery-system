@@ -217,10 +217,11 @@ function DriverDashboard() {
     : ''
 
   return (
-    <div className="flex min-h-screen flex-col bg-cream">
+    <div className="shipper-portal flex min-h-screen flex-col bg-cream">
       <Header
         subtitle="Kênh Tài Xế"
         navItems={SHIPPER_NAV_ITEMS}
+        showThemeToggle
         status={dashboard ? { label: dashboard.isOnline ? 'Đang trực' : 'Ngoại tuyến', isOpen: Boolean(dashboard.isOnline) } : null}
         accountImage={profile?.avatarUrl}
         accountName={profile?.name}
@@ -291,7 +292,7 @@ function DriverDashboard() {
                       forecast={summary.forecast || []}
                       periodLabel={periodLabel}
                     />
-                    <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+                    <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
                   </div>
                   <div className="space-y-6">
                     <CustomerPraise
@@ -306,7 +307,7 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'history' && (
-              <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+              <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
             )}
 
             {activeTab === 'wallet' && (

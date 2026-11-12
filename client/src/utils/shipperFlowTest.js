@@ -68,12 +68,20 @@ const main = async () => {
   const active = await request('GET', '/orders/shipper/active', token)
   if (active.length > 0) throw new Error(`Finish the order you hold first: ${active[0].orderCode}`)
 
-  const { items } = await request('GET', '/orders/available-for-pickup?page=1&limit=1', token)
-  if (items.length === 0) {
+  const firstPage = await request('GET', '/orders/available-for-pickup?page=1&limit=50', token)
+  if (firstPage.items.length === 0) {
     stdout.write('--  no order waiting for a shipper (run "npm run seed:shipper-orders" in server/)\n')
     return
   }
-  const order = items[0]
+  let order = firstPage.items.find(item => item.status === 'ready_for_pickup')
+  for (let page = 2; !order && page <= firstPage.pagination.totalPages; page += 1) {
+    const result = await request('GET', `/orders/available-for-pickup?page=${page}&limit=50`, token)
+    order = result.items.find(item => item.status === 'ready_for_pickup')
+  }
+  if (!order) {
+    stdout.write('--  no order ready for pickup; wait for the restaurant to finish cooking or run "npm run seed:shipper-orders" in server/\n')
+    return
+  }
   await request('PATCH', `/orders/${order._id}/shipper/accept`, token)
   stdout.write(`OK  accepted ${order.orderCode}\n`)
   await request('PATCH', `/orders/${order._id}/shipper/picked-up`, token)
