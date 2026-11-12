@@ -26,21 +26,26 @@ const LISTED_RESTAURANT_FILTER = {
 const approvedRestaurantIds = () => Restaurant.find(LISTED_RESTAURANT_FILTER).distinct('_id');
 
 // Shape kept from the old foods API so the storefront and the cart keep working
-const toPublicDish = (item) => ({
-  _id: item._id,
-  name: item.name,
-  description: item.description,
-  price: item.price,
-  originalPrice: item.originalPrice,
-  image: item.image,
-  tags: item.tags,
-  category: item.category?.name || '',
-  isAvailable: item.isAvailable,
-  optionGroups: item.optionGroups,
-  restaurant: item.restaurant,
-  rating: item.rating !== undefined ? item.rating : 5,
-  reviewsCount: item.reviewsCount !== undefined ? item.reviewsCount : 0,
-});
+const toPublicDish = (item) => {
+  const rating = typeof item.rating === 'number' && item.rating > 0 ? Number(item.rating.toFixed(1)) : 5;
+  const reviewsCount = typeof item.reviewsCount === 'number' ? item.reviewsCount : 0;
+
+  return {
+    _id: item._id,
+    name: item.name,
+    description: item.description,
+    price: item.price,
+    originalPrice: item.originalPrice,
+    image: item.image,
+    tags: item.tags,
+    category: item.category?.name || '',
+    isAvailable: item.isAvailable,
+    optionGroups: item.optionGroups,
+    restaurant: item.restaurant,
+    rating,
+    reviewsCount,
+  };
+};
 
 const findDishes = (filter) =>
   MenuItem.find(filter)
