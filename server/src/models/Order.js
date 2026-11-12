@@ -188,6 +188,7 @@ const orderSchema = new mongoose.Schema(
     shipperAcceptedAt: { type: Date, default: null },
     deliveryIssueFlagged: { type: Boolean, default: false },
     payoutCreditedAt: { type: Date, default: null },
+    customerConfirmedAt: { type: Date, default: null },
     customerWaitStartedAt: { type: Date, default: null },
     unansweredCallsAt: { type: [Date], default: [] },
     readyAt: { type: Date, default: null },

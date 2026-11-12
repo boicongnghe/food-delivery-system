@@ -7,6 +7,7 @@ import Address from '../models/Address.js';
 import PromotionRule from '../models/PromotionRule.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import Payment from '../models/Payment.js';
+import Complaint from '../models/Complaint.js';
 import ApiError from '../utils/ApiError.js';
 import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { recordStatusChange } from './orderHistoryService.js';
@@ -460,10 +461,10 @@ export const createOrder = async (userId, data) => {
     order: order._id,
     fromStatus: null,
     toStatus: 'pending',
-    action: isWalletPaid ? 'Tạo & Thanh toán bằng Ví' : 'Tạo đơn hàng',
+    action: isWalletPaid ? 'Tạo & Thanh toán bằng Ví' : 'Tạo đơn chờ thanh toán',
     note: isWalletPaid
       ? `Khách hàng đã thanh toán ${totalPrice.toLocaleString('vi-VN')}đ bằng Ví ảo`
-      : 'Khách hàng đã đặt đơn thành công',
+      : 'Khách hàng tạo đơn - chờ quét mã VietQR thanh toán',
     changedByRole: 'customer',
   });
 
@@ -524,25 +525,27 @@ export const createOrder = async (userId, data) => {
     console.warn('Failed to update topping stock:', stockErr?.message);
   }
 
-  if (restaurant?.owner) {
-    sendRealtimeNotification(restaurant.owner, {
-      title: `Đơn hàng mới #${shortCode} 🔔`,
-      message: `Khách ${deliveryAddress.recipientName} vừa đặt đơn (${snapshotItems.length} món, ${totalPrice.toLocaleString('vi-VN')}đ). Bếp kiểm tra ngay!`,
+  // Chỉ bắn thông báo Realtime cho Nhà hàng và Khách hàng khi đơn hàng ĐÃ ĐƯỢC THANH TOÁN (thanh toán bằng Ví)
+  // Với đơn chuyển khoản (VietQR / Banking), quán và khách chỉ nhận thông báo sau khi tiền ĐÃ VÀO tài khoản
+  if (isWalletPaid) {
+    if (restaurant?.owner) {
+      sendRealtimeNotification(restaurant.owner, {
+        title: `Đơn hàng mới #${shortCode} 🔔`,
+        message: `Khách ${deliveryAddress.recipientName} vừa đặt đơn (${snapshotItems.length} món, ${totalPrice.toLocaleString('vi-VN')}đ). Bếp kiểm tra ngay!`,
+        type: 'order',
+        orderId: order._id,
+        link: '/restaurant/orders',
+      });
+    }
+
+    sendRealtimeNotification(userId, {
+      title: `Đặt hàng thành công #${shortCode} 🎉`,
+      message: `Đơn hàng của bạn đã được thanh toán bằng ví (${totalPrice.toLocaleString('vi-VN')}đ) và gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`,
       type: 'order',
       orderId: order._id,
-      link: '/restaurant/orders',
+      link: `/orders/${order._id}`,
     });
   }
-
-  sendRealtimeNotification(userId, {
-    title: `Đặt hàng thành công #${shortCode} 🎉`,
-    message: isWalletPaid
-      ? `Đơn hàng của bạn đã được thanh toán bằng ví (${totalPrice.toLocaleString('vi-VN')}đ) và gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`
-      : `Đơn hàng của bạn đã gửi tới ${restaurant?.name}. Bếp sẽ xác nhận trong giây lát.`,
-    type: 'order',
-    orderId: order._id,
-    link: `/orders/${order._id}`,
-  });
 
   return order;
 };
@@ -559,10 +562,12 @@ export const getOrderById = async (orderId, user) => {
   }
 
   const timeline = await OrderStatusHistory.find({ order: order._id }).sort({ createdAt: 1 });
+  const complaint = await Complaint.findOne({ order: order._id }).lean();
 
   return {
     ...order.toObject(),
     timeline,
+    complaint,
   };
 };
 
@@ -655,9 +660,17 @@ export const receiveOrder = async (orderId, userId) => {
   if (order.status === 'cancelled') {
     throw new ApiError(400, 'Đơn hàng này đã bị hủy');
   }
+
+  // Nếu shipper đã bấm giao hàng (status = delivered), khách hàng xác nhận đã nhận hàng
+  if (order.status === 'delivered') {
+    order.customerConfirmedAt = new Date();
+    await order.save();
+    return order;
+  }
+
   // Only food that is on its way can be received (otherwise revenue is counted for food never cooked)
   if (order.status !== 'delivering') {
-    throw new ApiError(400, 'Chỉ xác nhận đã nhận hàng khi đơn đang được giao');
+    throw new ApiError(400, 'Chỉ xác nhận đã nhận hàng khi đơn đang được giao hoặc shipper đã giao');
   }
 
   // A shipper is delivering it: finish the delivery the same way as the shipper's "delivered"
@@ -669,12 +682,16 @@ export const receiveOrder = async (orderId, userId) => {
       customerId: userId,
       byRole: 'customer',
     });
+    if (delivered) {
+      await Order.findByIdAndUpdate(delivered._id, { customerConfirmedAt: new Date() });
+    }
     return delivered;
   }
 
   // No shipper on the order (demo progress tool): only the order itself changes
   const previousStatus = order.status;
   order.status = 'delivered';
+  order.customerConfirmedAt = new Date();
   order.$locals.changedByRole = 'customer';
   await order.save();
 

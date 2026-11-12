@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { orderApi } from '../../api/orderApi.js'
+import complaintApi from '../../api/complaintApi.js'
 import { connectSocket } from '../../services/socket.js'
 import toast from 'react-hot-toast'
 import OrderChat from '../../components/OrderChat/OrderChat.jsx'
@@ -24,6 +25,10 @@ function OrderTracking() {
   const [cancelling, setCancelling] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('Tôi muốn thay đổi địa chỉ hoặc món ăn')
+  const [showNotReceivedModal, setShowNotReceivedModal] = useState(false)
+  const [notReceivedReason, setNotReceivedReason] = useState('Shipper chưa đến giao hàng nhưng đã bấm hoàn thành')
+  const [notReceivedNote, setNotReceivedNote] = useState('')
+  const [submittingComplaint, setSubmittingComplaint] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
 
   const fetchOrderDetails = async () => {
@@ -107,13 +112,28 @@ function OrderTracking() {
     }
   }
 
-  // Helper for demo simulation: Advance status
-  const handleProgressDemo = async (nextStatus) => {
+  // Báo cáo chưa nhận được hàng
+  const handleReportNotReceived = async (e) => {
+    e?.preventDefault()
+    if (!notReceivedNote.trim() && notReceivedReason === 'Lý do khác') {
+      toast.error('Vui lòng nhập thêm ghi chú chi tiết')
+      return
+    }
     try {
-      await orderApi.progressOrder(id, { status: nextStatus })
+      setSubmittingComplaint(true)
+      const description = `[CHƯA NHẬN ĐƯỢC HÀNG] Lý do: ${notReceivedReason}. ${notReceivedNote.trim() ? `Ghi chú: ${notReceivedNote.trim()}` : 'Khách hàng báo cáo shipper xác nhận giao hàng nhưng thực tế chưa nhận được món.'}`
+      await complaintApi.createComplaint(id, {
+        category: 'other',
+        description,
+        images: [],
+      })
+      toast.success('Đã gửi báo cáo chưa nhận được hàng thành công! Đội ngũ hỗ trợ sẽ kiểm tra ngay.')
+      setShowNotReceivedModal(false)
       fetchOrderDetails()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi cập nhật tiến độ')
+      toast.error(err.response?.data?.message || 'Không thể gửi báo cáo lúc này')
+    } finally {
+      setSubmittingComplaint(false)
     }
   }
 
@@ -165,7 +185,7 @@ function OrderTracking() {
             </span>
           ) : isDelivered ? (
             <span className="inline-flex items-center gap-1.5 rounded-full font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 text-sm py-2 px-3.5">
-              Đã giao thành công
+              {order.customerConfirmedAt ? 'Đã nhận hàng thành công' : 'Shipper báo đã giao hàng'}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full font-bold uppercase tracking-wide bg-fuchsia-50 text-fuchsia-700 text-sm py-2 px-3.5">
@@ -225,48 +245,59 @@ function OrderTracking() {
               })}
             </div>
 
-            {/* Quick Demo Advancement Bar for Professor/Testing */}
-            <div className="bg-slate-50 rounded-xl flex flex-wrap items-center justify-between gap-3 mb-4 py-3 px-4">
-              <span className="text-sm text-slate-500 font-semibold">
-                ⚡ Nút điều khiển tiến trình (Demo):
-              </span>
-              <div className="flex gap-2 flex-wrap">
+            {/* Khi shipper đã nhấn giao hàng: Hiện nút Đã nhận được hàng và Chưa nhận được hàng (không icon) */}
+            {isDelivered && (
+              <div className="mt-4">
+                {!order.customerConfirmedAt && !order.complaint ? (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      className="flex-1 inline-flex items-center justify-center font-bold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-base border-transparent bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/25 cursor-pointer"
+                      onClick={handleReceiveOrder}
+                    >
+                      Đã nhận được hàng
+                    </button>
+                    <button
+                      type="button"
+                      className="flex-1 inline-flex items-center justify-center font-bold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-base border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-sm cursor-pointer"
+                      onClick={() => setShowNotReceivedModal(true)}
+                    >
+                      Chưa nhận được hàng
+                    </button>
+                  </div>
+                ) : order.customerConfirmedAt ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                    <div className="font-bold text-emerald-800 text-base mb-1">
+                      Bạn đã xác nhận nhận hàng thành công
+                    </div>
+                    <p className="text-sm text-emerald-700 m-0">
+                      Cảm ơn bạn đã tin tưởng đặt món! Chúc bạn có một bữa ăn ngon miệng.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                    <div className="font-bold text-amber-800 text-base mb-1">
+                      Đã ghi nhận báo cáo: Chưa nhận được hàng
+                    </div>
+                    <p className="text-sm text-amber-700 m-0">
+                      Hệ thống đang kiểm tra với shipper để hỗ trợ bạn sớm nhất.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cancel Action Button (UC17) - Nút hủy đơn to ra khi có thể hủy */}
+            {canCancel && !isCancelled && (
+              <div className="mt-5">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
-                  onClick={() => handleProgressDemo('confirmed')}
-                  disabled={order.status !== 'pending'}
+                  className="w-full inline-flex items-center justify-center font-bold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-base border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 shadow-sm cursor-pointer"
+                  onClick={() => setShowCancelModal(true)}
                 >
-                  Quán nhận đơn
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
-                  onClick={() => handleProgressDemo('preparing')}
-                  disabled={order.status !== 'confirmed'}
-                >
-                  Đang nấu
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
-                  onClick={() => handleProgressDemo('delivering')}
-                  disabled={order.status !== 'preparing'}
-                >
-                  Shipper giao
+                  Hủy đơn hàng này
                 </button>
               </div>
-            </div>
-
-            {/* Customer Completion Button (UC18: Complete Order) */}
-            {!isDelivered && (
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 w-full mb-3"
-                onClick={handleReceiveOrder}
-              >
-                ✅ Tôi đã nhận được hàng (Xác nhận hoàn thành)
-              </button>
             )}
           </div>
         ) : (
@@ -319,19 +350,6 @@ function OrderTracking() {
                 </div>
               );
             })()}
-          </div>
-        )}
-
-        {/* Cancel Action Button (UC17) */}
-        {canCancel && !isCancelled && (
-          <div className="text-center mt-4">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100"
-              onClick={() => setShowCancelModal(true)}
-            >
-              Hủy đơn hàng này
-            </button>
           </div>
         )}
       </div>
@@ -475,20 +493,82 @@ function OrderTracking() {
             <div className="flex gap-3 justify-end mt-5">
               <button
                 type="button"
-                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50 cursor-pointer"
                 onClick={() => setShowCancelModal(false)}
               >
                 Quay lại
               </button>
               <button
                 type="button"
-                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-red-500 text-white hover:bg-red-600"
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-transparent bg-red-500 text-white hover:bg-red-600 cursor-pointer"
                 disabled={cancelling}
                 onClick={handleCancelOrder}
               >
                 {cancelling ? 'Đang hủy...' : 'Xác nhận hủy đơn'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Báo cáo Chưa nhận được hàng */}
+      {showNotReceivedModal && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/45 backdrop-blur-sm animate-fade-in flex items-center justify-center p-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-w-[500px] w-full animate-fade-in">
+            <h3 className="text-xl font-extrabold text-slate-900 mt-0 mb-2">
+              Báo cáo chưa nhận được hàng
+            </h3>
+            <p className="text-sm text-slate-500 mt-0 mb-4">
+              Shipper đã đánh dấu giao hàng nhưng bạn vẫn chưa nhận được món? Vui lòng chọn lý do để hệ thống đối soát và hỗ trợ bạn ngay lập tức.
+            </p>
+
+            <form onSubmit={handleReportNotReceived} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+                  Lý do:
+                </label>
+                <select
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  value={notReceivedReason}
+                  onChange={(e) => setNotReceivedReason(e.target.value)}
+                >
+                  <option value="Shipper chưa đến giao hàng nhưng đã bấm hoàn thành">Shipper chưa đến giao hàng nhưng đã bấm hoàn thành</option>
+                  <option value="Shipper giao nhầm địa chỉ hoặc không thấy đồ">Shipper giao nhầm địa chỉ hoặc không thấy đồ</option>
+                  <option value="Không thể liên lạc được với shipper">Không thể liên lạc được với shipper</option>
+                  <option value="Lý do khác">Lý do khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+                  Ghi chú chi tiết (nếu có):
+                </label>
+                <textarea
+                  className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 resize-none h-24"
+                  placeholder="Ví dụ: Tôi kiểm tra cửa và gọi shipper nhiều lần nhưng không được..."
+                  value={notReceivedNote}
+                  onChange={(e) => setNotReceivedNote(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center font-semibold rounded-xl px-4 py-2 text-sm border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  onClick={() => setShowNotReceivedModal(false)}
+                  disabled={submittingComplaint}
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center font-semibold rounded-xl px-5 py-2 text-sm bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 cursor-pointer"
+                  disabled={submittingComplaint}
+                >
+                  {submittingComplaint ? 'Đang gửi...' : 'Gửi báo cáo'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

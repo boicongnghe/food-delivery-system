@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, QrCode, Copy, Check, ArrowRight, ArrowLeft, Loader2, Sparkles, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import walletApi from '../../../api/walletApi.js'
+import { paymentApi } from '../../../api/paymentApi.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000]
@@ -67,21 +68,26 @@ export default function CustomerDepositModal({ isOpen, onClose, onDone }) {
     if (!depositData) return
     try {
       setConfirming(true)
-      const res = await walletApi.confirmDeposit({
-        amount: depositData.amount,
+      // Bắn webhook SePay chuẩn hóa xử lý biến động số dư thực tế
+      const res = await paymentApi.simulateWebhook({
         depositCode: depositData.depositCode,
+        content: depositData.transferContent,
+        amount: depositData.amount,
+        transferAmount: depositData.amount,
       })
-      if (res.success) {
-        toast.success(`Nạp thành công ${formatCurrency(depositData.amount)} vào ví! 🎉`)
+
+      const responseData = res.data?.data || res.data
+      if (res.data?.success || res.success) {
+        toast.success(`Webhook bắn thành công! Đã nạp ${formatCurrency(depositData.amount)} vào ví! 🎉`)
         if (typeof onDone === 'function') {
           onDone()
         }
         handleClose()
       } else {
-        toast.error(res.message || 'Xác nhận nạp tiền thất bại')
+        toast.error(responseData?.message || res.message || 'Xác nhận nạp tiền thất bại')
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Lỗi khi xác nhận nạp tiền')
+      toast.error(err.response?.data?.message || err.message || 'Lỗi khi gửi webhook nạp tiền')
     } finally {
       setConfirming(false)
     }
@@ -288,12 +294,12 @@ export default function CustomerDepositModal({ isOpen, onClose, onDone }) {
                   {confirming ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang xác nhận nạp tiền...</span>
+                      <span>Đang gửi sự kiện Webhook...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Xác nhận đã chuyển khoản</span>
+                      <span>Bắn Webhook: Tiền đã vào tài khoản</span>
                     </>
                   )}
                 </button>

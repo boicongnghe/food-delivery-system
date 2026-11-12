@@ -479,7 +479,7 @@ function Checkout() {
         if (typeof refreshUser === 'function') refreshUser()
         window.dispatchEvent(new CustomEvent('wallet_updated', { detail: {} }))
         toast.success('Đặt hàng và thanh toán bằng ví ảo thành công! 🎉')
-        navigate(`/orders/${createdOrder._id}/tracking`)
+        navigate(`/orders/${createdOrder._id}`)
       } else {
         // Chuyển thẳng sang trang quét mã VietQR thanh toán
         navigate(`/payment-result?orderId=${createdOrder._id}&method=banking`)
