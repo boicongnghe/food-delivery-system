@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Scale, Send } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 import { connectSocket } from '../../services/socket.js'
-import { HEARING_PARTY_LABELS } from '../../utils/deliveryIssueLabels.js'
-
-const MESSAGE_LIMIT = 1000
+import { HEARING_MESSAGE_MAX_LENGTH, HEARING_PARTY_LABELS } from '../../utils/deliveryIssueLabels.js'
 
 // One color per side, so each party is easy to follow in the conversation
 const PARTY_TONES = {
@@ -20,17 +18,17 @@ const formatMessageTime = (value) =>
 const getErrorMessage = (error, fallback) => error.response?.data?.message || fallback
 
 /**
- * Free chat of a delivery issue hearing: shipper, customer, restaurant owner and admins.
- * New messages and state changes arrive over the socket (issue_hearing_message / issue_hearing_updated).
+ * Free chat of a hearing (delivery issue or complaint): shipper, customer, restaurant owner and admins.
+ * New messages and state changes arrive over the socket (hearing_message / hearing_updated).
  *
- * @param {string} issueId
+ * @param {string} caseId - id of the delivery issue or complaint
  * @param {boolean} canSend - the hearing is open
- * @param {(issueId: string) => Promise<{ data: object[] }>} fetchMessages
- * @param {(issueId: string, message: string) => Promise<{ data: object }>} sendMessage
- * @param {() => void} onHearingUpdated - the hearing was opened / closed or the report handled: reload it
+ * @param {(caseId: string) => Promise<{ data: object[] }>} fetchMessages
+ * @param {(caseId: string, message: string) => Promise<{ data: object }>} sendMessage
+ * @param {() => void} onHearingUpdated - the hearing was opened / closed or the case handled: reload it
  * @param {string} closedHint - shown instead of the input when the hearing is not open
  */
-export default function IssueHearingChat({ issueId, canSend, fetchMessages, sendMessage, onHearingUpdated, closedHint }) {
+export default function HearingChat({ caseId, canSend, fetchMessages, sendMessage, onHearingUpdated, closedHint }) {
   const { token, user } = useAuth()
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
@@ -42,7 +40,7 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
 
   const loadMessages = useCallback(async () => {
     try {
-      const result = await fetchMessages(issueId)
+      const result = await fetchMessages(caseId)
       setMessages(result.data || [])
       setError('')
     } catch (requestError) {
@@ -50,11 +48,11 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
     } finally {
       setLoading(false)
     }
-  }, [fetchMessages, issueId])
+  }, [fetchMessages, caseId])
 
   useEffect(() => {
     let active = true
-    fetchMessages(issueId)
+    fetchMessages(caseId)
       .then((result) => {
         if (active) setMessages(result.data || [])
       })
@@ -67,7 +65,7 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
     return () => {
       active = false
     }
-  }, [fetchMessages, issueId])
+  }, [fetchMessages, caseId])
 
   useEffect(() => {
     if (!token) return undefined
@@ -75,21 +73,21 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
     if (!socket) return undefined
 
     const handleMessage = (incoming) => {
-      if (String(incoming?.issue) !== String(issueId)) return
+      if (String(incoming?.caseId) !== String(caseId)) return
       setMessages((current) => (current.some((item) => item._id === incoming._id) ? current : [...current, incoming]))
     }
     const handleUpdated = (payload) => {
-      if (String(payload?.issueId) === String(issueId)) onHearingUpdated?.()
+      if (String(payload?.caseId) === String(caseId)) onHearingUpdated?.()
     }
-    socket.on('issue_hearing_message', handleMessage)
-    socket.on('issue_hearing_updated', handleUpdated)
+    socket.on('hearing_message', handleMessage)
+    socket.on('hearing_updated', handleUpdated)
     socket.on('connect', loadMessages)
     return () => {
-      socket.off('issue_hearing_message', handleMessage)
-      socket.off('issue_hearing_updated', handleUpdated)
+      socket.off('hearing_message', handleMessage)
+      socket.off('hearing_updated', handleUpdated)
       socket.off('connect', loadMessages)
     }
-  }, [issueId, loadMessages, onHearingUpdated, token])
+  }, [caseId, loadMessages, onHearingUpdated, token])
 
   // Keep the newest message in view, inside the list only (no page jump in a drawer)
   useEffect(() => {
@@ -105,7 +103,7 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
     setSending(true)
     setError('')
     try {
-      const result = await sendMessage(issueId, content)
+      const result = await sendMessage(caseId, content)
       setMessages((current) => (current.some((item) => item._id === result.data._id) ? current : [...current, result.data]))
       setDraft('')
     } catch (requestError) {
@@ -174,14 +172,14 @@ export default function IssueHearingChat({ issueId, canSend, fetchMessages, send
 
       {canSend ? (
         <form onSubmit={submit} className="flex gap-2">
-          <label htmlFor={`hearing-message-${issueId}`} className="sr-only">
+          <label htmlFor={`hearing-message-${caseId}`} className="sr-only">
             Ý kiến của bạn
           </label>
           <textarea
-            id={`hearing-message-${issueId}`}
+            id={`hearing-message-${caseId}`}
             rows={2}
             value={draft}
-            maxLength={MESSAGE_LIMIT}
+            maxLength={HEARING_MESSAGE_MAX_LENGTH}
             disabled={sending}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {

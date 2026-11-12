@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 import CommissionRule from '../models/CommissionRule.js';
 import Complaint from '../models/Complaint.js';
 import DeliveryIssue from '../models/DeliveryIssue.js';
-import IssueMessage from '../models/IssueMessage.js';
+import HearingMessage from '../models/HearingMessage.js';
 import MenuItem from '../models/MenuItem.js';
 import Order from '../models/Order.js';
 import PromotionRule from '../models/PromotionRule.js';
@@ -207,9 +207,39 @@ const seedReviews = async (orders, admin) => {
   return count;
 };
 
-const seedComplaints = async (orders, admin) => {
+// Running hearing (opened 2 hours ago, 22 hours left) and its messages, one per line in order
+const hearingNow = (admin) => ({
+  openedBy: admin._id,
+  openedAt: plusMinutes(new Date(), -120),
+  deadline: plusMinutes(new Date(), 22 * 60),
+});
+const seedHearingMessages = (caseType, caseId, lines, senders) =>
+  HearingMessage.insertMany(
+    lines
+      .filter((line) => senders[line.party])
+      .map((line, lineIndex) => ({
+        caseType,
+        caseId,
+        sender: senders[line.party],
+        party: line.party,
+        message: line.message,
+        createdAt: plusMinutes(new Date(), -110 + lineIndex * 15),
+      })),
+  );
+
+const seedComplaints = async (orders, admin, owner) => {
   const scenarios = [
-    { category: 'missing_item', description: 'Đơn thiếu 1 phần quẩy giòn so với hóa đơn, nhờ quán kiểm tra giúp.', status: 'open' },
+    {
+      category: 'missing_item',
+      description: 'Đơn thiếu 1 phần quẩy giòn so với hóa đơn, nhờ quán kiểm tra giúp.',
+      status: 'open',
+      hearing: [
+        { party: 'customer', message: 'Hóa đơn có 2 phần quẩy nhưng trong túi chỉ có 1.' },
+        { party: 'restaurant', message: 'Quán đã cho đủ 2 phần vào túi, có camera lúc đóng gói.' },
+        { party: 'shipper', message: 'Em nhận túi đã dán kín, không mở ra trên đường.' },
+        { party: 'admin', message: 'Quán vui lòng gửi ảnh từ camera lúc đóng gói đơn này.' },
+      ],
+    },
     {
       category: 'food_quality',
       description: 'Nước dùng bị nguội và có vị chua, không ăn được.',
@@ -229,8 +259,8 @@ const seedComplaints = async (orders, admin) => {
     if (!order) break;
     const closedAt = order.statusHistory[order.statusHistory.length - 1].at;
     const createdAt = plusMinutes(closedAt, 120);
-    const { resolution, ...data } = scenario;
-    await new Complaint({
+    const { resolution, hearing, ...data } = scenario;
+    const complaint = await new Complaint({
       ...data,
       code: `KN-${String(await getNextSequence('complaint')).padStart(4, '0')}`,
       order: order._id,
@@ -239,9 +269,14 @@ const seedComplaints = async (orders, admin) => {
       restaurant: order.restaurant,
       shipper: order.shipper,
       resolution: resolution ? { ...resolution, by: admin?._id || null, at: plusMinutes(createdAt, 240) } : undefined,
+      hearing: hearing && admin ? hearingNow(admin) : null,
       createdAt,
       updatedAt: createdAt,
     }).save({ timestamps: false });
+    if (hearing && admin) {
+      const senders = { shipper: order.shipper, customer: order.customer, restaurant: owner._id, admin: admin._id };
+      await seedHearingMessages('complaint', complaint._id, hearing, senders);
+    }
   }
   return Math.min(scenarios.length, orders.length);
 };
@@ -297,25 +332,14 @@ const seedDeliveryIssues = async (orders, admin, owner) => {
       resolution: resolution
         ? { note: resolution.note, penalty: penalty || null, by: admin?._id || null, at: plusMinutes(createdAt, 180) }
         : undefined,
-      hearing:
-        hearing && admin
-          ? { openedBy: admin._id, openedAt: plusMinutes(new Date(), -120), deadline: plusMinutes(new Date(), 22 * 60) }
-          : null,
+      hearing: hearing && admin ? hearingNow(admin) : null,
       createdAt,
       updatedAt: createdAt,
     }).save({ timestamps: false });
 
     if (hearing && admin) {
       const senders = { shipper: order.shipper, customer: order.customer, restaurant: owner._id, admin: admin._id };
-      await IssueMessage.insertMany(
-        hearing.map((line, lineIndex) => ({
-          issue: issue._id,
-          sender: senders[line.party],
-          party: line.party,
-          message: line.message,
-          createdAt: plusMinutes(new Date(), -110 + lineIndex * 15),
-        })),
-      );
+      await seedHearingMessages('delivery_issue', issue._id, hearing, senders);
     }
   }
   return Math.min(scenarios.length, orders.length);
@@ -344,9 +368,12 @@ const run = async () => {
 
   // ----- Clean previous demo data -----
   const restaurantScope = { restaurant: restaurant._id };
-  const oldIssueIds = await DeliveryIssue.find(restaurantScope).distinct('_id');
+  const oldCaseIds = [
+    ...(await DeliveryIssue.find(restaurantScope).distinct('_id')),
+    ...(await Complaint.find(restaurantScope).distinct('_id')),
+  ];
   await Promise.all([
-    IssueMessage.deleteMany({ issue: { $in: oldIssueIds } }),
+    HearingMessage.deleteMany({ caseId: { $in: oldCaseIds } }),
     Review.deleteMany(restaurantScope),
     Complaint.deleteMany(restaurantScope),
     DeliveryIssue.deleteMany(restaurantScope),
@@ -381,7 +408,7 @@ const run = async () => {
   const recentOfCustomer = newestFirst.filter(
     (order) => String(order.customer) === String(regularCustomer._id) && order.createdAt >= at(6, 0),
   );
-  const complaintCount = await seedComplaints(recentOfCustomer, admin);
+  const complaintCount = await seedComplaints(recentOfCustomer, admin, owner);
   const issueCount = await seedDeliveryIssues(delivered.slice(3), admin, owner);
 
   await seedCommissionRules(restaurant);

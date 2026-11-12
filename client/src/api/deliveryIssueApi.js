@@ -53,28 +53,6 @@ const deliveryIssueApi = {
     const response = await axiosClient.post(`/admin/delivery-issues/${id}/messages`, { message })
     return response.data
   },
-
-  // ----- Parties of the order: shipper, customer, restaurant owner (hearing) -----
-  // params: { page, limit }
-  getMyHearings: async (params) => {
-    const response = await axiosClient.get('/delivery-issues/me/hearings', { params })
-    return response.data
-  },
-
-  getHearing: async (id) => {
-    const response = await axiosClient.get(`/delivery-issues/${id}`)
-    return response.data
-  },
-
-  getHearingMessages: async (id) => {
-    const response = await axiosClient.get(`/delivery-issues/${id}/messages`)
-    return response.data
-  },
-
-  sendHearingMessage: async (id, message) => {
-    const response = await axiosClient.post(`/delivery-issues/${id}/messages`, { message })
-    return response.data
-  },
 }
 
 export default deliveryIssueApi

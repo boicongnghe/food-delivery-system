@@ -14,13 +14,15 @@ export const DELIVERY_ISSUE_STATUSES = ['open', 'resolved', 'dismissed'];
 export const PENALTY_TARGETS = ['shipper', 'restaurant', 'customer'];
 // warning, fine: recorded only (fine is simulated) | suspend: restaurant -> "suspended", shipper/customer -> account locked
 export const PENALTY_ACTIONS = ['warning', 'fine', 'suspend'];
+// Simulated fine (VND), shared by delivery issues and complaints
+export const PENALTY_FINE_LIMITS = { min: 10000, max: 5000000 };
 // none: the shipper keeps the order; release: back to the pool (not picked up yet); cancel: cancel + refund
 export const ISSUE_ORDER_ACTIONS = ['none', 'release', 'cancel'];
-// Parties invited to the hearing (free chat before a penalty); the admin writes there too
+// Parties invited to a hearing (free chat before a penalty, delivery issues and complaints); the admin writes there too
 export const HEARING_PARTIES = ['shipper', 'customer', 'restaurant'];
 export const HEARING_MAX_HOURS = 24;
 
-const penaltySchema = new mongoose.Schema(
+export const penaltySchema = new mongoose.Schema(
   {
     target: { type: String, enum: PENALTY_TARGETS, required: true },
     targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // account penalized
@@ -32,13 +34,15 @@ const penaltySchema = new mongoose.Schema(
   { _id: false },
 );
 
-const hearingSchema = new mongoose.Schema(
+export const hearingSchema = new mongoose.Schema(
   {
     openedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     openedAt: { type: Date, required: true },
     deadline: { type: Date, required: true }, // at most HEARING_MAX_HOURS after openedAt
     closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     closedAt: { type: Date, default: null }, // closed early by an admin
+    // Parties who had not written yet were reminded before the deadline (once per hearing)
+    remindedAt: { type: Date, default: null },
   },
   { _id: false },
 );
@@ -61,7 +65,7 @@ const deliveryIssueSchema = new mongoose.Schema(
 
     status: { type: String, enum: DELIVERY_ISSUE_STATUSES, default: 'open' },
     // Hearing: shipper, customer and restaurant talk it over before the admin penalizes anyone.
-    // Open while the report is open, before the deadline and not closed by an admin. Messages: issue_messages
+    // Open while the report is open, before the deadline and not closed by an admin. Messages: hearing_messages
     hearing: { type: hearingSchema, default: null },
     resolution: {
       note: { type: String, default: '' },

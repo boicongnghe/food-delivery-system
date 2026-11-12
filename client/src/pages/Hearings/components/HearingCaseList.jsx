@@ -1,5 +1,6 @@
-import { DELIVERY_ISSUE_TYPE_LABELS, HEARING_STATES } from '../../../utils/deliveryIssueLabels.js'
+import { HEARING_STATES } from '../../../utils/deliveryIssueLabels.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
+import { HEARING_CASE_LABELS } from '../../../utils/hearingLabels.js'
 
 const STATE_CLASSES = {
   open: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
@@ -7,21 +8,22 @@ const STATE_CLASSES = {
 }
 
 /**
- * Hearings of the current party, newest first.
- * @param {{ _id, code, orderCode, type, restaurantName, deadline, hearingState }[]} items
+ * Hearings of the current party (delivery issues and complaints), newest first.
+ * @param {{ _id, caseType, code, orderCode, kind, restaurantName, deadline, hearingState }[]} items
  * @param {string | null} selectedId
- * @param {(issueId: string) => void} onSelect
+ * @param {(item: object) => void} onSelect
  */
 export default function HearingCaseList({ items, selectedId, onSelect }) {
   return (
     <ul className="space-y-2" aria-label="Danh sách phiên đối chất">
       {items.map((item) => {
         const selected = item._id === selectedId
+        const labels = HEARING_CASE_LABELS[item.caseType]
         return (
           <li key={item._id}>
             <button
               type="button"
-              onClick={() => onSelect(item._id)}
+              onClick={() => onSelect(item)}
               aria-current={selected ? 'true' : undefined}
               className={`w-full rounded-xl border p-3 text-left transition-colors ${
                 selected
@@ -36,7 +38,7 @@ export default function HearingCaseList({ items, selectedId, onSelect }) {
                 </span>
               </div>
               <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                {DELIVERY_ISSUE_TYPE_LABELS[item.type]}
+                {labels.noun}: {labels.kindLabels[item.kind]}
               </p>
               <p className="text-xs text-slate-500">
                 Đơn #{item.orderCode} · {item.restaurantName}

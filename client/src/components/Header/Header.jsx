@@ -22,7 +22,7 @@ const RESTAURANT_MENU_ITEMS = [
   { to: '/restaurant/orders', label: 'Đơn hàng bếp', icon: ChefHat },
   { to: '/restaurant/profile', label: 'Hồ sơ quán · đổi logo', icon: Store },
   { to: '/restaurant/revenue?tab=wallet', label: 'Ví & rút tiền', icon: Wallet },
-  { to: '/restaurant/delivery-issues', label: 'Đối chất sự cố', icon: Scale },
+  { to: '/restaurant/hearings', label: 'Đối chất', icon: Scale },
 ]
 
 export default function Header({

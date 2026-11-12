@@ -85,29 +85,35 @@ const summarizeReviews = async (match) => {
   };
 };
 
+// Penalties decided in a kind of case, per action: { warning, fine, suspend }
+const countPenalties = async (Model, match) => {
+  const groups = await Model.aggregate([
+    { $match: { ...match, 'resolution.penalty': { $ne: null } } },
+    { $group: { _id: '$resolution.penalty.action', count: { $sum: 1 } } },
+  ]);
+  return Object.fromEntries(
+    PENALTY_ACTIONS.map((action) => [action, groups.find((group) => group._id === action)?.count || 0]),
+  );
+};
+
 const summarizeComplaints = async (match, start, end) => {
-  const [counts, refunds] = await Promise.all([
+  const [counts, refunds, penalties] = await Promise.all([
     countByStatus(Complaint, match, COMPLAINT_STATUSES),
     // Compensation belongs to the day it was decided, like a payment
     Complaint.aggregate([
       { $match: { status: 'resolved', 'resolution.at': { $gte: start, $lt: end } } },
       { $group: { _id: null, amount: { $sum: '$resolution.refundAmount' } } },
     ]),
+    countPenalties(Complaint, match),
   ]);
-  return { ...counts, refundAmount: refunds[0]?.amount || 0 };
+  return { ...counts, refundAmount: refunds[0]?.amount || 0, penalties };
 };
 
 const summarizeDeliveryIssues = async (match) => {
-  const [counts, penaltyGroups] = await Promise.all([
+  const [counts, penalties] = await Promise.all([
     countByStatus(DeliveryIssue, match, DELIVERY_ISSUE_STATUSES),
-    DeliveryIssue.aggregate([
-      { $match: { ...match, 'resolution.penalty': { $ne: null } } },
-      { $group: { _id: '$resolution.penalty.action', count: { $sum: 1 } } },
-    ]),
+    countPenalties(DeliveryIssue, match),
   ]);
-  const penalties = Object.fromEntries(
-    PENALTY_ACTIONS.map((action) => [action, penaltyGroups.find((group) => group._id === action)?.count || 0]),
-  );
   return { ...counts, penalties };
 };
 

@@ -1,4 +1,5 @@
 import AdminFieldError from '../../../components/AdminFieldError/AdminFieldError.jsx'
+import AdminPenaltyFields from '../../../components/AdminPenaltyFields/AdminPenaltyFields.jsx'
 import { ADMIN_INPUT, ADMIN_LABEL } from '../../../utils/adminClassNames.js'
 import { formatCurrency, formatNumber, parseNumberInput } from '../../../utils/formatCurrency.js'
 
@@ -9,10 +10,29 @@ const DECISIONS = [
 
 /**
  * Resolve form of an open complaint. The parent owns the state and submits it.
- * @param {{ decision: string, refundAmount: string, note: string }} form
+ * A penalty is possible with either decision (accepted: restaurant / shipper at fault; rejected: e.g. an abusive
+ * complaint), once the hearing has ended. The refund does not wait for the hearing.
+ *
+ * @param {{ decision, refundAmount, note, hasPenalty, target, action, fineAmount }} form
  * @param {number} maxRefund - what the customer paid minus earlier refunds
+ * @param {{ shipper: number, restaurant: number, customer: number }} violationCounts
+ * @param {{ threshold: number, counts: object }} autoSuspend
+ * @param {'none' | 'open' | 'closed'} hearingState
+ * @param {string[]} penaltyTargets - parties of the order (no shipper on some orders)
  */
-export default function ComplaintResolveForm({ formId, form, errors, maxRefund, disabled, onChange, onSubmit }) {
+export default function ComplaintResolveForm({
+  formId,
+  form,
+  errors,
+  maxRefund,
+  violationCounts,
+  autoSuspend,
+  hearingState,
+  penaltyTargets,
+  disabled,
+  onChange,
+  onSubmit,
+}) {
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
       <fieldset disabled={disabled} className="space-y-4">
@@ -60,11 +80,23 @@ export default function ComplaintResolveForm({ formId, form, errors, maxRefund, 
               </button>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Tối đa {formatCurrency(maxRefund)} (số tiền khách đã trả trừ phần đã hoàn). Hoàn tiền hiện là mô phỏng.
+              Tối đa {formatCurrency(maxRefund)} (số tiền khách đã trả trừ phần đã hoàn). Hoàn tiền hiện là mô phỏng, không cần chờ
+              đối chất.
             </p>
             <AdminFieldError message={errors.refundAmount} />
           </div>
         )}
+
+        <AdminPenaltyFields
+          form={form}
+          errors={errors}
+          onChange={onChange}
+          violationCounts={violationCounts}
+          autoSuspend={autoSuspend}
+          hearingState={hearingState}
+          targets={penaltyTargets}
+          idPrefix="complaint-penalty"
+        />
 
         <div>
           <label htmlFor="complaint-note" className={ADMIN_LABEL}>
@@ -76,7 +108,7 @@ export default function ComplaintResolveForm({ formId, form, errors, maxRefund, 
             maxLength={500}
             value={form.note}
             onChange={(event) => onChange({ note: event.target.value })}
-            placeholder="Kết quả xác minh và hướng giải quyết..."
+            placeholder="Kết quả xác minh sau đối chất và hướng giải quyết..."
             className={`${ADMIN_INPUT} resize-none`}
           />
           <AdminFieldError message={errors.note} />

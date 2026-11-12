@@ -31,9 +31,31 @@ const complaintApi = {
     return response.data
   },
 
-  // data: { decision: 'resolved' | 'rejected', note, refundAmount }
+  // data: { decision: 'resolved' | 'rejected', note, refundAmount, penalty: { target, action, fineAmount } | null }
+  // A penalty needs a hearing that has ended
   resolveComplaint: async (id, data) => {
     const response = await axiosClient.patch(`/admin/complaints/${id}/resolution`, data)
+    return response.data
+  },
+
+  // data: { deadlineHours } (1-24)
+  openHearing: async (id, data) => {
+    const response = await axiosClient.patch(`/admin/complaints/${id}/hearing`, data)
+    return response.data
+  },
+
+  closeHearing: async (id) => {
+    const response = await axiosClient.patch(`/admin/complaints/${id}/hearing/close`)
+    return response.data
+  },
+
+  getAdminHearingMessages: async (id) => {
+    const response = await axiosClient.get(`/admin/complaints/${id}/messages`)
+    return response.data
+  },
+
+  sendAdminHearingMessage: async (id, message) => {
+    const response = await axiosClient.post(`/admin/complaints/${id}/messages`, { message })
     return response.data
   },
 }
