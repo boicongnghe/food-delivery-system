@@ -291,7 +291,7 @@ function DriverDashboard() {
                       forecast={summary.forecast || []}
                       periodLabel={periodLabel}
                     />
-                    <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+                    <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
                   </div>
                   <div className="space-y-6">
                     <CustomerPraise
@@ -306,7 +306,7 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'history' && (
-              <TripLedger trips={summary.trips || []} periodLabel={periodLabel} />
+              <TripLedger key={period} trips={summary.trips || []} periodLabel={periodLabel} />
             )}
 
             {activeTab === 'wallet' && (
