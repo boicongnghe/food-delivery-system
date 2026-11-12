@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
-import { Bike, Store, X } from 'lucide-react'
+import { Bike, Store, Utensils, X } from 'lucide-react'
 import reviewApi from '../../api/reviewApi.js'
 import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts.js'
 import OrderBrief from '../OrderBrief/OrderBrief.jsx'
+import StarRating from '../StarRating/StarRating.jsx'
 import RatingField from './RatingField.jsx'
 
 const COMMENT_MAX_LENGTH = 500
@@ -21,6 +22,16 @@ const textareaClass =
  */
 export default function ReviewOrderModal({ order, onClose, onSubmitted }) {
   const [form, setForm] = useState({ restaurantRating: 0, comment: '', shipperRating: 0, shipperComment: '' })
+  const [dishReviews, setDishReviews] = useState(() =>
+    (order.items || []).map((it) => ({
+      menuItem: it.menuItem || it._id,
+      dishName: it.name,
+      dishImage: it.image || '',
+      optionsSummary: (it.options || []).map((o) => o.name).join(', '),
+      rating: 5,
+      comment: '',
+    })),
+  )
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
@@ -32,6 +43,14 @@ export default function ReviewOrderModal({ order, onClose, onSubmitted }) {
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     setErrors((prev) => ({ ...prev, [field]: '' }))
+  }
+
+  const updateDishReview = (index, field, value) => {
+    setDishReviews((prev) => {
+      const copy = [...prev]
+      copy[index] = { ...copy[index], [field]: value }
+      return copy
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -51,6 +70,14 @@ export default function ReviewOrderModal({ order, onClose, onSubmitted }) {
         comment: form.comment.trim(),
         shipperRating: order.shipper ? form.shipperRating : null,
         shipperComment: order.shipper ? form.shipperComment.trim() : '',
+        dishReviews: dishReviews.map((d) => ({
+          menuItem: d.menuItem,
+          dishName: d.dishName,
+          dishImage: d.dishImage,
+          optionsSummary: d.optionsSummary,
+          rating: d.rating,
+          comment: d.comment.trim(),
+        })),
       })
       toast.success(response.message)
       onSubmitted(response.data)
@@ -90,9 +117,60 @@ export default function ReviewOrderModal({ order, onClose, onSubmitted }) {
             <OrderBrief order={order} />
           </div>
 
+          {dishReviews.length > 0 && (
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <Utensils className="h-4 w-4 text-primary" />
+                Đánh giá chất lượng món ăn
+              </p>
+              <div className="space-y-3">
+                {dishReviews.map((item, idx) => (
+                  <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {item.dishImage ? (
+                          <img
+                            src={item.dishImage}
+                            alt={item.dishName}
+                            className="h-10 w-10 shrink-0 rounded-xl object-cover border border-slate-200"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                            🍽️
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">{item.dishName}</p>
+                          {item.optionsSummary && (
+                            <p className="text-[11px] text-slate-400 truncate">{item.optionsSummary}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <StarRating
+                          value={item.rating}
+                          onChange={(val) => updateDishReview(idx, 'rating', val)}
+                          size="md"
+                        />
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={COMMENT_MAX_LENGTH}
+                      value={item.comment}
+                      onChange={(e) => updateDishReview(idx, 'comment', e.target.value)}
+                      placeholder="Cảm nhận về món này (vị đậm đà, độ giòn/mềm...)"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <RatingField
             icon={Store}
-            title="Món ăn & nhà hàng"
+            title="Nhà hàng & dịch vụ quán"
             value={form.restaurantRating}
             error={errors.restaurantRating}
             onChange={(value) => updateField('restaurantRating', value)}

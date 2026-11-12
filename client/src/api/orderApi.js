@@ -74,6 +74,10 @@ export const orderApi = {
     const response = await axiosClient.get(`/orders/available-for-pickup/${id}`)
     return response.data
   },
+  releaseOrderHold: async (id) => {
+    const response = await axiosClient.post(`/orders/${id}/shipper/release-hold`)
+    return response.data
+  },
   getShipperActiveOrders: async () => {
     const response = await axiosClient.get('/orders/shipper/active')
     return response.data

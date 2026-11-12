@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import { orderApi } from '../../api/orderApi.js'
 import { connectSocket } from '../../services/socket.js'
 import toast from 'react-hot-toast'
@@ -123,7 +124,8 @@ function OrderTracking() {
       <div className="mx-auto w-full max-w-[1200px] text-center py-20 px-0">
         <h2>Không tìm thấy đơn hàng</h2>
         <Link to="/orders" className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-5 py-2.5 text-[0.95rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 mt-4">
-          Xem danh sách đơn hàng
+          <ArrowLeft className="w-4 h-4" />
+          <span>Xem danh sách đơn hàng</span>
         </Link>
       </div>
     )
@@ -138,15 +140,19 @@ function OrderTracking() {
   return (
     <div className="mx-auto w-full px-5 animate-fade-in max-w-[860px]">
       {/* Back button & Title */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <Link to="/orders" className="text-slate-500 text-sm font-semibold">
-            ← Danh sách đơn hàng
+          <Link
+            to="/orders"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 mb-2.5 rounded-xl bg-white dark:bg-[#181A20] border border-slate-200/90 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs sm:text-sm font-bold shadow-xs hover:border-orange-300 dark:hover:border-orange-500/40 hover:bg-orange-50/60 dark:hover:bg-orange-950/20 hover:text-primary dark:hover:text-primary transition-all duration-200 group active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-primary group-hover:-translate-x-1 transition-all duration-200" />
+            <span>Danh sách đơn hàng</span>
           </Link>
-          <h1 className="text-3xl font-extrabold mt-1.5 mb-0 mx-0">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1 mb-0 mx-0 tracking-tight">
             Đơn hàng #{order.orderNumber}
           </h1>
-          <span className="text-sm text-slate-500">
+          <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 inline-block">
             Đặt lúc: {new Date(order.createdAt).toLocaleString('vi-VN')}
           </span>
         </div>

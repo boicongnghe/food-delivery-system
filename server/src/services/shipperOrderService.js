@@ -133,29 +133,38 @@ const getDriverDashboard = async (shipperId) => {
   return dashboard;
 };
 
-const toAvailableOrder = (order) => {
+const toAvailableOrder = (order, currentShipperId = null) => {
+  const now = new Date();
+  const isHeld = order.heldUntil && new Date(order.heldUntil) > now && order.holdBy;
+  const isHeldByMe = Boolean(isHeld && currentShipperId && String(order.holdBy) === String(currentShipperId));
+  const isHeldByOther = Boolean(isHeld && !isHeldByMe);
+
   return {
     _id: order._id,
     orderCode: order.orderCode,
     status: order.status,
     restaurant: {
-      _id: order.restaurant._id,
-      name: order.restaurant.name,
-      address: order.restaurant.address,
+      _id: order.restaurant?._id,
+      name: order.restaurant?.name,
+      address: order.restaurant?.address,
     },
     delivery: {
-      area: getDeliveryArea(order.delivery.address),
-      type: order.delivery.type,
-      expectedAt: order.delivery.expectedAt,
+      area: getDeliveryArea(order.delivery?.address),
+      type: order.delivery?.type,
+      expectedAt: order.delivery?.expectedAt,
     },
     distanceKm: order.distanceKm,
-    itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    itemCount: order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
     estimatedPay: order.shippingFee,
     total: order.total,
-    amountToCollect: order.payment.method === 'cod' ? order.total : 0,
+    amountToCollect: order.payment?.method === 'cod' ? order.total : 0,
     acceptedAt: order.acceptedAt,
     kitchenDueAt: order.kitchenDueAt,
     readyAt: order.readyAt,
+    // Soft-lock / Hold info for Model 2
+    holdExpiresAt: isHeld ? order.heldUntil : null,
+    isHeldByMe,
+    isHeldByOther,
   };
 };
 
@@ -168,28 +177,107 @@ export const listAvailableForPickup = async (shipperId, { page, limit }) => {
       .sort({ acceptedAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt distanceKm items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status')
+      .select('orderCode restaurant delivery.address delivery.type delivery.expectedAt distanceKm items.quantity total shippingFee payment acceptedAt kitchenDueAt readyAt status holdBy heldUntil')
       .lean(),
     Order.countDocuments(filter),
   ]);
 
   return {
-    items: orders.map(toAvailableOrder),
+    items: orders.map(order => toAvailableOrder(order, shipperId)),
     pagination: { page, limit, totalItems, totalPages: Math.ceil(totalItems / limit) },
   };
 };
 
 export const getAvailableOrderDetail = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
-  const order = await Order.findOne({ _id: orderId, ...(await getAvailableOrderFilter()) })
-    .populate('restaurant', 'name address phone')
-    .select('orderCode restaurant delivery items total distanceKm shippingFee payment acceptedAt kitchenDueAt readyAt status')
+  const now = new Date();
+  const availableFilter = await getAvailableOrderFilter();
+
+  // Check if held by someone else currently
+  const currentlyHeldByOther = await Order.findOne({
+    _id: orderId,
+    ...availableFilter,
+    holdBy: { $ne: null, $ne: shipperId },
+    heldUntil: { $gt: now },
+  })
+    .select('orderCode heldUntil')
     .lean();
-  if (!order) {
-    throw new ApiError(404, 'Đơn hàng không còn trong danh sách chờ nhận');
+
+  if (currentlyHeldByOther) {
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil((new Date(currentlyHeldByOther.heldUntil).getTime() - now.getTime()) / 1000),
+    );
+    throw new ApiError(
+      409,
+      `Đơn hàng đang được một tài xế khác giữ chỗ xem xét (còn ${remainingSeconds}s), vui lòng chọn đơn khác`,
+    );
   }
 
-  return toAvailableOrder(order);
+  // Soft-lock order for 20 seconds for the viewing shipper
+  const heldUntil = new Date(now.getTime() + 20 * 1000);
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      ...availableFilter,
+      $or: [
+        { holdBy: null },
+        { heldUntil: { $lte: now } },
+        { holdBy: shipperId },
+      ],
+    },
+    {
+      $set: {
+        holdBy: shipperId,
+        heldUntil,
+      },
+    },
+    { new: true },
+  )
+    .populate('restaurant', 'name address phone')
+    .select('orderCode restaurant delivery items total distanceKm shippingFee payment acceptedAt kitchenDueAt readyAt status holdBy heldUntil')
+    .lean();
+
+  if (!order) {
+    throw new ApiError(409, 'Đơn hàng vừa được tài xế khác mở xem hoặc không còn khả dụng');
+  }
+
+  // Broadcast to other shippers that this order is held
+  broadcastRealtimeNotification('shipper', 'order_held', {
+    orderId: order._id,
+    orderCode: order.orderCode,
+    heldUntil,
+    holderId: shipperId,
+  });
+
+  return toAvailableOrder(order, shipperId);
+};
+
+export const releaseOrderHold = async (shipperId, orderId) => {
+  const released = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      holdBy: shipperId,
+    },
+    {
+      $set: {
+        holdBy: null,
+        heldUntil: null,
+      },
+    },
+    { new: true },
+  )
+    .select('orderCode')
+    .lean();
+
+  if (released) {
+    broadcastRealtimeNotification('shipper', 'order_released', {
+      orderId,
+      orderCode: released.orderCode,
+    });
+  }
+
+  return { orderId, released: Boolean(released) };
 };
 
 export const getActiveOrders = async (shipperId) => {
@@ -204,6 +292,28 @@ export const getActiveOrders = async (shipperId) => {
 export const acceptOrder = async (shipperId, orderId) => {
   await getDriverDashboard(shipperId);
   const availableFilter = await getAvailableOrderFilter();
+  const now = new Date();
+
+  // Model 2: Check if held by another shipper
+  const heldByOther = await Order.findOne({
+    _id: orderId,
+    ...availableFilter,
+    holdBy: { $ne: null, $ne: shipperId },
+    heldUntil: { $gt: now },
+  })
+    .select('orderCode heldUntil')
+    .lean();
+  if (heldByOther) {
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil((new Date(heldByOther.heldUntil).getTime() - now.getTime()) / 1000),
+    );
+    throw new ApiError(
+      409,
+      `Đơn hàng đang được một tài xế khác giữ chỗ xem xét (còn ${remainingSeconds}s)`,
+    );
+  }
+
   const order = await Order.findOne({ _id: orderId, ...availableFilter })
     .select('status restaurant customer orderCode orderNumber')
     .lean();
@@ -231,12 +341,35 @@ export const acceptOrder = async (shipperId, orderId) => {
   const kitchen = startsKitchen ? await getKitchenStartFields(order.restaurant, acceptedAt) : null;
   const update = startsKitchen
     ? {
-        $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt, status: 'preparing', ...kitchen },
+        $set: {
+          shipper: shipperId,
+          shipperAcceptedAt: acceptedAt,
+          status: 'preparing',
+          holdBy: null,
+          heldUntil: null,
+          ...kitchen,
+        },
         $push: { statusHistory: { status: 'preparing', at: acceptedAt, byRole: 'shipper' } },
       }
-    : { $set: { shipper: shipperId, shipperAcceptedAt: acceptedAt } };
+    : {
+        $set: {
+          shipper: shipperId,
+          shipperAcceptedAt: acceptedAt,
+          holdBy: null,
+          heldUntil: null,
+        },
+      };
   const accepted = await Order.findOneAndUpdate(
-    { _id: orderId, ...availableFilter, status: order.status },
+    {
+      _id: orderId,
+      ...availableFilter,
+      status: order.status,
+      $or: [
+        { holdBy: null },
+        { heldUntil: { $lte: now } },
+        { holdBy: shipperId },
+      ],
+    },
     update,
     { returnDocument: 'after', runValidators: true },
   );
