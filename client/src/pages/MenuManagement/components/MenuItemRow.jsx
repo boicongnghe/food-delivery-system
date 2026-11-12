@@ -1,4 +1,4 @@
-import { Ban, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import ToggleSwitch from '../../../components/ToggleSwitch/ToggleSwitch.jsx'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { MENU_TAGS } from '../constants.js'
@@ -19,17 +19,12 @@ export default function MenuItemRow({ item, isBusy, onToggleAvailable, onToggleV
       <td className="py-2.5 pl-5 pr-3">
         <div className="relative h-12 w-12 overflow-hidden rounded-md bg-brand-light">
           <img src={item.image} alt="" className={`h-full w-full object-cover ${isSoldOut ? 'grayscale' : ''}`} />
-          {isSoldOut && (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/35">
-              <Ban className="h-5 w-5 text-white" />
-            </span>
-          )}
         </div>
       </td>
 
       <td className="py-2.5 pr-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`font-semibold text-slate-900 ${isSoldOut ? 'line-through text-slate-500' : ''}`}>
+          <span className={`font-semibold ${isSoldOut ? 'text-slate-500' : 'text-slate-900'}`}>
             {item.name}
           </span>
           {tags.map((tag) => (
