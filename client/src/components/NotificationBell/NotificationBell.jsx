@@ -11,9 +11,10 @@ import {
   Clock,
   Info,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import useAuth from '../../hooks/useAuth.js'
 import notificationApi from '../../api/notificationApi.js'
 import { connectSocket } from '../../services/socket.js'
 import { playNotificationSound } from '../../utils/playNotificationSound.js'
@@ -33,11 +34,11 @@ const formatTimeAgo = (dateStr) => {
 }
 
 export default function NotificationBell({ isDark = false }) {
-  const { user } = useAuth()
   const navigate = useNavigate()
   const dropdownRef = useRef(null)
   const [isOpen, setIsOpen] = useState(false)
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
+  const [showAll, setShowAll] = useState(false) // Chỉ hiện 5 thông báo gần nhất mặc định, bấm nút để xem tất cả
 
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
@@ -203,10 +204,12 @@ export default function NotificationBell({ isDark = false }) {
     }
   }
 
-  const displayedList =
+  const fullList =
     filter === 'unread'
       ? notifications.filter((n) => !n.read && !n.isRead)
       : notifications
+
+  const displayedList = showAll ? fullList : fullList.slice(0, 5)
 
   // Icon type badge
   const renderIcon = (type) => {
@@ -234,7 +237,13 @@ export default function NotificationBell({ isDark = false }) {
       <button
         type="button"
         id="navbar-notification-bell-btn"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          setIsOpen((prev) => {
+            const next = !prev
+            if (next) setShowAll(false)
+            return next
+          })
+        }}
         className={`relative p-2 rounded-full transition-all flex items-center justify-center focus:outline-none cursor-pointer ${
           isDark
             ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800'
@@ -321,7 +330,10 @@ export default function NotificationBell({ isDark = false }) {
           >
             <button
               type="button"
-              onClick={() => setFilter('all')}
+              onClick={() => {
+                setFilter('all')
+                setShowAll(false)
+              }}
               className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filter === 'all'
                   ? isDark
@@ -334,7 +346,10 @@ export default function NotificationBell({ isDark = false }) {
             </button>
             <button
               type="button"
-              onClick={() => setFilter('unread')}
+              onClick={() => {
+                setFilter('unread')
+                setShowAll(false)
+              }}
               className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filter === 'unread'
                   ? isDark
@@ -425,6 +440,33 @@ export default function NotificationBell({ isDark = false }) {
               </div>
             )}
           </div>
+
+          {/* Nút Xem Tất Cả / Hiện Thêm Thông Báo */}
+          {fullList.length > 5 && (
+            <div
+              className={`p-2.5 px-4 border-t text-center ${
+                isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50/80'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAll((prev) => !prev)}
+                className="text-xs font-bold text-primary hover:underline inline-flex items-center justify-center gap-1.5 w-full py-1 cursor-pointer transition-colors"
+              >
+                {showAll ? (
+                  <>
+                    <span>Thu gọn bớt</span>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </>
+                ) : (
+                  <>
+                    <span>Hiện thêm thông báo (còn {fullList.length - 5} thông báo)</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Footer */}
           <div
