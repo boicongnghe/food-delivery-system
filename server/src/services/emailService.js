@@ -140,3 +140,110 @@ export const sendVerificationEmail = async ({ email, fullName, token }) => {
 
   return { success: true, verificationUrl, isDevMode: true };
 };
+
+/**
+ * Gửi email chứa mã OTP đặt lại mật khẩu cho người dùng
+ */
+export const sendResetPasswordOtpEmail = async ({ email, fullName, otp }) => {
+  const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || '"FoodDelivery System" <no-reply@fooddelivery.vn>';
+  const mailTransporter = getTransporter();
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Mã xác thực đặt lại mật khẩu FoodDelivery</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1E293B;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F8FAFC; padding: 30px 10px;">
+        <tr>
+          <td align="center">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 540px; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #E2E8F0;">
+              
+              <!-- Header Gradient Banner -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #FF4B2B 0%, #FF416C 50%, #FF8008 100%); padding: 32px 30px; text-align: center;">
+                  <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
+                    Food<span style="color: #FFE600;">Delivery</span>
+                  </h1>
+                  <p style="margin: 6px 0 0 0; color: rgba(255, 255, 255, 0.95); font-size: 14px; font-weight: 600;">
+                    Yêu cầu đặt lại mật khẩu tài khoản
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Body Content -->
+              <tr>
+                <td style="padding: 32px 30px 24px 30px;">
+                  <h2 style="margin: 0 0 14px 0; color: #0F172A; font-size: 19px; font-weight: 700;">
+                    Xin chào ${fullName || 'bạn'}, 👋
+                  </h2>
+                  <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                    Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản đăng ký với email <strong>${email}</strong>.
+                  </p>
+                  
+                  <!-- OTP Code Box -->
+                  <div style="background: #FFF7ED; border: 2px dashed #FF5722; border-radius: 14px; padding: 22px 16px; text-align: center; margin: 24px 0;">
+                    <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #9A3412; text-transform: uppercase; letter-spacing: 0.8px;">
+                      MÃ XÁC THỰC OTP CỦA BẠN:
+                    </p>
+                    <div style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 900; letter-spacing: 10px; color: #FF4B2B; user-select: all; padding: 4px 0;">
+                      ${otp}
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #C2410C; font-weight: 500;">
+                      ⏳ Mã có hiệu lực trong vòng <strong>2 phút</strong>.
+                    </p>
+                  </div>
+
+                  <p style="margin: 0 0 12px 0; font-size: 13px; color: #64748B; line-height: 1.6;">
+                    Vui lòng không chia sẻ mã này cho bất kỳ ai. Đội ngũ FoodDelivery sẽ không bao giờ yêu cầu bạn cung cấp mã OTP.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #F8FAFC; padding: 18px 30px; border-top: 1px solid #E2E8F0; text-align: center;">
+                  <p style="margin: 0 0 4px 0; font-size: 12px; color: #94A3B8;">
+                    Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Mật khẩu của bạn vẫn an toàn.
+                  </p>
+                  <p style="margin: 0; font-size: 12px; color: #94A3B8; font-weight: 500;">
+                    © ${new Date().getFullYear()} FoodDelivery System. All rights reserved.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: senderEmail,
+        to: email,
+        subject: `🔑 [FoodDelivery] Mã OTP đặt lại mật khẩu của bạn: ${otp}`,
+        html: htmlContent,
+      });
+      console.log(`[EmailService] Reset password OTP email sent to: ${email}`);
+      return { success: true, isDevMode: false };
+    } catch (error) {
+      console.error('[EmailService] Failed to send OTP email via SMTP, fallback to console log:', error.message);
+    }
+  }
+
+  // Fallback Dev Mode
+  console.log('\n================================================================');
+  console.log('📬 [EMAIL SERVICE - RESET PASSWORD OTP]');
+  console.log(`Người nhận: ${fullName || email} <${email}>`);
+  console.log(`Mã OTP: 👉 ${otp}`);
+  console.log('================================================================\n');
+
+  return { success: true, isDevMode: true };
+};
