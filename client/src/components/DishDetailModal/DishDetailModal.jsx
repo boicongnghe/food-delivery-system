@@ -12,8 +12,6 @@ import {
   MessageSquare,
   Lock,
   CheckCircle2,
-  Sparkles,
-  ChevronDown,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import foodApi from '../../api/foodApi.js'
@@ -506,7 +504,7 @@ export default function DishDetailModal({
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    100% đánh giá từ khách hàng đã đặt & nhận món thành công (chuẩn Shopee)
+                    100% đánh giá từ khách hàng đã đặt & nhận món thành công
                   </p>
                 </div>
               </div>
@@ -671,7 +669,7 @@ export default function DishDetailModal({
                   ) : (
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs">
                       <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span>Chỉ khách hàng đã đặt và nhận món ăn này thành công mới có thể gửi đánh giá (Xác thực người mua như Shopee).</span>
+                      <span>Chỉ khách hàng đã đặt và nhận món ăn này thành công mới có thể gửi đánh giá</span>
                     </div>
                   )
                 ) : (

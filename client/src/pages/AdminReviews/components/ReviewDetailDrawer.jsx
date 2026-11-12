@@ -123,7 +123,7 @@ export default function ReviewDetailDrawer({ reviewId, onClose, onChanged }) {
           </AdminSection>
 
           {review.dishReviews && review.dishReviews.length > 0 && (
-            <AdminSection title="Đánh giá món ăn (Shopee style)">
+            <AdminSection title="Đánh giá chi tiết từng món ăn">
               <div className="space-y-2.5">
                 {review.dishReviews.map((dish, idx) => (
                   <div key={idx} className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-3.5 space-y-1.5">
