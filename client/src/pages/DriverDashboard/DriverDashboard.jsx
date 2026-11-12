@@ -217,10 +217,11 @@ function DriverDashboard() {
     : ''
 
   return (
-    <div className="flex min-h-screen flex-col bg-cream">
+    <div className="shipper-portal flex min-h-screen flex-col bg-cream">
       <Header
         subtitle="Kênh Tài Xế"
         navItems={SHIPPER_NAV_ITEMS}
+        showThemeToggle
         status={dashboard ? { label: dashboard.isOnline ? 'Đang trực' : 'Ngoại tuyến', isOpen: Boolean(dashboard.isOnline) } : null}
         accountImage={profile?.avatarUrl}
         accountName={profile?.name}
