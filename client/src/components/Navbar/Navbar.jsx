@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   MessageSquareText,
   Moon,
+  Scale,
   Sun,
   Flame,
   Wallet,
@@ -341,6 +342,15 @@ export default function Navbar({ theme: controlledTheme, onThemeChange } = {}) {
                       >
                         <MessageSquareText className="w-4 h-4 text-slate-400" />
                         <span>Đánh giá & Khiếu nại</span>
+                      </Link>
+
+                      <Link
+                        to="/delivery-issues"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-primary rounded-xl transition-colors"
+                      >
+                        <Scale className="w-4 h-4 text-slate-400" />
+                        <span>Đối chất sự cố</span>
                       </Link>
                     </div>
 

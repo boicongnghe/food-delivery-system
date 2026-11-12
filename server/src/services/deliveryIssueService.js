@@ -8,6 +8,7 @@ import { toPage } from '../utils/pagination.js';
 import { sendRealtimeNotification } from '../socket.js';
 import { getNextSequence } from './counterService.js';
 import { getViolationPolicy } from './settingService.js';
+import { countHearingMessages, getHearingState, notifyHearingUpdated } from './issueHearingService.js';
 import {
   countByStatus,
   ensureOwnEvidence,
@@ -103,7 +104,8 @@ export const listDeliveryIssues = async ({ page, limit, keyword, status, type })
     DeliveryIssue.countDocuments(filter),
     countByStatus(DeliveryIssue, baseFilter, DELIVERY_ISSUE_STATUSES),
   ]);
-  return { ...toPage(items, { page, limit }, totalItems), counts };
+  const withHearing = items.map((issue) => ({ ...issue, hearingState: getHearingState(issue) }));
+  return { ...toPage(withHearing, { page, limit }, totalItems), counts };
 };
 
 export const getDeliveryIssueDetail = async (issueId) => {
@@ -113,6 +115,8 @@ export const getDeliveryIssueDetail = async (issueId) => {
     .populate('restaurant', 'name phone address status owner')
     .populate('order', 'orderCode items subtotal packagingFee shippingFee discount promotion total delivery payment status statusHistory shipper createdAt')
     .populate('resolution.by', 'fullName')
+    .populate('resolution.orderActionBy', 'fullName')
+    .populate('hearing.openedBy', 'fullName')
     .lean();
   if (!issue) {
     throw new ApiError(404, 'Không tìm thấy báo cáo sự cố');
@@ -120,13 +124,14 @@ export const getDeliveryIssueDetail = async (issueId) => {
 
   // Earlier penalties of each party help the admin spot repeat offenders
   const parties = { shipper: issue.shipper?._id, customer: issue.customer?._id, restaurant: issue.restaurant?.owner };
-  const [groups, policy, sinceSuspension] = await Promise.all([
+  const [groups, policy, sinceSuspension, hearingMessageCount] = await Promise.all([
     DeliveryIssue.aggregate([
       { $match: { 'resolution.penalty.targetUser': { $in: Object.values(parties).filter(Boolean) } } },
       { $group: { _id: '$resolution.penalty.targetUser', count: { $sum: 1 } } },
     ]),
     getViolationPolicy(),
     Promise.all(Object.values(parties).map((userId) => (userId ? countViolationsSinceSuspension(userId) : 0))),
+    countHearingMessages(issue._id),
   ]);
   const violationCounts = Object.fromEntries(
     Object.entries(parties).map(([party, userId]) => [
@@ -139,7 +144,7 @@ export const getDeliveryIssueDetail = async (issueId) => {
     threshold: policy.autoSuspendThreshold,
     counts: Object.fromEntries(Object.keys(parties).map((party, index) => [party, sinceSuspension[index]])),
   };
-  return { ...issue, violationCounts, autoSuspend };
+  return { ...issue, violationCounts, autoSuspend, hearingState: getHearingState(issue), hearingMessageCount };
 };
 
 /**
@@ -185,13 +190,10 @@ const ORDER_FIELDS_FOR_ACTION = 'orderCode orderNumber status shipper restaurant
 
 // The order action must fit the order as it is now: still held by the reporting shipper, and not picked up for a release
 const assertOrderActionAllowed = (issue, order, orderAction) => {
-  if (orderAction === 'none') return;
   const heldByReporter =
     order && String(order.shipper) === String(issue.shipper) && ACTIVE_STATUSES.includes(order.status);
   if (!heldByReporter) {
-    throw new ApiError(409, 'Đơn hàng không còn do shipper báo cáo giữ, không thể đổi trạng thái đơn từ báo cáo này', [
-      { field: 'orderAction', message: 'Chọn "Giữ nguyên đơn hàng"' },
-    ]);
+    throw new ApiError(409, 'Đơn hàng không còn do shipper báo cáo giữ, không thể đổi trạng thái đơn từ báo cáo này');
   }
   if (orderAction === 'release' && !NOT_PICKED_UP_STATUSES.includes(order.status)) {
     throw new ApiError(409, 'Shipper đã lấy hàng, không thể trả đơn về hàng chờ', [
@@ -200,22 +202,17 @@ const assertOrderActionAllowed = (issue, order, orderAction) => {
   }
 };
 
-// Locking a shipper who still holds an order would leave that order with nobody able to finish it
-const assertShipperCanBeLocked = async (issue, penaltyRecord, orderAction) => {
+// Locking a shipper who still holds an order would leave that order with nobody able to finish it.
+// The order of the report is handled first, on its own (applyIssueOrderAction).
+const assertShipperCanBeLocked = async (issue, penaltyRecord) => {
   const locks = penaltyRecord?.action === 'suspend' || penaltyRecord?.autoSuspended;
   if (penaltyRecord?.target !== 'shipper' || !locks) return;
-  const stillHeld = await Order.exists({
-    shipper: issue.shipper,
-    status: { $in: ACTIVE_STATUSES },
-    ...(orderAction !== 'none' && { _id: { $ne: issue.order } }),
-  });
+  const stillHeld = await Order.exists({ shipper: issue.shipper, status: { $in: ACTIVE_STATUSES } });
   if (stillHeld) {
     const message = penaltyRecord.autoSuspended
-      ? 'Lần phạt này đạt ngưỡng vi phạm nên shipper sẽ bị tự động khóa, nhưng shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ'
-      : 'Shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ trước khi khóa tài khoản';
-    throw new ApiError(409, message, [
-      { field: 'orderAction', message: 'Chọn cách xử lý đơn hàng trước khi khóa shipper' },
-    ]);
+      ? 'Lần phạt này đạt ngưỡng vi phạm nên shipper sẽ bị tự động khóa, nhưng shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ ở mục "Xử lý đơn hàng" trước'
+      : 'Shipper đang giữ đơn chưa giao xong. Hãy hủy hoặc trả đơn về hàng chờ ở mục "Xử lý đơn hàng" trước khi khóa tài khoản';
+    throw new ApiError(409, message, [{ field: 'penalty.action', message: 'Xử lý đơn hàng trước khi khóa shipper' }]);
   }
 };
 
@@ -239,10 +236,8 @@ const notifyIssueCancellation = async (issue, order, result, reasonNote) => {
   }
 };
 
-// Cancel / release the order. Runs before the report is closed and is conditional on the order just read,
-// so two admins handling the report at once never act on the order twice.
+// Cancel / release the order. Conditional on the order just read, so two admins never act on it twice.
 const applyOrderAction = async (issue, order, orderAction, note) => {
-  if (orderAction === 'none') return;
   const reasonNote = `Sự cố ${issue.code}: ${note}`;
   const result =
     orderAction === 'release'
@@ -260,13 +255,57 @@ const applyOrderAction = async (issue, order, orderAction, note) => {
   }
 };
 
-export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, penalty = null, orderAction = 'none' }) => {
+/**
+ * Cancel the order or send it back to the pool, right away and apart from the decision: the order of a stuck
+ * shipper cannot wait for the hearing. Once per report, while the reporting shipper still holds the order.
+ */
+export const applyIssueOrderAction = async (adminId, issueId, { orderAction, note }) => {
   const issue = await DeliveryIssue.findById(issueId).populate('restaurant', 'owner').lean();
   if (!issue) {
     throw new ApiError(404, 'Không tìm thấy báo cáo sự cố');
   }
   if (issue.status !== 'open') {
     throw new ApiError(409, 'Báo cáo sự cố đã được xử lý trước đó');
+  }
+  if (issue.resolution?.orderAction && issue.resolution.orderAction !== 'none') {
+    throw new ApiError(409, 'Đơn hàng của báo cáo này đã được xử lý');
+  }
+  const order = await Order.findById(issue.order).select(ORDER_FIELDS_FOR_ACTION).lean();
+  assertOrderActionAllowed(issue, order, orderAction);
+
+  await applyOrderAction(issue, order, orderAction, note);
+  await DeliveryIssue.updateOne(
+    { _id: issueId },
+    {
+      $set: {
+        'resolution.orderAction': orderAction,
+        'resolution.orderActionBy': adminId,
+        'resolution.orderActionAt': new Date(),
+      },
+    },
+  );
+  return getDeliveryIssueDetail(issueId);
+};
+
+/**
+ * Decision on the report. Dismissing it, or upholding it without a penalty, is possible at any time;
+ * a penalty needs a hearing (shipper, customer, restaurant) that has ended.
+ */
+export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, penalty = null }) => {
+  const issue = await DeliveryIssue.findById(issueId).populate('restaurant', 'owner').lean();
+  if (!issue) {
+    throw new ApiError(404, 'Không tìm thấy báo cáo sự cố');
+  }
+  if (issue.status !== 'open') {
+    throw new ApiError(409, 'Báo cáo sự cố đã được xử lý trước đó');
+  }
+  const hearingState = getHearingState(issue);
+  if (penalty && hearingState !== 'closed') {
+    const message =
+      hearingState === 'open'
+        ? 'Phiên đối chất chưa kết thúc. Hãy chờ hết hạn hoặc kết thúc phiên trước khi xử phạt'
+        : 'Cần mở phiên đối chất cho shipper, khách hàng và nhà hàng trước khi xử phạt';
+    throw new ApiError(409, message, [{ field: 'penalty', message }]);
   }
 
   const penaltyRecord = penalty && {
@@ -282,15 +321,20 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     const earlier = await countViolationsSinceSuspension(penaltyRecord.targetUser);
     penaltyRecord.autoSuspended = earlier + 1 >= threshold;
   }
-  const order = await Order.findById(issue.order).select(ORDER_FIELDS_FOR_ACTION).lean();
-  assertOrderActionAllowed(issue, order, orderAction);
-  await assertShipperCanBeLocked(issue, penaltyRecord, orderAction);
+  await assertShipperCanBeLocked(issue, penaltyRecord);
 
-  await applyOrderAction(issue, order, orderAction, note);
-
+  // Dotted paths keep the order action recorded earlier
   const resolved = await DeliveryIssue.findOneAndUpdate(
     { _id: issueId, status: 'open' },
-    { $set: { status: decision, resolution: { note, penalty: penaltyRecord, orderAction, by: adminId, at: new Date() } } },
+    {
+      $set: {
+        status: decision,
+        'resolution.note': note,
+        'resolution.penalty': penaltyRecord,
+        'resolution.by': adminId,
+        'resolution.at': new Date(),
+      },
+    },
     { returnDocument: 'after', runValidators: true },
   );
   if (!resolved) {
@@ -305,5 +349,6 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     { _id: issue.order },
     { $set: { deliveryIssueFlagged: Boolean(hasOpenIssue) } },
   );
+  notifyHearingUpdated(issue);
   return getDeliveryIssueDetail(issueId);
 };

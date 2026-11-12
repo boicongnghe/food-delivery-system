@@ -17,6 +17,7 @@ import chatRoutes from './chatRoutes.js';
 import walletRoutes from './walletRoutes.js';
 import webhookRoutes from './webhookRoutes.js';
 import voucherRoutes from './voucherRoutes.js';
+import deliveryIssueRoutes from './deliveryIssueRoutes.js';
 
 const router = Router();
 
@@ -47,5 +48,6 @@ router.use('/chat', chatRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/restaurant-vouchers', voucherRoutes);
+router.use('/delivery-issues', deliveryIssueRoutes);
 
 export default router;
