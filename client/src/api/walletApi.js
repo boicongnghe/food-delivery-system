@@ -43,9 +43,9 @@ const walletApi = {
     return response.data
   },
 
-  // Xác nhận nạp tiền vào ví (Customer): { amount, depositCode }
-  confirmDeposit: async (data) => {
-    const response = await axiosClient.post('/wallet/deposit/confirm', data)
+  // Trạng thái yêu cầu nạp tiền: ví chỉ được cộng khi webhook ngân hàng báo tiền đã về
+  getDepositStatus: async (depositId) => {
+    const response = await axiosClient.get(`/wallet/deposit/${depositId}`)
     return response.data
   },
 

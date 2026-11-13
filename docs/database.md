@@ -1,13 +1,13 @@
-# Thiết kế cơ sở dữ liệu (khung)
+# Cơ sở dữ liệu
 
-> **TODO: nhóm chốt thiết kế.** Tài liệu này chỉ là bản gợi ý ban đầu. Chưa tạo Mongoose model. Sau khi nhóm thống nhất, cập nhật file này **trước** khi viết model.
+> Tài liệu mô tả schema MongoDB đang được triển khai. Với chi tiết không liệt kê ở đây, dùng các Mongoose model trong `server/src/models/` làm nguồn chuẩn.
 
 - Database: MongoDB, tên DB mặc định `food_delivery_db`.
 - Mọi collection bật `timestamps: true` (tự có `createdAt`, `updatedAt`).
 - Tham chiếu giữa collection dùng `ObjectId` + `ref`.
 - Tiền lưu dạng số nguyên (VND).
 
-## Sơ đồ quan hệ (dự kiến)
+## Sơ đồ quan hệ chính
 
 ```mermaid
 erDiagram
@@ -88,8 +88,10 @@ TODO: nhóm chốt thiết kế.
 
 | Trường | Kiểu | Ghi chú |
 | --- | --- | --- |
-| `orderCode` | String | `GN-0042`, duy nhất, sinh bằng `counterService.generateOrderCode()` (collection `counters`) |
+| `orderCode` | String | Mã hiển thị/tìm kiếm; đơn bếp/seed dạng `GN-0001` do `counterService.generateOrderCode()` cấp, đơn checkout dạng `ORD-YYYYMMDD-NNNN`. Index không unique; mã checkout dùng hậu tố ngẫu nhiên nên không đảm bảo duy nhất ở tầng cơ sở dữ liệu |
+| `orderNumber` | String | Mã đơn tương thích checkout; hook `pre('validate')` đồng bộ với `orderCode` nếu một trong hai chưa có |
 | `customer` / `restaurant` / `shipper` | ObjectId | `shipper` = null cho đến khi có shipper nhận đơn |
+| `holdBy`, `heldUntil` | ObjectId, Date | Khóa mềm khi shipper mở chi tiết đơn (20 giây); được xóa khi nhận hoặc nhả đơn |
 | `items` | Array | **Snapshot lúc đặt**: `{ menuItem, name, image, unitPrice, quantity, options: [{ groupName, name, price }], note, lineTotal }` |
 | `subtotal`, `packagingFee`, `shippingFee`, `discount`, `total` | Number | VND |
 | `delivery` | Object | `{ recipientName, phone, address, type: 'express' \| 'standard', expectedAt }` |
@@ -127,10 +129,7 @@ stateDiagram-v2
 
 - Luôn cập nhật **có điều kiện trạng thái cũ**, ví dụ `findOneAndUpdate({ _id, status: 'pending' }, ...)`, để 2 thao tác cùng lúc không đè nhau; không cập nhật được thì trả **409**.
 - Mỗi lần đổi trạng thái phải `$push` một dòng vào `statusHistory` **và** gọi `recordStatusChange` (`services/orderHistoryService.js`) để timeline của khách (`order_status_history`) có đủ các bước của khách, bếp, shipper và admin (R13).
-- **Hoàn tiền (R06):** hủy đơn đã trả online **không** chuyển ngay sang `refunded`. Đơn ghi `refund.status = pending` với số tiền cần hoàn, còn `payment.status` vẫn là `paid` (bên cũ: `refundStatus = pending`). Admin chuyển trả tiền rồi ghi kết quả qua `PATCH /api/admin/orders/:id/refund`:
-  - `{ result: 'succeeded', reference }`: bắt buộc có mã giao dịch. Khi đó `payment.status = refunded` (kèm `refundedAt`, `refundAmount`) và các bản ghi `payments` thành công chuyển sang `refunded`.
-  - `{ result: 'failed', note }`: khoản hoàn vẫn còn nợ và có thể xác nhận lại sau.
-  - Lệnh cập nhật có điều kiện theo `refund.status`, nên bấm hai lần không hoàn hai lần. Danh sách đơn của admin có tab "Chờ hoàn tiền".
+- **Hoàn tiền (R06):** khi hủy đơn đã thanh toán (khách, quán hoặc hệ thống), server hoàn tiền trực tiếp vào ví ảo của khách. Đơn được ghi `refund.status = succeeded`, `payment.status = refunded` cùng `refundedAt`/`refundAmount`, và tạo giao dịch ví loại `refund`; các bản ghi `payments` thành công cũng chuyển sang `refunded`. Không cần admin xác nhận hoặc mã giao dịch bên ngoài. Đơn cũ có `refund.status = pending` hoặc `failed` vẫn có thể được xử lý idempotently qua `PATCH /api/admin/orders/:id/refund`; hoàn thành sẽ cộng vào ví, còn thất bại giữ khoản hoàn ở trạng thái cần xử lý.
   - Đơn COD chưa thu tiền mà bị hủy → `payment.status = cancelled`.
 - Khách hủy được khi đơn còn `pending`/`confirmed`. Lệnh hủy có điều kiện theo trạng thái và thanh toán vừa đọc (R03): nếu quán vừa nhận đơn cùng lúc thì khách nhận **409**, không thể hủy đơn đang nấu. Bảng bếp hiển thị đơn khách vừa hủy trong 10 phút.
 - Chủ quán chỉ thấy số điện thoại khách đã che (`090***456`). API bếp trả đơn theo **danh sách trường cho phép** (`toRestaurantView`): không có `customer`, không có bản sao cũ `deliveryAddress` (R05).
@@ -179,7 +178,7 @@ Model `Order` đang có **hai bộ trường cho cùng một thông tin**:
 | Trường | Kiểu | Ghi chú |
 | --- | --- | --- |
 | `order` | ObjectId → `orders` | unique: mỗi đơn chỉ đánh giá một lần |
-| `orderCode` | String | snapshot `GN-0042` để tìm kiếm |
+| `orderCode` | String | mã đơn được lưu tại thời điểm đánh giá (thường là `GN-...` hoặc `ORD-...`) |
 | `customer` / `restaurant` / `shipper` | ObjectId | `shipper` = null nếu đơn không có shipper |
 | `restaurantRating`, `comment` | Number 1–5, String ≤ 500 | đánh giá món ăn và nhà hàng |
 | `shipperRating`, `shipperComment` | Number 1–5 / null, String ≤ 300 | bắt buộc chấm sao khi đơn có shipper |

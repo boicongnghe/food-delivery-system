@@ -260,6 +260,7 @@ function DeliveryOrders({ onOrderChanged }) {
 
     socket.on('connect', refreshIfVisible)
     socket.on('new_pickup_order', refreshIfVisible)
+    socket.on('order_taken', refreshIfVisible)
     socket.on('new_notification', handleOrderNotification)
     socket.on('order_held', handleOrderHeld)
     socket.on('order_released', handleOrderReleased)
@@ -268,6 +269,7 @@ function DeliveryOrders({ onOrderChanged }) {
     return () => {
       socket.off('connect', refreshIfVisible)
       socket.off('new_pickup_order', refreshIfVisible)
+      socket.off('order_taken', refreshIfVisible)
       socket.off('new_notification', handleOrderNotification)
       socket.off('order_held', handleOrderHeld)
       socket.off('order_released', handleOrderReleased)
@@ -292,6 +294,9 @@ function DeliveryOrders({ onOrderChanged }) {
       await refreshOrders(true)
     } catch (requestError) {
       setActionError(getErrorMessage(requestError))
+      if (requestError.response?.status === 409) {
+        await refreshOrders(true)
+      }
     } finally {
       setBusyOrderId('')
     }

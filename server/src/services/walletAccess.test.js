@@ -3,6 +3,7 @@ import test, { mock } from 'node:test';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import WalletDeposit from '../models/WalletDeposit.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import DriverDashboard from '../models/DriverDashboard.js';
@@ -76,7 +77,7 @@ test('walletRoutes rejects restaurant_owner, shipper, and admin on customer wall
     ['get', '/my-wallet'],
     ['post', '/withdraw'],
     ['post', '/deposit/create'],
-    ['post', '/deposit/confirm'],
+    ['get', '/deposit/:id'],
   ];
 
   for (const role of ['restaurant_owner', 'shipper', 'admin']) {
@@ -94,6 +95,7 @@ test('walletRoutes rejects restaurant_owner, shipper, and admin on customer wall
         headers: { authorization: `Bearer ${token}` },
         method: method.toUpperCase(),
         originalUrl: `/api/wallet${path}`,
+        params: { id: USER_ID },
       };
       const { capturedError } = await runMiddlewares(middlewares, req);
       assert.ok(capturedError, `${role} should be blocked on ${method.toUpperCase()} ${path}`);
@@ -110,7 +112,7 @@ test('walletRoutes allows customer on customer wallet endpoints and allows both 
     ['customer', '/my-wallet', 'get', true],
     ['customer', '/withdraw', 'post', true],
     ['customer', '/deposit/create', 'post', true],
-    ['customer', '/deposit/confirm', 'post', true],
+    ['customer', '/deposit/:id', 'get', true],
     ['shipper', '/payout-accounts', 'get', true],
     ['customer', '/payout-accounts', 'get', true],
     ['restaurant_owner', '/payout-accounts', 'get', false],
@@ -129,6 +131,7 @@ test('walletRoutes allows customer on customer wallet endpoints and allows both 
       headers: { authorization: `Bearer ${token}` },
       method: method.toUpperCase(),
       originalUrl: `/api/wallet${path}`,
+      params: { id: USER_ID },
     };
     const { capturedError } = await runMiddlewares(middlewares, req);
     if (shouldPass) {
@@ -169,7 +172,7 @@ test('walletService blocks deposit, withdrawal, and balance read for non-custome
       (err) => err.statusCode === 403,
     );
     await assert.rejects(
-      () => walletService.confirmDeposit(USER_ID, { amount: 50000, depositCode: 'NAP VI 0909999999 1234' }),
+      () => walletService.getDepositStatus(USER_ID, USER_ID),
       (err) => err.statusCode === 403,
     );
     mock.restoreAll();
@@ -177,28 +180,48 @@ test('walletService blocks deposit, withdrawal, and balance read for non-custome
 });
 
 test('handleSepayWebhook refuses NAP VI wallet deposit when target user is not a customer', async () => {
-  delete process.env.SEPAY_API_KEY;
-  mock.method(User, 'findOne', async () => ({
-    _id: new mongoose.Types.ObjectId(USER_ID),
-    role: 'shipper',
-    phone: '0901111222',
-    walletBalance: 0,
-  }));
-  const updateMock = mock.method(User, 'findOneAndUpdate', async () => {
-    throw new Error('Must not credit non-customer walletBalance');
-  });
+  const prevKey = process.env.SEPAY_API_KEY;
+  process.env.SEPAY_API_KEY = 'test-sepay-key';
+  try {
+    mock.method(WalletDeposit, 'findOne', () => ({
+      lean: async () => ({
+        _id: new mongoose.Types.ObjectId(),
+        user: new mongoose.Types.ObjectId(USER_ID),
+        code: 'NAPVI12345678',
+        amount: 100000,
+        status: 'pending',
+      }),
+    }));
+    mock.method(User, 'findById', () => ({
+      select: () => ({
+        lean: async () => ({
+          _id: new mongoose.Types.ObjectId(USER_ID),
+          role: 'shipper',
+        }),
+      }),
+    }));
+    const updateMock = mock.method(User, 'findOneAndUpdate', async () => {
+      throw new Error('Must not credit non-customer walletBalance');
+    });
 
-  const result = await paymentService.handleSepayWebhook({
-    id: 1001,
-    transferType: 'in',
-    transferAmount: 100000,
-    content: 'NAP VI 0901111222 1234',
-    referenceCode: 'SEPAY-TEST-1',
-  });
+    const result = await paymentService.handleSepayWebhook(
+      {
+        id: 1001,
+        transferType: 'in',
+        transferAmount: 100000,
+        content: 'NAPVI 12345678',
+        referenceCode: 'SEPAY-TEST-1',
+      },
+      'Apikey test-sepay-key',
+    );
 
-  assert.equal(result.success, false);
-  assert.match(result.message, /khách hàng/i);
-  assert.equal(updateMock.mock.callCount(), 0);
+    assert.equal(result.success, false);
+    assert.match(result.message, /khách hàng/i);
+    assert.equal(updateMock.mock.callCount(), 0);
+  } finally {
+    if (prevKey === undefined) delete process.env.SEPAY_API_KEY;
+    else process.env.SEPAY_API_KEY = prevKey;
+  }
 });
 
 test('shipperWalletService deducts exclusively from DriverDashboard.walletBalance and never touches User.walletBalance', async () => {
@@ -270,6 +293,20 @@ test('shipperWalletService deducts exclusively from DriverDashboard.walletBalanc
 
 test('walletService allows customer role and scopes updates with role: customer', async () => {
   mock.method(Notification, 'create', async () => ({ _id: 'notif-1' }));
+  mock.method(WalletDeposit, 'findOne', () => ({
+    lean: async () => ({
+      _id: 'dep-1',
+      user: USER_ID,
+      code: 'NAPVI12345678',
+      amount: 50000,
+      status: 'pending',
+    }),
+  }));
+  mock.method(WalletDeposit, 'updateOne', async () => ({ modifiedCount: 1 }));
+  mock.method(mongoose, 'startSession', async () => ({
+    withTransaction: async (fn) => fn(),
+    endSession: async () => {},
+  }));
   mock.method(User, 'findById', () => ({
     select: () => ({
       lean: async () => ({
@@ -287,14 +324,16 @@ test('walletService allows customer role and scopes updates with role: customer'
     confirmFilter = filter;
     return { _id: USER_ID, role: 'customer', walletBalance: 170000 };
   });
-  mock.method(WalletTransaction, 'create', async (doc) => ({ _id: 'tx-1', ...doc }));
+  mock.method(WalletTransaction, 'create', async (docs) => [{ _id: 'tx-1', ...docs[0] }]);
 
-  const res = await walletService.confirmDeposit(USER_ID, {
+  const res = await walletService.creditDepositFromBank({
+    code: 'NAPVI12345678',
     amount: 50000,
-    depositCode: 'NAP VI 0901234567 1234',
+    externalRef: 'SEPAY-TX-1',
   });
   assert.deepEqual(confirmFilter, { _id: USER_ID, role: 'customer' });
-  assert.equal(res.walletBalance, 170000);
+  assert.equal(res.success, true);
+  assert.equal(res.data.newBalance, 170000);
 });
 
 test('driverDashboardService returns root DriverDashboard.walletBalance regardless of legacy periods.today.walletBalance', async () => {

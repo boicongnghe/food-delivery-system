@@ -1,4 +1,7 @@
+import { randomInt } from 'crypto';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
+import WalletDeposit from '../models/WalletDeposit.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import Restaurant from '../models/Restaurant.js';
@@ -34,38 +37,59 @@ import {
    CUSTOMER VIRTUAL WALLET (Hoàn tiền đơn hàng & Rút tiền ví ảo)
    ========================================================================== */
 
-/**
- * Tự động hoàn tiền vào ví ảo của khách hàng khi đơn hàng bị hủy
- */
-export const creditWalletRefund = async ({ userId, orderId, orderCode, amount }) => {
-  if (!userId || !amount || amount <= 0) return null;
-
-  const updatedUser = await User.findByIdAndUpdate(
-    userId,
-    { $inc: { walletBalance: amount } },
-    { returnDocument: 'after', runValidators: true },
-  );
-
-  if (!updatedUser) return null;
-
-  const transaction = await WalletTransaction.create({
-    user: userId,
-    type: 'refund',
-    amount,
-    balanceAfter: updatedUser.walletBalance,
-    order: orderId,
-    status: 'completed',
-    description: `Hoàn tiền đơn hàng #${orderCode || orderId}`,
-  });
-
-  // Bắn sự kiện realtime cập nhật số dư ví và lưu vào Notification
-  emitWalletUpdate(userId, updatedUser.walletBalance);
+/** Realtime balance + bell notification after a refund was credited (and committed) */
+export const notifyWalletRefund = ({ userId, orderId, orderCode, amount, balance }) => {
+  emitWalletUpdate(userId, balance);
   sendRealtimeNotification(userId, {
     title: 'Đã hoàn tiền vào ví ảo 💰',
     message: `Đơn #${orderCode || orderId} đã hủy. Số tiền ${amount.toLocaleString('vi-VN')}đ đã được hoàn vào ví ảo của bạn.`,
     type: 'wallet',
     link: '/wallet',
   }).catch(() => {});
+};
+
+/**
+ * Tự động hoàn tiền vào ví ảo của khách hàng khi đơn hàng bị hủy.
+ * With a session the caller notifies (notifyWalletRefund) once its transaction is committed.
+ */
+export const creditWalletRefund = async ({
+  userId,
+  orderId,
+  orderCode,
+  amount,
+  description,
+  externalRef,
+  session = null,
+}) => {
+  if (!userId || !amount || amount <= 0) return null;
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { walletBalance: amount } },
+    { returnDocument: 'after', runValidators: true, session },
+  );
+
+  if (!updatedUser) return null;
+
+  const [transaction] = await WalletTransaction.create(
+    [
+      {
+        user: userId,
+        type: 'refund',
+        amount,
+        balanceAfter: updatedUser.walletBalance,
+        order: orderId,
+        status: 'completed',
+        description: description || `Hoàn tiền đơn hàng #${orderCode || orderId}`,
+        externalRef,
+      },
+    ],
+    { session },
+  );
+
+  if (!session) {
+    notifyWalletRefund({ userId, orderId, orderCode, amount, balance: updatedUser.walletBalance });
+  }
 
   return { updatedUser, transaction };
 };
@@ -202,6 +226,25 @@ export const listWithdrawalsForAdmin = async ({ status, page = 1, limit = 20 }) 
 };
 
 /**
+ * Move a withdrawal request out of "pending" in one atomic step: of two concurrent approve / reject
+ * calls (two admins, two tabs) only the first one gets the document, the other one receives 409.
+ */
+const claimPendingWithdrawal = async (withdrawalId, fields, session) => {
+  const withdrawal = await WithdrawalRequest.findOneAndUpdate(
+    { _id: withdrawalId, status: 'pending' },
+    { $set: fields },
+    { returnDocument: 'after', runValidators: true, session },
+  );
+  if (withdrawal) return withdrawal;
+
+  const exists = await WithdrawalRequest.exists({ _id: withdrawalId }).session(session);
+  if (!exists) {
+    throw new ApiError(404, 'Không tìm thấy yêu cầu rút tiền');
+  }
+  throw new ApiError(409, 'Yêu cầu rút tiền này đã được xử lý trước đó. Vui lòng tải lại danh sách.');
+};
+
+/**
  * Admin: Duyệt yêu cầu rút tiền (xác nhận đã chuyển khoản)
  */
 export const approveWithdrawal = async (adminId, withdrawalId, { reference, note }) => {
@@ -209,27 +252,32 @@ export const approveWithdrawal = async (adminId, withdrawalId, { reference, note
     throw new ApiError(400, 'Vui lòng cung cấp mã giao dịch chuyển tiền (reference/FT)');
   }
 
-  const withdrawal = await WithdrawalRequest.findOne({
-    _id: withdrawalId,
-    status: 'pending',
-  });
+  const session = await mongoose.startSession();
+  let withdrawal;
+  try {
+    await session.withTransaction(async () => {
+      withdrawal = await claimPendingWithdrawal(
+        withdrawalId,
+        {
+          status: 'completed',
+          reference: reference.trim(),
+          note: (note || '').trim(),
+          processedAt: new Date(),
+          processedBy: adminId,
+        },
+        session,
+      );
 
-  if (!withdrawal) {
-    throw new ApiError(404, 'Không tìm thấy yêu cầu rút tiền đang chờ xử lý');
+      // Cập nhật trạng thái giao dịch ví tương ứng
+      await WalletTransaction.updateOne(
+        { withdrawalRequest: withdrawalId },
+        { $set: { status: 'completed' } },
+        { session },
+      );
+    });
+  } finally {
+    await session.endSession();
   }
-
-  withdrawal.status = 'completed';
-  withdrawal.reference = reference.trim();
-  withdrawal.note = (note || '').trim();
-  withdrawal.processedAt = new Date();
-  withdrawal.processedBy = adminId;
-  await withdrawal.save();
-
-  // Cập nhật trạng thái giao dịch ví tương ứng
-  await WalletTransaction.findOneAndUpdate(
-    { withdrawalRequest: withdrawalId },
-    { status: 'completed' },
-  );
 
   // Thông báo tới khách hàng
   sendRealtimeNotification(withdrawal.user, {
@@ -250,43 +298,57 @@ export const rejectWithdrawal = async (adminId, withdrawalId, { reason }) => {
     throw new ApiError(400, 'Vui lòng nhập lý do từ chối yêu cầu rút tiền');
   }
 
-  const withdrawal = await WithdrawalRequest.findOne({
-    _id: withdrawalId,
-    status: 'pending',
-  });
+  const session = await mongoose.startSession();
+  let withdrawal;
+  let updatedUser;
+  try {
+    await session.withTransaction(async () => {
+      withdrawal = await claimPendingWithdrawal(
+        withdrawalId,
+        {
+          status: 'rejected',
+          rejectionReason: reason.trim(),
+          processedAt: new Date(),
+          processedBy: adminId,
+        },
+        session,
+      );
 
-  if (!withdrawal) {
-    throw new ApiError(404, 'Không tìm thấy yêu cầu rút tiền đang chờ xử lý');
+      // Hoàn tiền lại vào ví ảo của khách (cùng transaction: không bao giờ hoàn mà yêu cầu vẫn "pending")
+      updatedUser = await User.findByIdAndUpdate(
+        withdrawal.user,
+        { $inc: { walletBalance: withdrawal.amount } },
+        { returnDocument: 'after', runValidators: true, session },
+      );
+      if (!updatedUser) {
+        throw new ApiError(404, 'Không tìm thấy tài khoản của yêu cầu rút tiền');
+      }
+
+      // Cập nhật giao dịch cũ và tạo giao dịch hoàn tiền rút
+      await WalletTransaction.updateOne(
+        { withdrawalRequest: withdrawalId },
+        { $set: { status: 'rejected' } },
+        { session },
+      );
+
+      await WalletTransaction.create(
+        [
+          {
+            user: withdrawal.user,
+            type: 'withdraw_rejected',
+            amount: withdrawal.amount,
+            balanceAfter: updatedUser.walletBalance,
+            withdrawalRequest: withdrawalId,
+            status: 'completed',
+            description: `Hoàn lại tiền rút bị từ chối: ${reason.trim()}`,
+          },
+        ],
+        { session },
+      );
+    });
+  } finally {
+    await session.endSession();
   }
-
-  withdrawal.status = 'rejected';
-  withdrawal.rejectionReason = reason.trim();
-  withdrawal.processedAt = new Date();
-  withdrawal.processedBy = adminId;
-  await withdrawal.save();
-
-  // Hoàn tiền lại vào ví ảo của khách
-  const updatedUser = await User.findByIdAndUpdate(
-    withdrawal.user,
-    { $inc: { walletBalance: withdrawal.amount } },
-    { returnDocument: 'after', runValidators: true },
-  );
-
-  // Cập nhật giao dịch cũ và tạo giao dịch hoàn tiền rút
-  await WalletTransaction.findOneAndUpdate(
-    { withdrawalRequest: withdrawalId },
-    { status: 'rejected' },
-  );
-
-  await WalletTransaction.create({
-    user: withdrawal.user,
-    type: 'withdraw_rejected',
-    amount: withdrawal.amount,
-    balanceAfter: updatedUser.walletBalance,
-    withdrawalRequest: withdrawalId,
-    status: 'completed',
-    description: `Hoàn lại tiền rút bị từ chối: ${reason.trim()}`,
-  });
 
   // Thông báo tới khách hàng
   emitWalletUpdate(withdrawal.user, updatedUser.walletBalance);
@@ -300,8 +362,29 @@ export const rejectWithdrawal = async (adminId, withdrawalId, { reason }) => {
   return withdrawal;
 };
 
+/* ----- Nạp tiền vào ví ảo: chỉ được cộng tiền từ webhook ngân hàng đã xác thực ----- */
+
+const DEPOSIT_CODE_PREFIX = 'NAPVI';
+// No 0/O, 1/I: the customer may type the code by hand in the banking app
+const DEPOSIT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DEPOSIT_CODE_LENGTH = 8;
+// Matched on the content with spaces and symbols removed (banks often drop or change them)
+const DEPOSIT_CODE_PATTERN = new RegExp(`${DEPOSIT_CODE_PREFIX}([A-Z0-9]{${DEPOSIT_CODE_LENGTH}})`);
+const DEPOSIT_CODE_ATTEMPTS = 5;
+
+const randomDepositSuffix = () =>
+  Array.from({ length: DEPOSIT_CODE_LENGTH }, () => DEPOSIT_CODE_ALPHABET[randomInt(DEPOSIT_CODE_ALPHABET.length)]).join('');
+
+/** Deposit code (e.g. NAPVI7KX2P9QA) found in a transfer content, or null */
+export const findDepositCode = (text) => {
+  const normalized = String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const match = normalized.match(DEPOSIT_CODE_PATTERN);
+  return match ? `${DEPOSIT_CODE_PREFIX}${match[1]}` : null;
+};
+
 /**
- * Tạo thông tin VietQR nạp tiền vào ví ảo của khách hàng
+ * Tạo thông tin VietQR nạp tiền vào ví ảo của khách hàng.
+ * The code is stored so the webhook credits the wallet of this user only.
  */
 export const createDepositRequest = async (userId, { amount }) => {
   const user = await ensureCustomerWalletUser(userId, 'role fullName phone email');
@@ -314,70 +397,137 @@ export const createDepositRequest = async (userId, { amount }) => {
     throw new ApiError(400, 'Số tiền nạp tối đa mỗi lần là 50.000.000đ');
   }
 
+  let deposit = null;
+  let suffix = '';
+  for (let attempt = 0; attempt < DEPOSIT_CODE_ATTEMPTS && !deposit; attempt += 1) {
+    suffix = randomDepositSuffix();
+    try {
+      deposit = await WalletDeposit.create({ user: user._id, code: `${DEPOSIT_CODE_PREFIX}${suffix}`, amount: numAmount });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+    }
+  }
+  if (!deposit) {
+    throw new ApiError(500, 'Không thể tạo mã nạp tiền, vui lòng thử lại');
+  }
   const bankId = (process.env.BANK_ID || 'TPB').trim().toUpperCase();
   const accountNo = (process.env.BANK_ACCOUNT_NO || '0393863658').trim();
   const accountName = (process.env.BANK_ACCOUNT_NAME || 'DO MANH DUONG').trim().toUpperCase();
 
-  const userIdentifier = user.phone ? user.phone.replace(/[\s.-]/g, '') : userId.toString().slice(-6).toUpperCase();
-  const depositCode = `NAP VI ${userIdentifier} ${Date.now().toString().slice(-4)}`;
-
+  const transferContent = `${DEPOSIT_CODE_PREFIX} ${suffix}`;
   const encodedName = encodeURIComponent(accountName);
-  const encodedInfo = encodeURIComponent(depositCode);
+  const encodedInfo = encodeURIComponent(transferContent);
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${numAmount}&addInfo=${encodedInfo}&accountName=${encodedName}`;
 
   return {
-    depositCode,
+    depositId: deposit._id,
+    depositCode: deposit.code,
     amount: numAmount,
     bankId,
     accountNo,
     accountName,
-    transferContent: depositCode,
+    transferContent,
     qrUrl,
   };
 };
 
-/**
- * Xác nhận nạp tiền vào ví ảo
- */
-export const confirmDeposit = async (userId, { amount, depositCode }) => {
+/** Trạng thái một yêu cầu nạp tiền của chính người dùng (màn nạp ví hỏi định kỳ chờ webhook) */
+export const getDepositStatus = async (userId, depositId) => {
   await ensureCustomerWalletUser(userId, 'role');
+  const deposit = await WalletDeposit.findOne({ _id: depositId, user: userId })
+    .select('code amount status creditedAmount completedAt createdAt')
+    .lean();
+  if (!deposit) {
+    throw new ApiError(404, 'Không tìm thấy yêu cầu nạp tiền');
+  }
+  return deposit;
+};
 
-  const numAmount = Number(amount);
-  if (!numAmount || isNaN(numAmount) || numAmount < 10000) {
-    throw new ApiError(400, 'Số tiền nạp không hợp lệ (tối thiểu 10.000đ)');
+/** Find a deposit request by code (simulation checks that the caller owns it) */
+export const findDepositByCode = (code) => WalletDeposit.findOne({ code }).lean();
+
+/**
+ * Credit a wallet from a verified bank transfer that carries a deposit code.
+ * externalRef (the bank transaction reference) is unique: a webhook sent twice credits once.
+ */
+export const creditDepositFromBank = async ({ code, amount, externalRef, source = 'SePay' }) => {
+  const deposit = await WalletDeposit.findOne({ code }).lean();
+  if (!deposit) {
+    return { success: false, message: `Không tìm thấy yêu cầu nạp tiền có mã ${code}` };
   }
 
-  const updatedUser = await User.findOneAndUpdate(
-    { _id: userId, role: 'customer' },
-    { $inc: { walletBalance: numAmount } },
-    { returnDocument: 'after', runValidators: true },
-  );
-
-  if (!updatedUser) {
-    throw new ApiError(403, 'Ví ảo chỉ dành cho tài khoản khách hàng');
+  const targetUser = await User.findById(deposit.user).select('role').lean();
+  if (!targetUser) {
+    throw new ApiError(404, 'Không tìm thấy người dùng của yêu cầu nạp tiền');
+  }
+  if (targetUser.role !== 'customer') {
+    return { success: false, message: 'Ví ảo chỉ hỗ trợ nạp tiền cho tài khoản khách hàng (customer)' };
   }
 
-  const transaction = await WalletTransaction.create({
-    user: userId,
-    type: 'deposit',
-    amount: numAmount,
-    balanceAfter: updatedUser.walletBalance,
-    status: 'completed',
-    description: `Nạp tiền vào ví ảo qua VietQR (${depositCode || 'Nạp trực tiếp'})`,
-  });
+  const session = await mongoose.startSession();
+  let updatedUser;
+  try {
+    await session.withTransaction(async () => {
+      updatedUser = await User.findOneAndUpdate(
+        { _id: deposit.user, role: 'customer' },
+        { $inc: { walletBalance: amount } },
+        { returnDocument: 'after', runValidators: true, session },
+      );
+      if (!updatedUser) {
+        throw new ApiError(403, 'Ví ảo chỉ hỗ trợ nạp tiền cho tài khoản khách hàng');
+      }
 
-  emitWalletUpdate(userId, updatedUser.walletBalance);
+      await WalletTransaction.create(
+        [
+          {
+            user: deposit.user,
+            type: 'deposit',
+            amount,
+            balanceAfter: updatedUser.walletBalance,
+            status: 'completed',
+            externalRef,
+            description: `Nạp tiền vào ví qua ${source} - Mã nạp: ${code} - Mã GD: ${externalRef}`,
+          },
+        ],
+        { session },
+      );
 
-  sendRealtimeNotification(userId, {
-    title: 'Nạp tiền vào ví thành công 💰',
-    message: `Bạn vừa nạp thành công ${numAmount.toLocaleString('vi-VN')}đ vào ví ảo. Số dư hiện tại: ${updatedUser.walletBalance.toLocaleString('vi-VN')}đ.`,
+      // A second transfer with the same code is credited too (real money arrived): the amounts add up
+      await WalletDeposit.updateOne(
+        { _id: deposit._id },
+        { $set: { status: 'completed', completedAt: new Date() }, $inc: { creditedAmount: amount } },
+        { session },
+      );
+    });
+  } catch (error) {
+    // Duplicate externalRef: this bank transaction was credited before, nothing was changed
+    if (error?.code === 11000) {
+      return { success: true, alreadyProcessed: true, message: 'Giao dịch nạp tiền này đã được ghi nhận trước đó' };
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+
+  emitWalletUpdate(deposit.user, updatedUser.walletBalance);
+  sendRealtimeNotification(deposit.user, {
+    title: 'Nạp tiền vào ví thành công 👛',
+    message: `Bạn vừa nạp thành công ${amount.toLocaleString('vi-VN')}đ vào Ví ảo. Số dư hiện tại: ${updatedUser.walletBalance.toLocaleString('vi-VN')}đ.`,
     type: 'wallet',
     link: '/wallet',
   }).catch(() => {});
 
   return {
-    walletBalance: updatedUser.walletBalance,
-    transaction,
+    success: true,
+    type: 'deposit',
+    message: `Đã nạp thành công ${amount.toLocaleString('vi-VN')}đ vào ví người dùng`,
+    data: {
+      userId: deposit.user,
+      depositId: deposit._id,
+      amount,
+      newBalance: updatedUser.walletBalance,
+      transactionCode: externalRef,
+    },
   };
 };
 
