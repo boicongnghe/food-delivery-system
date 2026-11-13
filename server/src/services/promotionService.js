@@ -1,4 +1,5 @@
 import PromotionRule from '../models/PromotionRule.js';
+import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 
 // Public fields only: checkout suggests codes, it must not see usage counters or disabled / future codes
@@ -18,7 +19,7 @@ export const getPromotionRules = async () => {
     .lean();
 };
 
-export const validateAndApplyPromotion = async (code, subtotal) => {
+export const validateAndApplyPromotion = async (code, subtotal, userId = null) => {
   if (!code) {
     return { discountAmount: 0, promotion: null };
   }
@@ -37,6 +38,20 @@ export const validateAndApplyPromotion = async (code, subtotal) => {
 
   if (rule.usageLimit && rule.usedCount >= rule.usageLimit) {
     throw new ApiError(400, 'Mã khuyến mãi đã hết lượt sử dụng');
+  }
+
+  if (userId && rule.usageLimitPerCustomer) {
+    const userUsageCount = await Order.countDocuments({
+      customer: userId,
+      'promotion.code': rule.code,
+      status: { $ne: 'cancelled' },
+    });
+    if (userUsageCount >= rule.usageLimitPerCustomer) {
+      throw new ApiError(
+        400,
+        `Bạn đã dùng hết ${rule.usageLimitPerCustomer} lượt cho mã ưu đãi này (đã dùng ${userUsageCount} lần)`,
+      );
+    }
   }
 
   if (subtotal < rule.minOrderValue) {

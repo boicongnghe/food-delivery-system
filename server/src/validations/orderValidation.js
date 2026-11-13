@@ -91,6 +91,7 @@ export const createOrderSchema = Joi.object({
   }),
   promotionCode: Joi.string().trim().max(50).allow('', null).default(null),
   restaurantVoucherCode: Joi.string().trim().max(50).allow('', null).default(null),
+  idempotencyKey: Joi.string().trim().max(100).allow('', null).default(null),
 });
 
 export const REJECT_REASONS = ['out_of_stock', 'too_busy', 'closing_soon', 'other'];
