@@ -43,27 +43,27 @@ const walletApi = {
     return response.data
   },
 
-  // Xác nhận nạp tiền vào ví (Customer): { amount, depositCode }
-  confirmDeposit: async (data) => {
-    const response = await axiosClient.post('/wallet/deposit/confirm', data)
+  // Trạng thái yêu cầu nạp tiền: ví chỉ được cộng khi webhook ngân hàng báo tiền đã về
+  getDepositStatus: async (depositId) => {
+    const response = await axiosClient.get(`/wallet/deposit/${depositId}`)
     return response.data
   },
 
   // Lấy danh sách yêu cầu rút tiền (Admin)
   getAdminWithdrawals: async (params) => {
-    const response = await axiosClient.get('/wallet/admin/withdrawals', { params })
+    const response = await axiosClient.get('/admin/withdrawals', { params })
     return response.data
   },
 
   // Admin duyệt chuyển tiền thành công
   approveWithdrawal: async (id, data) => {
-    const response = await axiosClient.patch(`/wallet/admin/withdrawals/${id}/approve`, data)
+    const response = await axiosClient.patch(`/admin/withdrawals/${id}/approve`, data)
     return response.data
   },
 
   // Admin từ chối yêu cầu rút tiền (hoàn lại ví)
   rejectWithdrawal: async (id, data) => {
-    const response = await axiosClient.patch(`/wallet/admin/withdrawals/${id}/reject`, data)
+    const response = await axiosClient.patch(`/admin/withdrawals/${id}/reject`, data)
     return response.data
   },
 

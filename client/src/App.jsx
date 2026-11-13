@@ -1,11 +1,14 @@
 import AuthProvider from './context/AuthProvider.jsx'
 import AppRouter from './routes/AppRouter.jsx'
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary.jsx'
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRouter />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 

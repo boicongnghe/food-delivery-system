@@ -1,11 +1,15 @@
+import { Link } from 'react-router-dom'
 import { formatCurrency } from '../../utils/formatCurrency.js'
 import { formatDateTime } from '../../utils/formatDate.js'
 import { ACTOR_LABELS, ORDER_STATUSES, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS } from '../../utils/orderLabels.js'
 import AdminBadge from '../AdminBadge/AdminBadge.jsx'
 import AdminInfoRow from '../AdminInfoRow/AdminInfoRow.jsx'
 
-// The order as it was placed (snapshot): order list, complaints and delivery issues
-export default function AdminOrderSnapshot({ order }) {
+/**
+ * The order as it was placed (snapshot): order list, complaints and delivery issues.
+ * manageLink: the order code links to the order on the order management page (from a complaint / report).
+ */
+export default function AdminOrderSnapshot({ order, manageLink = false }) {
   if (!order) {
     return <p className="text-sm text-slate-500">Đơn hàng không còn tồn tại.</p>
   }
@@ -16,7 +20,17 @@ export default function AdminOrderSnapshot({ order }) {
   return (
     <div className="space-y-3 rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{order.orderCode || order.orderNumber}</p>
+        {manageLink && order._id ? (
+          <Link
+            to={`/admin/orders?order=${order._id}`}
+            title="Mở ở Quản lý đơn hàng"
+            className="font-mono text-sm font-bold text-primary hover:underline"
+          >
+            {order.orderCode || order.orderNumber}
+          </Link>
+        ) : (
+          <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{order.orderCode || order.orderNumber}</p>
+        )}
         <div className="flex items-center gap-2">
           <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
           <span className="text-xs text-slate-500">Đặt lúc {formatDateTime(order.createdAt)}</span>

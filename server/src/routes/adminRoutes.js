@@ -12,6 +12,7 @@ import * as promotionRuleController from '../controllers/promotionRuleController
 import * as reviewController from '../controllers/reviewController.js';
 import * as settingController from '../controllers/settingController.js';
 import * as shippingFeeController from '../controllers/shippingFeeController.js';
+import * as walletController from '../controllers/walletController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { forCase } from '../middlewares/caseTypeMiddleware.js';
 import validate from '../middlewares/validate.js';
@@ -41,6 +42,11 @@ import {
 import { hearingMessageSchema, openHearingSchema } from '../validations/hearingValidation.js';
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
 import { adminReviewQuerySchema, reviewVisibilitySchema } from '../validations/reviewValidation.js';
+import {
+  adminWithdrawalQuerySchema,
+  approveWithdrawalSchema,
+  rejectWithdrawalSchema,
+} from '../validations/walletValidation.js';
 
 const router = Router();
 const validateId = validate(idParamSchema, 'params');
@@ -71,6 +77,21 @@ router.patch(
   validateId,
   validate(adminReleaseShipperSchema),
   adminOrderController.releaseShipper,
+);
+
+// Customer wallet withdrawals - confirm the bank transfer, or reject and refund the wallet
+router.get('/withdrawals', validate(adminWithdrawalQuerySchema, 'query'), walletController.listWithdrawalsForAdmin);
+router.patch(
+  '/withdrawals/:id/approve',
+  validateId,
+  validate(approveWithdrawalSchema),
+  walletController.approveWithdrawal,
+);
+router.patch(
+  '/withdrawals/:id/reject',
+  validateId,
+  validate(rejectWithdrawalSchema),
+  walletController.rejectWithdrawal,
 );
 
 // Order timeout rules (docs/order-timeouts.md)

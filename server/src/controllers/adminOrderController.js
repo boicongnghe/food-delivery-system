@@ -34,7 +34,7 @@ export const resolveRefund = asyncHandler(async (req, res) => {
 });
 
 export const cancelOrder = asyncHandler(async (req, res) => {
-  const order = await adminOrderService.cancelOrderAsAdmin(req.params.id, req.body);
+  const order = await adminOrderService.cancelOrderAsAdmin(req.user._id, req.params.id, req.body);
 
   res.status(200).json({
     success: true,
@@ -44,7 +44,7 @@ export const cancelOrder = asyncHandler(async (req, res) => {
 });
 
 export const releaseShipper = asyncHandler(async (req, res) => {
-  const order = await adminOrderService.releaseShipperAsAdmin(req.params.id, req.body);
+  const order = await adminOrderService.releaseShipperAsAdmin(req.user._id, req.params.id, req.body);
 
   res.status(200).json({
     success: true,

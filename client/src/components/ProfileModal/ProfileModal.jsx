@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   User,
@@ -56,6 +56,7 @@ export default function ProfileModal({ isOpen, onClose }) {
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('')
   const [showDeletePass, setShowDeletePass] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // Tab 2: Addresses State (Customers only)
   const [addresses, setAddresses] = useState([])
@@ -317,14 +318,19 @@ export default function ProfileModal({ isOpen, onClose }) {
   // Handler: Customer Self-Deletes Account
   const handleDeleteAccount = async (e) => {
     e.preventDefault()
+    setDeleteError('')
 
     if (hasPassword && !deletePassword) {
-      toast.error('Vui lòng nhập mật khẩu hiện tại để xác thực xóa tài khoản.')
+      const msg = 'Vui lòng nhập mật khẩu hiện tại để xác thực xóa tài khoản.'
+      setDeleteError(msg)
+      toast.error(msg)
       return
     }
 
     if (!hasPassword && deleteConfirmationText.trim().toUpperCase() !== 'XÓA TÀI KHOẢN') {
-      toast.error('Vui lòng nhập chính xác cụm từ "XÓA TÀI KHOẢN" để xác nhận.')
+      const msg = 'Vui lòng nhập chính xác cụm từ "XÓA TÀI KHOẢN" để xác nhận.'
+      setDeleteError(msg)
+      toast.error(msg)
       return
     }
 
@@ -336,7 +342,7 @@ export default function ProfileModal({ isOpen, onClose }) {
     setDeletingAccount(false)
 
     if (res.success) {
-      toast.success(res.message || 'Tài khoản của bạn đã được xóa vĩnh viễn khỏi hệ thống.', {
+      toast.success(res.message || 'Tài khoản của bạn đã được xóa và ẩn danh hóa khỏi hệ thống.', {
         duration: 4500,
         icon: '👋',
       })
@@ -345,7 +351,9 @@ export default function ProfileModal({ isOpen, onClose }) {
       onClose()
       navigate('/', { replace: true })
     } else {
-      toast.error(res.message || 'Xóa tài khoản không thành công.')
+      const msg = res.message || 'Xóa tài khoản không thành công.'
+      setDeleteError(msg)
+      toast.error(msg, { duration: 5000 })
     }
   }
 
@@ -584,7 +592,7 @@ export default function ProfileModal({ isOpen, onClose }) {
                         <AlertTriangle className="w-4 h-4 text-red-500" /> Vùng nguy hiểm
                       </h5>
                       <p className="text-xs text-slate-600">
-                        Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu cá nhân của bạn khỏi hệ thống.
+                        Xóa tài khoản và ẩn danh hóa thông tin cá nhân khỏi hệ thống (yêu cầu ví 0đ, không có yêu cầu rút tiền chờ xử lý và không còn đơn đang giao).
                       </p>
                     </div>
                     <button
@@ -592,6 +600,7 @@ export default function ProfileModal({ isOpen, onClose }) {
                       onClick={() => {
                         setDeletePassword('')
                         setDeleteConfirmationText('')
+                        setDeleteError('')
                         setShowDeleteModal(true)
                       }}
                       className="px-3.5 py-2 rounded-xl bg-white border border-red-300 hover:bg-red-600 hover:text-white text-red-600 text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
@@ -990,10 +999,43 @@ export default function ProfileModal({ isOpen, onClose }) {
                     • Email: <strong>{user.email}</strong>
                   </p>
                 )}
-                <p className="text-slate-600 text-[11px] pt-1">
-                  Toàn bộ thông tin cá nhân và sổ địa chỉ sẽ bị xóa sạch khỏi hệ thống. Nếu có đơn hàng đang giao, hệ thống sẽ từ chối để bảo vệ quyền lợi đơn hàng.
+                <p className="text-slate-600 text-[11px] pt-1 leading-relaxed">
+                  Thông tin cá nhân (email, SĐT, sổ địa chỉ, tài khoản ngân hàng) sẽ được xóa và ẩn danh hóa khỏi hệ thống để giữ toàn vẹn lịch sử giao dịch.
+                  <br />
+                  Hệ thống sẽ <strong>từ chối xóa</strong> nếu bạn còn đơn hàng đang xử lý/giao, ví còn số dư (&gt; 0đ) hoặc còn yêu cầu rút tiền đang chờ duyệt.
                 </p>
               </div>
+
+              {Number(user?.walletBalance || 0) > 0 && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold">
+                      Ví của bạn hiện còn {Number(user.walletBalance).toLocaleString('vi-VN')}đ
+                    </p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      Vui lòng rút hết số dư và đợi xử lý xong trước khi xóa tài khoản.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteModal(false)
+                      onClose()
+                      navigate('/wallet')
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold shrink-0 cursor-pointer"
+                  >
+                    Đến Ví ảo
+                  </button>
+                </div>
+              )}
+
+              {deleteError && (
+                <div className="p-3 rounded-2xl bg-red-100/80 border border-red-300 text-xs text-red-800 font-semibold flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
 
               <form onSubmit={handleDeleteAccount} className="space-y-4 pt-1">
                 {hasPassword ? (
@@ -1007,7 +1049,10 @@ export default function ProfileModal({ isOpen, onClose }) {
                         type={showDeletePass ? 'text' : 'password'}
                         placeholder="Nhập mật khẩu của bạn"
                         value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
+                        onChange={(e) => {
+                          setDeletePassword(e.target.value)
+                          if (deleteError) setDeleteError('')
+                        }}
                         required
                         className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all"
                       />
@@ -1030,7 +1075,10 @@ export default function ProfileModal({ isOpen, onClose }) {
                       type="text"
                       placeholder="XÓA TÀI KHOẢN"
                       value={deleteConfirmationText}
-                      onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                      onChange={(e) => {
+                        setDeleteConfirmationText(e.target.value)
+                        if (deleteError) setDeleteError('')
+                      }}
                       required
                       className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 uppercase font-bold transition-all"
                     />
@@ -1044,6 +1092,7 @@ export default function ProfileModal({ isOpen, onClose }) {
                       setShowDeleteModal(false)
                       setDeletePassword('')
                       setDeleteConfirmationText('')
+                      setDeleteError('')
                     }}
                     disabled={deletingAccount}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"

@@ -21,7 +21,7 @@ export const protect = asyncHandler(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
-    if (!user) {
+    if (!user || user.isDeleted) {
       throw new ApiError(401, 'Tài khoản liên kết với phiên đăng nhập này không còn tồn tại.');
     }
 

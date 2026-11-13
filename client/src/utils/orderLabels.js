@@ -23,6 +23,8 @@ export const ORDER_TABS = [
   { value: 'refund_pending', label: 'Chờ hoàn tiền' },
   // Handed to the admin by a timeout rule: kitchen far past its prep time (TO-05), no shipper (TO-06)
   { value: 'attention', label: 'Cần xử lý' },
+  // Complaint (UC42) or delivery issue report (UC45) still waiting for an admin decision
+  { value: 'open_case', label: 'Có khiếu nại/sự cố' },
 ]
 
 export const PAYMENT_METHOD_LABELS = {

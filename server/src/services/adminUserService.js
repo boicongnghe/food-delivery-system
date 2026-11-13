@@ -16,7 +16,7 @@ const UNFINISHED_ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_f
 const STATUS_FILTERS = { all: {}, active: { isActive: true }, locked: { isActive: false } };
 
 export const listUsers = async ({ page, limit, keyword, role, status }) => {
-  const baseFilter = role === 'all' ? {} : { role };
+  const baseFilter = role === 'all' ? { isDeleted: { $ne: true } } : { role, isDeleted: { $ne: true } };
   if (keyword) {
     const regex = new RegExp(escapeRegex(keyword), 'i');
     baseFilter.$or = [{ fullName: regex }, { email: regex }, { phone: regex }];
@@ -58,7 +58,7 @@ export const summarizeOrders = async (match) => {
 
 export const getUserDetail = async (userId) => {
   const user = await User.findById(userId).select('-resetPasswordOtp -resetPasswordExpires').lean();
-  if (!user) {
+  if (!user || user.isDeleted) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
   }
 
@@ -119,8 +119,8 @@ const ensureRoleCanChange = async (user) => {
 export const updateUserRole = async (adminId, userId, role) => {
   ensureNotSelf(adminId, userId, 'Bạn không thể tự thay đổi vai trò của chính mình');
 
-  const user = await User.findById(userId).select('role').lean();
-  if (!user) {
+  const user = await User.findById(userId).select('role isDeleted').lean();
+  if (!user || user.isDeleted) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
   }
   if (user.role === role) {
@@ -148,9 +148,10 @@ export const updateUserStatus = async (adminId, userId, isActive) => {
     );
   }
 
-  const updated = await User.findOneAndUpdate({ _id: userId, isActive: !isActive }, { $set: { isActive } });
+  const updated = await User.findOneAndUpdate({ _id: userId, isDeleted: { $ne: true }, isActive: !isActive }, { $set: { isActive } });
   if (!updated) {
-    if (!(await User.exists({ _id: userId }))) {
+    const existing = await User.findById(userId).select('isDeleted').lean();
+    if (!existing || existing.isDeleted) {
       throw new ApiError(404, 'Không tìm thấy tài khoản');
     }
     throw new ApiError(409, isActive ? 'Tài khoản đang hoạt động' : 'Tài khoản đã bị khóa trước đó');

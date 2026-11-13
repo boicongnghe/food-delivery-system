@@ -39,8 +39,7 @@ export const resolveRestaurant = async (identifier) => {
 
   // 1. If valid 24-hex-char MongoDB ObjectId
   if (/^[0-9a-fA-F]{24}$/.test(str)) {
-    const byId = await Restaurant.findById(str);
-    if (byId) return byId;
+    return Restaurant.findById(str);
   }
 
   // 2. Decode slug if starts with 'res-'
@@ -263,6 +262,61 @@ const generateOrderNumber = async () => {
   return `ORD-${dateStr}-${Date.now().toString().slice(-4)}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 };
 
+const resolveDestinationCoordinates = async ({
+  userId,
+  addressId,
+  initialLat = null,
+  initialLng = null,
+  initialText = '',
+}) => {
+  let destLat = initialLat;
+  let destLng = initialLng;
+  let destText = initialText;
+  let ownedSource = null;
+
+  if (addressId) {
+    if (!mongoose.Types.ObjectId.isValid(addressId)) {
+      throw new ApiError(400, 'ID địa chỉ giao hàng không hợp lệ');
+    }
+
+    const savedAddress = await Address.findOne({ _id: addressId, user: userId });
+    if (savedAddress) {
+      ownedSource = 'address';
+      destText = savedAddress.addressLine || destText;
+      if ((destLat == null || destLng == null) && savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
+        destLat = savedAddress.location.lat;
+        destLng = savedAddress.location.lng;
+      }
+    } else {
+      const user = await User.findOne({ _id: userId, 'addresses._id': addressId }, 'addresses');
+      const embedded = user?.addresses?.id(addressId);
+      if (embedded) {
+        ownedSource = 'embedded';
+        destText = [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ') || destText;
+        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
+          destLat = embedded.location.lat;
+          destLng = embedded.location.lng;
+        }
+      } else {
+        throw new ApiError(404, 'Không tìm thấy địa chỉ giao hàng thuộc tài khoản của bạn');
+      }
+    }
+  }
+
+  if (destLat == null || destLng == null || isLocationMismatch(destText, destLat, destLng)) {
+    const resolved = await resolveLocationFromAddress(destText, { allowDefault: false });
+    destLat = resolved.lat;
+    destLng = resolved.lng;
+    if (ownedSource === 'address') {
+      Address.updateOne({ _id: addressId, user: userId }, { $set: { location: resolved } }).catch(() => {});
+    } else if (ownedSource === 'embedded') {
+      User.updateOne({ _id: userId, 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
+    }
+  }
+
+  return { destLat, destLng, destText };
+};
+
 export const createOrder = async (userId, data) => {
   const {
     restaurantId,
@@ -301,6 +355,9 @@ export const createOrder = async (userId, data) => {
   if (!restaurant) {
     throw new ApiError(404, 'Nhà hàng không tồn tại');
   }
+  if (restaurant.owner?.toString() === userId.toString()) {
+    throw new ApiError(403, 'Chủ quán không thể tự đặt đơn tại quán của chính mình');
+  }
   const realRestaurantId = restaurant._id;
 
   await assertRestaurantTakingOrders(restaurant);
@@ -326,40 +383,13 @@ export const createOrder = async (userId, data) => {
     Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
-  let destLat = deliveryAddress.location?.lat;
-  let destLng = deliveryAddress.location?.lng;
-  let destText = deliveryAddress.addressLine || '';
-
-  if (deliveryAddress.addressId) {
-    const savedAddress = await Address.findById(deliveryAddress.addressId);
-    if (savedAddress) {
-      destText = savedAddress.addressLine || destText;
-      if ((destLat == null || destLng == null) && savedAddress.location?.lat != null && savedAddress.location?.lng != null) {
-        destLat = savedAddress.location.lat;
-        destLng = savedAddress.location.lng;
-      }
-    } else {
-      const user = await User.findOne({ 'addresses._id': deliveryAddress.addressId }, 'addresses');
-      const embedded = user?.addresses?.id(deliveryAddress.addressId);
-      if (embedded) {
-        destText = [embedded.street, embedded.ward, embedded.district, embedded.city].filter(Boolean).join(', ') || destText;
-        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
-          destLat = embedded.location.lat;
-          destLng = embedded.location.lng;
-        }
-      }
-    }
-  }
-
-  if (destLat == null || destLng == null || isLocationMismatch(destText, destLat, destLng)) {
-    const resolved = await resolveLocationFromAddress(destText, { allowDefault: false });
-    destLat = resolved.lat;
-    destLng = resolved.lng;
-    if (deliveryAddress.addressId) {
-      Address.updateOne({ _id: deliveryAddress.addressId }, { $set: { location: resolved } }).catch(() => {});
-      User.updateOne({ 'addresses._id': deliveryAddress.addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
-    }
-  }
+  const { destLat, destLng } = await resolveDestinationCoordinates({
+    userId,
+    addressId: deliveryAddress.addressId,
+    initialLat: deliveryAddress.location?.lat,
+    initialLng: deliveryAddress.location?.lng,
+    initialText: deliveryAddress.addressLine || '',
+  });
 
   const shippingConfig = await getShippingFeeConfig();
   const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);
@@ -915,46 +945,15 @@ export const estimateShipping = async (userId, params) => {
     Restaurant.updateOne({ _id: restaurant._id }, { $set: { location: { lat: restLat, lng: restLng } } }).catch(() => {});
   }
 
-  let destLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : null;
-  let destLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : null;
-  let destinationAddressText = '';
-
-  if (addressId) {
-    // 1. Kiểm tra trong Address collection
-    const address = await Address.findById(addressId);
-    if (address) {
-      destinationAddressText = address.addressLine || '';
-      if ((destLat == null || destLng == null) && address.location?.lat != null && address.location?.lng != null) {
-        destLat = address.location.lat;
-        destLng = address.location.lng;
-      }
-    } else {
-      // 2. Kiểm tra trong User.addresses (địa chỉ nhúng trong User)
-      const user = await User.findOne({ 'addresses._id': addressId }, 'addresses');
-      const embedded = user?.addresses?.id(addressId);
-      if (embedded) {
-        destinationAddressText = [embedded.street, embedded.ward, embedded.district, embedded.city]
-          .filter(Boolean)
-          .join(', ');
-        if ((destLat == null || destLng == null) && embedded.location?.lat != null && embedded.location?.lng != null) {
-          destLat = embedded.location.lat;
-          destLng = embedded.location.lng;
-        }
-      }
-    }
-  }
-
-  if (destLat == null || destLng == null || isLocationMismatch(destinationAddressText, destLat, destLng)) {
-    const resolved = await resolveLocationFromAddress(destinationAddressText, { allowDefault: false });
-    destLat = resolved.lat;
-    destLng = resolved.lng;
-
-    // Cập nhật lại vào DB để tự động sửa chữa dữ liệu cũ
-    if (addressId) {
-      Address.updateOne({ _id: addressId }, { $set: { location: resolved } }).catch(() => {});
-      User.updateOne({ 'addresses._id': addressId }, { $set: { 'addresses.$.location': resolved } }).catch(() => {});
-    }
-  }
+  const initialLat = lat != null && !isNaN(Number(lat)) ? Number(lat) : null;
+  const initialLng = lng != null && !isNaN(Number(lng)) ? Number(lng) : null;
+  const { destLat, destLng } = await resolveDestinationCoordinates({
+    userId,
+    addressId,
+    initialLat,
+    initialLng,
+    initialText: '',
+  });
 
   const shippingConfig = await getShippingFeeConfig();
   const routeInfo = await getRouteDistanceAndDuration(restLat, restLng, destLat, destLng);

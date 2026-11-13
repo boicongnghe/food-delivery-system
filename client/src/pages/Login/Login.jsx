@@ -440,40 +440,6 @@ export default function Login() {
     }
   }
 
-  const handleDemoFill = (role) => {
-    let demoEmail = ''
-    let defaultPass = 'password123'
-    let roleLabel = ''
-    let icon = ''
-
-    if (role === 'customer') {
-      demoEmail = 'khachhang@fooddelivery.vn'
-      roleLabel = 'Khách hàng'
-      icon = '👤'
-    } else if (role === 'owner') {
-      demoEmail = 'chuquan@fooddelivery.vn'
-      roleLabel = 'Chủ quán'
-      icon = '🍳'
-    } else if (role === 'shipper') {
-      demoEmail = 'taixe@fooddelivery.vn'
-      roleLabel = 'Tài xế'
-      icon = '🛵'
-    } else if (role === 'admin') {
-      demoEmail = 'admin@fooddelivery.vn'
-      roleLabel = 'Quản trị viên'
-      icon = '🛡️'
-    }
-
-    const savedPass = getSavedPasswordForEmail(demoEmail)
-    setFormData((prev) => ({
-      ...prev,
-      email: demoEmail,
-      password: savedPass || defaultPass,
-      rememberMe: Boolean(savedPass),
-    }))
-    toast(`Đã điền tài khoản ${roleLabel} mẫu`, { icon })
-  }
-
   return (
     <div className="min-h-screen w-full bg-[#FFFDF9] dark:bg-[#0F1014] text-slate-900 dark:text-white flex flex-col justify-between selection:bg-orange-500 selection:text-white">
       {/* Main Full-Width 2-Column Content */}
@@ -604,46 +570,6 @@ export default function Login() {
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                     Đăng nhập để đặt món ngon, theo dõi lộ trình hoặc quản lý gian hàng của bạn.
                   </p>
-                </div>
-
-                {/* Quick Demo Credentials for Fast Grading */}
-                <div className="p-3.5 rounded-2xl bg-orange-50/70 dark:bg-slate-800/60 border border-dashed border-orange-200 dark:border-slate-700 mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-primary" />
-                      Đăng nhập nhanh (Tự điền tài khoản mẫu):
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDemoFill('customer')}
-                      className="px-2 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white transition-all shadow-xs hover:scale-105 active:scale-95 truncate"
-                    >
-                      👤 Khách hàng
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDemoFill('owner')}
-                      className="px-2 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs hover:scale-105 active:scale-95 truncate"
-                    >
-                      🍳 Quán ăn
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDemoFill('shipper')}
-                      className="px-2 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs hover:scale-105 active:scale-95 truncate"
-                    >
-                      🛵 Tài xế
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDemoFill('admin')}
-                      className="px-2 py-1.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all shadow-xs hover:scale-105 active:scale-95 truncate"
-                    >
-                      🛡️ Admin
-                    </button>
-                  </div>
                 </div>
 
                 {/* Unverified Account Warning Banner */}

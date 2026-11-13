@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Clock } from 'lucide-react'
 import { orderApi } from '../../api/orderApi.js'
-import { paymentApi } from '../../api/paymentApi.js'
+import { isPaymentSimulationEnabled, paymentApi } from '../../api/paymentApi.js'
 import toast from 'react-hot-toast'
 
 function PaymentResult() {
@@ -123,7 +123,7 @@ function PaymentResult() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  // Giả lập webhook SePay nhận tiền thành công (hỗ trợ test localhost)
+  // Giả lập webhook SePay nhận tiền thành công (dev / demo only, see isPaymentSimulationEnabled)
   const handleSimulateReceiveMoney = async () => {
     try {
       setProcessing(true)
@@ -348,17 +348,19 @@ function PaymentResult() {
             </div>
           </div>
 
-          {/* Nút Bắn Webhook xác nhận tiền đã vào tài khoản */}
-          <div className="flex flex-col gap-3 mt-5">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px active:translate-y-0 disabled:translate-y-0 disabled:bg-orange-500 w-full cursor-pointer"
-              disabled={processing}
-              onClick={handleSimulateReceiveMoney}
-            >
-              {processing ? 'Đang gửi sự kiện...' : 'Bắn Webhook: Tiền đã vào tài khoản'}
-            </button>
-          </div>
+          {/* Nút Bắn Webhook xác nhận tiền đã vào tài khoản (chỉ khi bật giả lập) */}
+          {isPaymentSimulationEnabled && (
+            <div className="flex flex-col gap-3 mt-5">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px active:translate-y-0 disabled:translate-y-0 disabled:bg-orange-500 w-full cursor-pointer"
+                disabled={processing}
+                onClick={handleSimulateReceiveMoney}
+              >
+                {processing ? 'Đang gửi sự kiện...' : 'Bắn Webhook: Tiền đã vào tài khoản'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

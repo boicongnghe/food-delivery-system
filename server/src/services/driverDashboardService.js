@@ -63,7 +63,6 @@ const emptyDashboardPeriod = () => ({
   bonus: 0,
   completedTrips: 0,
   tripGoal: 0,
-  walletBalance: 0,
   pendingBalance: 0,
   weeklyEarnings: 0,
   rating: 0,
@@ -229,10 +228,12 @@ const getDashboard = async (userId, period) => {
   periodData.reviews = reviewEntries;
   periodData.rating = Math.round(periodRating * 100) / 100;
   periodData.ratingCount = periodRatingCount;
+  // Nguồn số dư duy nhất của shipper là DriverDashboard.walletBalance ở cấp gốc (backfill một lần từ dữ liệu cũ nếu chưa có)
+  delete periodData.walletBalance;
   if (dashboard.walletBalance == null || (dashboard.isDemo && dashboard.walletBalance !== 0)) {
     dashboard.walletBalance = dashboard.isDemo
       ? 0
-      : Number(dashboard.periods.today?.walletBalance || 0);
+      : Number(dashboard.periods?.today?.walletBalance || 0);
     await DriverDashboard.updateOne(
       { userId, ...(dashboard.isDemo ? {} : { walletBalance: null }) },
       { $set: { walletBalance: dashboard.walletBalance } },

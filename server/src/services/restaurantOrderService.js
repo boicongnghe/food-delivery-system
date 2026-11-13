@@ -253,7 +253,7 @@ export const acceptOrder = async (restaurantId, orderId) => {
   return toRestaurantView(accepted);
 };
 
-// No: cancel. A customer who already paid online gets a refund request (completed by an admin)
+// No: cancel. A customer who already paid online is refunded to their virtual wallet.
 export const rejectOrder = async (restaurantId, orderId, { reason, note }) => {
   const order = await Order.findOne({ _id: orderId, restaurant: restaurantId, ...VISIBLE_TO_RESTAURANT_FILTER })
     .select('status payment total totalPrice customer')

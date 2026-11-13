@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { MIN_WITHDRAWAL_AMOUNT } from '../models/RestaurantWithdrawal.js';
+import { WITHDRAWAL_STATUSES } from '../models/WithdrawalRequest.js';
 import { pageQueryKeys } from './commonValidation.js';
 
 // POST /api/restaurants/me/wallet/withdrawals
@@ -50,4 +51,33 @@ export const payoutWebhookSchema = Joi.object({
   status: Joi.string().valid('succeeded', 'failed').required(),
   providerRef: Joi.string().trim().max(100).allow('').default(''),
   failureReason: Joi.string().trim().max(300).allow('').default(''),
+});
+
+// GET /api/admin/withdrawals - customer withdrawal requests (the admin page shows 20 per page)
+export const adminWithdrawalQuerySchema = Joi.object({
+  status: Joi.string()
+    .valid('all', ...WITHDRAWAL_STATUSES)
+    .default('all')
+    .messages({ 'any.only': 'Trạng thái lọc không hợp lệ' }),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+});
+
+// PATCH /api/admin/withdrawals/:id/approve - the bank transfer has been made
+export const approveWithdrawalSchema = Joi.object({
+  reference: Joi.string().trim().max(50).required().messages({
+    'string.empty': 'Vui lòng cung cấp mã giao dịch chuyển tiền (reference/FT)',
+    'string.max': 'Mã giao dịch tối đa 50 ký tự',
+    'any.required': 'Vui lòng cung cấp mã giao dịch chuyển tiền (reference/FT)',
+  }),
+  note: Joi.string().trim().max(300).allow('').default(''),
+});
+
+// PATCH /api/admin/withdrawals/:id/reject - the amount goes back to the customer wallet
+export const rejectWithdrawalSchema = Joi.object({
+  reason: Joi.string().trim().max(300).required().messages({
+    'string.empty': 'Vui lòng nhập lý do từ chối yêu cầu rút tiền',
+    'string.max': 'Lý do từ chối tối đa 300 ký tự',
+    'any.required': 'Vui lòng nhập lý do từ chối yêu cầu rút tiền',
+  }),
 });

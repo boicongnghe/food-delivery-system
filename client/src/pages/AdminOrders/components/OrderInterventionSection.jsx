@@ -1,16 +1,13 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { TriangleAlert } from 'lucide-react'
+import { Info, TriangleAlert } from 'lucide-react'
 import adminOrderApi from '../../../api/adminOrderApi.js'
 import AdminFieldError from '../../../components/AdminFieldError/AdminFieldError.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
 import { ADMIN_BUTTON, ADMIN_INPUT, ADMIN_LABEL } from '../../../utils/adminClassNames.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { confirmToast } from '../../../utils/confirmToast.jsx'
-
-// Same rule as the server (adminOrderService.cancelOrderAsAdmin): the food is not on its way yet.
-// A shipper may have accepted the order but not picked it up; after pickup the delivery issue flow handles it.
-const CANCELLABLE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup']
 
 const ACTIONS = {
   cancel: {
@@ -25,27 +22,36 @@ const ACTIONS = {
   },
 }
 
-const Warning = ({ children }) => (
-  <p className="mb-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
-    <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-    <span>{children}</span>
-  </p>
-)
+const Notice = ({ tone = 'amber', icon: Icon = TriangleAlert, children }) => {
+  const tones = {
+    amber: 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200',
+    sky: 'border-sky-500/30 bg-sky-500/10 text-sky-800 dark:text-sky-200',
+  }
+  return (
+    <p className={`mb-2 flex items-start gap-2 rounded-xl border p-3 text-sm ${tones[tone]}`}>
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  )
+}
 
 /**
- * Timeout flags of the order + what the admin can do about them: cancel on behalf of the customer
- * (TO-05, decision D3), or give an order a shipper accepted but never picked up to another shipper.
+ * Monitoring flags of the order (timeout rules) and the admin interventions: cancel for the customer, or give an
+ * order a shipper accepted but never picked up to another shipper. What is allowed comes from the server
+ * (order.interventions). With an open delivery issue report, the action is the order step of that report (UC45).
  */
-export default function AdminCancelSection({ order, onCancelled }) {
+export default function OrderInterventionSection({ order, onChanged }) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState('')
 
   const { prepEscalatedAt, shipperAlertedAt, pickupAlertedAt } = order.timeouts || {}
-  const canCancel = CANCELLABLE_STATUSES.includes(order.status)
-  // Held by a shipper who has not picked the food up yet (kitchen cooking or food ready)
-  const canRelease = ['preparing', 'ready_for_pickup'].includes(order.status) && Boolean(order.shipper)
-  if (!canCancel && !prepEscalatedAt && !shipperAlertedAt && !pickupAlertedAt) return null
+  const { cancel: canCancel, releaseShipper: canRelease, blockedReason, viaIssue } = order.interventions || {}
+  const waitingForShipper = ['confirmed', 'preparing', 'ready_for_pickup'].includes(order.status) && !order.shipper
+  const showPrepAlert = prepEscalatedAt && order.status === 'preparing'
+  const showShipperAlert = shipperAlertedAt && waitingForShipper
+  const showPickupAlert = pickupAlertedAt && canRelease
+  if (!canCancel && !canRelease && !blockedReason && !showPrepAlert && !showShipperAlert) return null
 
   const run = async (type) => {
     const action = ACTIONS[type]
@@ -55,7 +61,7 @@ export default function AdminCancelSection({ order, onCancelled }) {
       const response = await action.request(order._id, { note })
       toast.success(response.message)
       setNote('')
-      onCancelled(response.data)
+      onChanged(response.data)
     } catch (requestError) {
       const data = requestError.response?.data
       setError(data?.errors?.[0]?.message || '')
@@ -66,35 +72,49 @@ export default function AdminCancelSection({ order, onCancelled }) {
   }
 
   return (
-    <AdminSection title="Xử lý quá hạn">
-      {prepEscalatedAt && order.status === 'preparing' && (
-        <Warning>
+    <AdminSection title="Can thiệp đơn hàng">
+      {showPrepAlert && (
+        <Notice>
           Quán đã quá giờ chuẩn bị (chuyển admin lúc {formatDateTime(prepEscalatedAt)}). Liên hệ quán; nếu không thể hoàn tất, hủy
           thay khách. Quán không được bù.
-        </Warning>
+        </Notice>
       )}
-      {shipperAlertedAt && ['confirmed', 'preparing', 'ready_for_pickup'].includes(order.status) && !order.shipper && (
-        <Warning>
+      {showShipperAlert && (
+        <Notice>
           Đơn đang chờ shipper nhưng chưa có ai nhận (báo lúc {formatDateTime(shipperAlertedAt)}). Hãy điều phối shipper; đơn sẽ tự hủy
           khi hết thời hạn.
-        </Warning>
+        </Notice>
       )}
-      {pickupAlertedAt && canRelease && (
-        <Warning>
+      {showPickupAlert && (
+        <Notice>
           Shipper {order.shipper?.fullName || ''} đã nhận đơn nhưng chưa lấy hàng (báo lúc {formatDateTime(pickupAlertedAt)}). Liên hệ
           shipper; nếu không đến được, đổi shipper khác hoặc hủy đơn.
-        </Warning>
+        </Notice>
       )}
+      {viaIssue && (
+        <Notice tone="sky" icon={Info}>
+          Shipper đã gửi báo cáo sự cố{' '}
+          <Link
+            to={`/admin/support-cases?tab=delivery-issues&id=${viaIssue._id}`}
+            className="font-mono font-bold underline"
+          >
+            {viaIssue.code}
+          </Link>
+          . Hủy đơn hoặc đổi shipper ở đây được ghi vào báo cáo (bước "Xử lý đơn hàng"); đối chất, xử phạt và kết luận làm ở
+          trang Khiếu nại &amp; sự cố.
+        </Notice>
+      )}
+      {blockedReason && <Notice tone="sky" icon={Info}>{blockedReason}</Notice>}
 
-      {canCancel && (
+      {(canCancel || canRelease) && (
         <form onSubmit={(event) => event.preventDefault()} className="space-y-3 rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
           <fieldset disabled={Boolean(saving)} className="space-y-3">
             <div>
-              <label htmlFor="admin-cancel-note" className={ADMIN_LABEL}>
+              <label htmlFor="admin-intervention-note" className={ADMIN_LABEL}>
                 {canRelease ? 'Lý do đổi shipper / hủy đơn' : 'Lý do hủy thay khách'}
               </label>
               <textarea
-                id="admin-cancel-note"
+                id="admin-intervention-note"
                 rows={2}
                 maxLength={300}
                 value={note}
@@ -117,9 +137,11 @@ export default function AdminCancelSection({ order, onCancelled }) {
                   {saving === 'release' ? 'Đang đổi...' : 'Đổi shipper khác'}
                 </button>
               )}
-              <button type="button" onClick={() => run('cancel')} className={ADMIN_BUTTON.danger}>
-                {saving === 'cancel' ? 'Đang hủy...' : 'Hủy đơn thay khách'}
-              </button>
+              {canCancel && (
+                <button type="button" onClick={() => run('cancel')} className={ADMIN_BUTTON.danger}>
+                  {saving === 'cancel' ? 'Đang hủy...' : 'Hủy đơn thay khách'}
+                </button>
+              )}
             </div>
           </fieldset>
         </form>

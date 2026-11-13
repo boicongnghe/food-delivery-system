@@ -9,10 +9,11 @@ import { payoutAccountSchema } from '../validations/walletValidation.js';
 const router = Router();
 
 // Endpoint cho khách hàng (Customer)
-router.get('/my-wallet', protect, walletController.getMyWallet);
-router.post('/withdraw', protect, walletController.requestWithdrawal);
-router.post('/deposit/create', protect, walletController.createDeposit);
-router.post('/deposit/confirm', protect, walletController.confirmDeposit);
+router.get('/my-wallet', protect, authorize('customer'), walletController.getMyWallet);
+router.post('/withdraw', protect, authorize('customer'), walletController.requestWithdrawal);
+router.post('/deposit/create', protect, authorize('customer'), walletController.createDeposit);
+// The wallet is credited only by the verified bank webhook; the deposit screen polls this status
+router.get('/deposit/:id', protect, authorize('customer'), validate(idParamSchema, 'params'), walletController.getDepositStatus);
 
 // Bank accounts of customers and shippers (several, one default: withdrawals go to it). Restaurants have theirs
 // under /api/restaurants/me/wallet/payout-accounts
@@ -23,10 +24,7 @@ router.post('/payout-accounts', ...accountOwner, validate(payoutAccountSchema), 
 router.patch('/payout-accounts/:id/default', ...accountOwner, validateId, payoutAccountController.setDefaultPayoutAccount);
 router.delete('/payout-accounts/:id', ...accountOwner, validateId, payoutAccountController.removePayoutAccount);
 
-// Endpoint cho quản trị viên (Admin)
-router.get('/admin/withdrawals', protect, authorize('admin'), walletController.listWithdrawalsForAdmin);
-router.patch('/admin/withdrawals/:id/approve', protect, authorize('admin'), walletController.approveWithdrawal);
-router.patch('/admin/withdrawals/:id/reject', protect, authorize('admin'), walletController.rejectWithdrawal);
+// Admin review of customer withdrawals lives in adminRoutes.js (/api/admin/withdrawals)
 
 export default router;
 

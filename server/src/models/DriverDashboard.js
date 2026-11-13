@@ -27,7 +27,6 @@ const periodSchema = new Schema(
     bonus: { type: Number, default: 0 },
     completedTrips: { type: Number, default: 0 },
     tripGoal: { type: Number, default: 0 },
-    walletBalance: { type: Number, default: 0 },
     pendingBalance: { type: Number, default: 0 },
     weeklyEarnings: { type: Number, default: 0 },
     rating: { type: Number, default: 0 },
@@ -86,7 +85,8 @@ const driverDashboardSchema = new Schema(
     isOnline: { type: Boolean, default: false },
     activeOrderId: { type: Schema.Types.ObjectId, ref: 'Order', default: null },
     isDemo: { type: Boolean, default: false },
-    walletBalance: { type: Number, min: 0 },
+    // Nguồn số dư ví duy nhất của shipper (không dùng User.walletBalance hay periods.*.walletBalance)
+    walletBalance: { type: Number, min: 0, default: 0 },
     periods: {
       today: { type: periodSchema },
       week: { type: periodSchema },

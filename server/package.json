@@ -9,6 +9,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed:driver-account": "node src/seeds/driverDemoAccountSeed.js",
+    "seed:admin": "node src/seeds/seedAdmin.js",
     "seed:shipper-orders": "node src/seeds/shipperOrdersDemoSeed.js",
     "seed:menu": "node src/seeds/menuSeed.js",
     "seed:orders": "node src/seeds/orderSeed.js",
@@ -16,7 +17,8 @@
     "migrate:order-fields": "node src/scripts/syncOrderFields.js",
     "migrate:foods-to-menu": "node src/scripts/migrateFoodsToMenuItems.js",
     "migrate:drop-unused-fields": "node src/scripts/dropUnusedFields.js",
-    "migrate:addresses": "node src/scripts/migrateAddressesToCollection.js"
+    "migrate:addresses": "node src/scripts/migrateAddressesToCollection.js",
+    "migrate:hash-passwords": "node src/scripts/hashPlaintextPasswords.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

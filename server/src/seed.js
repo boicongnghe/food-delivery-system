@@ -7,6 +7,16 @@ import Restaurant from './models/Restaurant.js';
 
 const seedUsers = async () => {
   try {
+    const demoPassword = (process.env.SEED_DEMO_PASSWORD || '').trim();
+    const adminPassword = (process.env.ADMIN_PASSWORD || demoPassword).trim();
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@fooddelivery.vn').trim().toLowerCase();
+
+    if (!demoPassword || !adminPassword) {
+      throw new Error(
+        'Missing SEED_DEMO_PASSWORD / ADMIN_PASSWORD in environment variables. Refuse to seed with a hardcoded default password.',
+      );
+    }
+
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB for seeding...');
 
@@ -14,7 +24,7 @@ const seedUsers = async () => {
       {
         fullName: 'Nguyễn Văn Khách',
         email: 'khachhang@fooddelivery.vn',
-        password: 'password123',
+        password: demoPassword,
         phone: '0901234567',
         role: 'customer',
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
@@ -22,7 +32,7 @@ const seedUsers = async () => {
       {
         fullName: 'Trần Văn Quán Ăn',
         email: 'chuquan@fooddelivery.vn',
-        password: 'password123',
+        password: demoPassword,
         phone: '0912345678',
         role: 'restaurant_owner',
         avatar: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=150&q=80',
@@ -30,15 +40,15 @@ const seedUsers = async () => {
       {
         fullName: 'Lê Văn Tài Xế',
         email: 'taixe@fooddelivery.vn',
-        password: 'password123',
+        password: demoPassword,
         phone: '0923456789',
         role: 'shipper',
         avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
       },
       {
         fullName: 'Hệ Thống Quản Trị Viên',
-        email: 'admin@fooddelivery.vn',
-        password: 'password123',
+        email: adminEmail,
+        password: adminPassword,
         phone: '0999999999',
         role: 'admin',
         avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',

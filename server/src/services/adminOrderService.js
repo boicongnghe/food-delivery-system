@@ -12,8 +12,10 @@ import { toPage } from '../utils/pagination.js';
 import { legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { sendRealtimeNotification } from '../socket.js';
 import { countByStatus } from './feedbackPolicy.js';
+import { applyIssueOrderAction } from './deliveryIssueService.js';
 import {
   NOT_PICKED_UP_STATUSES,
+  SHIPPER_ACTIVE_STATUSES,
   SHIPPER_POOL_STATUSES,
   cancelAssignedOrder,
   releaseOrderToPool,
@@ -23,8 +25,9 @@ import { recordStatusChange } from './orderHistoryService.js';
 import { PLACED_ORDER_FILTER } from './orderPolicy.js';
 import { creditWalletRefund } from './walletService.js';
 
-// Platform order list for the admin. Abandoned online checkouts are not orders.
-// The only change an admin makes here is recording the result of a refund transfer.
+// Order management for the admin: monitor every placed order (abandoned online checkouts are not orders) and
+// intervene when needed - cancel for the customer, give the order to another shipper, record a refund transfer.
+// An order with an open delivery issue report is handled through that report (UC45 step 1), see findActionableIssue.
 
 // Tab -> order statuses (same tabs as ADMIN_ORDER_TABS of the query validation)
 const TAB_STATUSES = {
@@ -40,6 +43,25 @@ const TAB_STATUSES = {
 const LIST_FIELDS =
   'orderCode orderNumber customer restaurant shipper status total totalPrice payment.method payment.status ' +
   'delivery.recipientName items.quantity createdAt timeouts';
+
+// Complaints (UC42) and delivery issue reports (UC45) still waiting for an admin decision.
+// Few at a time, so the list reads them all once: they feed the "open_case" tab and the badge of each row.
+const loadOpenCases = async () => {
+  const [deliveryIssues, complaints] = await Promise.all([
+    DeliveryIssue.find({ status: 'open' }).select('order code').lean(),
+    Complaint.find({ status: 'open' }).select('order code').lean(),
+  ]);
+  const byOrder = new Map();
+  const add = (kind) => (item) => {
+    const key = String(item.order);
+    const cases = byOrder.get(key) || { complaint: null, deliveryIssue: null };
+    cases[kind] = { _id: item._id, code: item.code };
+    byOrder.set(key, cases);
+  };
+  deliveryIssues.forEach(add('deliveryIssue'));
+  complaints.forEach(add('complaint'));
+  return byOrder;
+};
 
 const buildBaseFilter = async ({ keyword, paymentMethod, from, to }) => {
   const filter = { ...PLACED_ORDER_FILTER };
@@ -86,18 +108,20 @@ const ATTENTION_FILTER = {
   ],
 };
 
-const tabFilter = (status) => {
+const tabFilter = (status, openCaseFilter) => {
   if (status === 'all') return {};
   if (status === 'refund_pending') return OWED_REFUND_FILTER;
   if (status === 'attention') return ATTENTION_FILTER;
+  if (status === 'open_case') return openCaseFilter;
   return { status: { $in: TAB_STATUSES[status] } };
 };
 
 export const listOrders = async ({ page, limit, status, ...filters }) => {
-  const baseFilter = await buildBaseFilter(filters);
-  const filter = { ...baseFilter, ...tabFilter(status) };
+  const [baseFilter, openCases] = await Promise.all([buildBaseFilter(filters), loadOpenCases()]);
+  const openCaseFilter = { _id: { $in: [...openCases.keys()] } };
+  const filter = { ...baseFilter, ...tabFilter(status, openCaseFilter) };
 
-  const [items, totalItems, statusCounts, owedRefunds, attention] = await Promise.all([
+  const [items, totalItems, statusCounts, owedRefunds, attention, withOpenCase] = await Promise.all([
     Order.find(filter)
       .select(LIST_FIELDS)
       .populate('customer', 'fullName email')
@@ -111,19 +135,52 @@ export const listOrders = async ({ page, limit, status, ...filters }) => {
     countByStatus(Order, baseFilter, ORDER_STATUSES),
     Order.countDocuments({ ...baseFilter, ...OWED_REFUND_FILTER }),
     Order.countDocuments({ ...baseFilter, ...ATTENTION_FILTER }),
+    Order.countDocuments({ ...baseFilter, ...openCaseFilter }),
   ]);
 
-  const counts = { all: statusCounts.all, refund_pending: owedRefunds, attention };
+  const counts = { all: statusCounts.all, refund_pending: owedRefunds, attention, open_case: withOpenCase };
   for (const [tab, statuses] of Object.entries(TAB_STATUSES)) {
     counts[tab] = statuses.reduce((sum, orderStatus) => sum + statusCounts[orderStatus], 0);
   }
-  return { ...toPage(items, { page, limit }, totalItems), counts };
+  const withCases = items.map((order) => ({ ...order, openCases: openCases.get(String(order._id)) || null }));
+  return { ...toPage(withCases, { page, limit }, totalItems), counts };
 };
 
 // Orders the admin may cancel: the food is not on its way yet. A shipper may have accepted the order but not
 // picked it up; once picked up (delivering), the delivery issue flow (UC34 / UC45) handles it instead.
 const ADMIN_CANCELLABLE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup'];
 const ACTION_ORDER_FIELDS = 'orderCode orderNumber status shipper restaurant customer payment total totalPrice';
+
+/**
+ * Open report of the shipper who holds the order, whose order step (UC45 step 1) is not done yet.
+ * While it exists, cancelling the order or changing its shipper is that step: it is recorded on the report,
+ * so the "Khiếu nại & sự cố" page and the order page always tell the same story.
+ */
+const findActionableIssue = (orderId, shipperId) =>
+  shipperId
+    ? DeliveryIssue.findOne({
+        order: orderId,
+        shipper: shipperId,
+        status: 'open',
+        'resolution.orderAction': 'none',
+      })
+        .select('code')
+        .lean()
+    : null;
+
+// What the admin may do with the order right now; the client shows the buttons from it (same rules as below)
+const buildInterventions = (order, issue) => {
+  const shipperId = order.shipper?._id || order.shipper;
+  const cancel = issue
+    ? SHIPPER_ACTIVE_STATUSES.includes(order.status)
+    : ADMIN_CANCELLABLE_STATUSES.includes(order.status);
+  const releaseShipper = Boolean(shipperId) && NOT_PICKED_UP_STATUSES.includes(order.status);
+  const blockedReason =
+    !cancel && order.status === 'delivering'
+      ? 'Shipper đã lấy hàng. Chỉ hủy được đơn khi shipper gửi báo cáo sự cố (xử lý ở trang Khiếu nại & sự cố).'
+      : null;
+  return { cancel, releaseShipper, blockedReason, viaIssue: issue || null };
+};
 
 const findPlacedOrder = async (orderId) => {
   const order = await Order.findOne({ _id: orderId, ...PLACED_ORDER_FILTER }).select(ACTION_ORDER_FIELDS).lean();
@@ -138,8 +195,14 @@ const findPlacedOrder = async (orderId) => {
  * or a shipper who accepted the order and never came. Same cancellation as the timeout rules: by "system",
  * refund request when paid, restaurant not compensated. The shipper (if any) is freed for a new order.
  */
-export const cancelOrderAsAdmin = async (orderId, { note }) => {
+export const cancelOrderAsAdmin = async (adminId, orderId, { note }) => {
   const order = await findPlacedOrder(orderId);
+  const issue = await findActionableIssue(order._id, order.shipper);
+  if (issue) {
+    // Cancelled because of the report: reason delivery_issue, recorded as the order step of the report
+    await applyIssueOrderAction(adminId, issue._id, { orderAction: 'cancel', note });
+    return getOrderDetail(orderId);
+  }
   if (!ADMIN_CANCELLABLE_STATUSES.includes(order.status)) {
     throw new ApiError(409, 'Shipper đã lấy hàng. Hãy xử lý đơn này qua báo cáo sự cố giao hàng.');
   }
@@ -182,10 +245,15 @@ export const cancelOrderAsAdmin = async (orderId, { note }) => {
  * The shipper accepted the order but does not pick it up: give it back to the pool for another shipper.
  * Only before pickup (kitchen cooking or food ready); the food is still at the restaurant.
  */
-export const releaseShipperAsAdmin = async (orderId, { note }) => {
+export const releaseShipperAsAdmin = async (adminId, orderId, { note }) => {
   const order = await findPlacedOrder(orderId);
   if (!NOT_PICKED_UP_STATUSES.includes(order.status) || !order.shipper) {
     throw new ApiError(409, 'Chỉ đổi shipper được khi shipper đã nhận đơn nhưng chưa lấy hàng');
+  }
+  const issue = await findActionableIssue(order._id, order.shipper);
+  if (issue) {
+    await applyIssueOrderAction(adminId, issue._id, { orderAction: 'release', note });
+    return getOrderDetail(orderId);
   }
   const released = await releaseOrderToPool(order, { note: `Quản trị viên chuyển đơn cho shipper khác: ${note}` });
   if (!released) {
@@ -282,10 +350,18 @@ export const getOrderDetail = async (orderId) => {
   }
 
   // Feedback attached to the order, so the admin sees the whole story in one place
-  const [complaint, review, deliveryIssues] = await Promise.all([
+  const [complaint, review, deliveryIssues, actionableIssue] = await Promise.all([
     Complaint.findOne({ order: order._id }).select('code category status resolution.refundAmount createdAt').lean(),
     Review.findOne({ order: order._id }).select('restaurantRating shipperRating comment isHidden createdAt').lean(),
-    DeliveryIssue.find({ order: order._id }).select('code type status createdAt').sort({ createdAt: -1 }).lean(),
+    DeliveryIssue.find({ order: order._id })
+      .select('code type status resolution.orderAction createdAt')
+      .sort({ createdAt: -1 })
+      .lean(),
+    findActionableIssue(order._id, order.shipper?._id),
   ]);
-  return { ...order, related: { complaint, review, deliveryIssues } };
+  return {
+    ...order,
+    related: { complaint, review, deliveryIssues },
+    interventions: buildInterventions(order, actionableIssue),
+  };
 };
