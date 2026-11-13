@@ -21,18 +21,20 @@ const EMPTY_LIST = {
   counts: Object.fromEntries(ORDER_TABS.map((tab) => [tab.value, 0])),
 }
 
-// Platform orders, read only: the admin follows every order but does not act on it
+// Order management: monitor every order and intervene (cancel, change shipper, record a refund).
+// Orders with an open delivery issue are handled through that report, see OrderInterventionSection.
 export default function AdminOrders() {
   const [data, setData] = useState(EMPTY_LIST)
   const [loading, setLoading] = useState(true)
-  // ?status=attention (link of the timeout notifications) opens that tab directly
+  // ?status=attention (link of the timeout notifications) opens that tab directly,
+  // ?order=<id> (link from a complaint / delivery issue) opens the order
   const [searchParams] = useSearchParams()
   const linkedTab = ORDER_TABS.some((tab) => tab.value === searchParams.get('status')) ? searchParams.get('status') : 'all'
   const [filters, setFilters] = useState({ status: linkedTab, paymentMethod: 'all', from: '', to: '', page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedId, setSelectedId] = useState(() => searchParams.get('order'))
 
   useEffect(() => {
     let ignore = false
@@ -80,8 +82,8 @@ export default function AdminOrders() {
     <div className="mx-auto max-w-7xl space-y-6">
       <AdminPageHeader
         icon={Receipt}
-        title="Đơn hàng toàn sàn"
-        description="Theo dõi mọi đơn hàng trên nền tảng (chỉ xem). Đơn chuyển khoản khách bỏ dở không được tính."
+        title="Quản lý đơn hàng"
+        description="Giám sát mọi đơn trên nền tảng và can thiệp khi cần: hủy thay khách, đổi shipper, ghi kết quả hoàn tiền. Đơn chuyển khoản khách bỏ dở không được tính."
         actions={
           <button type="button" onClick={refresh} disabled={loading} className={ADMIN_BUTTON.secondary}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới

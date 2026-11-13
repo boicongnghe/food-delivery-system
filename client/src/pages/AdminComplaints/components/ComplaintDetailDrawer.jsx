@@ -202,7 +202,7 @@ export default function ComplaintDetailDrawer({ complaintId, onClose, onResolved
           </AdminSection>
 
           <AdminSection title="Đơn hàng">
-            <AdminOrderSnapshot order={complaint.order} />
+            <AdminOrderSnapshot order={complaint.order} manageLink />
           </AdminSection>
 
           <AdminSection title="Đối chất giữa các bên">

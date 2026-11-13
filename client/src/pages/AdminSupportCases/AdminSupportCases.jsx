@@ -7,7 +7,8 @@ import AdminPageHeader from '../../components/AdminPageHeader/AdminPageHeader.js
 import ComplaintsPanel from '../AdminComplaints/ComplaintsPanel.jsx'
 import DeliveryIssuesPanel from '../AdminDeliveryIssues/DeliveryIssuesPanel.jsx'
 
-// ?tab=<value>; the old pages /admin/complaints and /admin/delivery-issues redirect to their tab
+// ?tab=<value>; the old pages /admin/complaints and /admin/delivery-issues redirect to their tab.
+// ?id=<case id> opens that complaint / report (link from the order management page)
 const TABS = [
   {
     value: 'complaints',
@@ -29,6 +30,7 @@ export default function AdminSupportCases() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   const tab = TABS.some(({ value }) => value === requestedTab) ? requestedTab : DEFAULT_TAB
+  const linkedCaseId = searchParams.get('id')
   // Cases waiting for an admin, shown on both tabs
   const [openCounts, setOpenCounts] = useState({})
 
@@ -107,9 +109,9 @@ export default function AdminSupportCases() {
 
       <div role="tabpanel">
         {tab === 'complaints' ? (
-          <ComplaintsPanel onCountsChange={handleComplaintCounts} />
+          <ComplaintsPanel initialCaseId={linkedCaseId} onCountsChange={handleComplaintCounts} />
         ) : (
-          <DeliveryIssuesPanel onCountsChange={handleIssueCounts} />
+          <DeliveryIssuesPanel initialCaseId={linkedCaseId} onCountsChange={handleIssueCounts} />
         )}
       </div>
     </div>

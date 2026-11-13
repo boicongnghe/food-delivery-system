@@ -217,7 +217,7 @@ export default function DeliveryIssueDetailDrawer({ issueId, onClose, onResolved
           </AdminSection>
 
           <AdminSection title="Đơn hàng">
-            <AdminOrderSnapshot order={issue.order} />
+            <AdminOrderSnapshot order={issue.order} manageLink />
           </AdminSection>
 
           <AdminSection title="Xử lý đơn hàng">

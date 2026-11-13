@@ -23,7 +23,8 @@ export const getPendingApprovals = async () => {
 
 export const getAdminStats = async () => {
   const [totalUsers, totalRestaurants, totalShippers, pendingRestaurants, pendingShippers] = await Promise.all([
-    User.countDocuments(),
+    // Soft-deleted accounts are anonymized and hidden from UC37, so they are not counted either
+    User.countDocuments({ isDeleted: { $ne: true } }),
     Restaurant.countDocuments(),
     Shipper.countDocuments(),
     Restaurant.countDocuments({ status: 'pending' }),

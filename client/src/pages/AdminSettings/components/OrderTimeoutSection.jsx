@@ -20,7 +20,7 @@ export default function OrderTimeoutSection() {
       description={
         <>
           Hệ thống kiểm tra mỗi phút. Bước chưa ai tốn chi phí thì tự xử lý (nhắc, tự hủy). Bước món đã nấu thì chuyển cho quản
-          trị viên (tab "Cần xử lý" ở Đơn hàng toàn sàn). Giá trị mới áp dụng từ lần kiểm tra kế tiếp.
+          trị viên (tab "Cần xử lý" ở Quản lý đơn hàng). Giá trị mới áp dụng từ lần kiểm tra kế tiếp.
         </>
       }
       settings={settings}

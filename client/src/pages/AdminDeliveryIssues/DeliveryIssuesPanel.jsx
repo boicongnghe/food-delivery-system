@@ -21,16 +21,17 @@ const EMPTY_LIST = {
 
 /**
  * UC45 - Handle delivery issue reports. A tab of the "Khiếu nại & sự cố" page (AdminSupportCases).
+ * @param {string | null} initialCaseId - report opened on mount (?id= of the page)
  * @param {(counts: object) => void} onCountsChange - status counts after every load, for the tab badge (keep it stable)
  */
-export default function DeliveryIssuesPanel({ onCountsChange }) {
+export default function DeliveryIssuesPanel({ initialCaseId = null, onCountsChange }) {
   const [data, setData] = useState(EMPTY_LIST)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ status: 'open', type: 'all', page: 1 })
   const [searchText, setSearchText] = useState('')
   const keyword = useDebounce(searchText.trim(), 400)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedId, setSelectedId] = useState(initialCaseId)
 
   useEffect(() => {
     let ignore = false

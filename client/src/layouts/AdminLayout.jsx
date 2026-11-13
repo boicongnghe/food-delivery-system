@@ -29,7 +29,7 @@ const NAV_LINKS = [
   { to: '/admin/users', label: 'Người dùng', icon: Users },
   { to: '/admin/restaurants', label: 'Nhà hàng', icon: Store },
   { to: '/admin/shippers', label: 'Shipper', icon: Bike },
-  { to: '/admin/orders', label: 'Đơn hàng toàn sàn', icon: Receipt },
+  { to: '/admin/orders', label: 'Quản lý đơn hàng', icon: Receipt },
   { to: '/admin/withdrawals', label: 'Yêu cầu rút tiền', icon: HandCoins },
   { to: '/admin/support-cases', label: 'Khiếu nại & sự cố', icon: LifeBuoy },
   { to: '/admin/reviews', label: 'Kiểm duyệt đánh giá', icon: MessageSquareText },

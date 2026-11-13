@@ -24,10 +24,7 @@ router.post('/payout-accounts', ...accountOwner, validate(payoutAccountSchema), 
 router.patch('/payout-accounts/:id/default', ...accountOwner, validateId, payoutAccountController.setDefaultPayoutAccount);
 router.delete('/payout-accounts/:id', ...accountOwner, validateId, payoutAccountController.removePayoutAccount);
 
-// Endpoint cho quản trị viên (Admin)
-router.get('/admin/withdrawals', protect, authorize('admin'), walletController.listWithdrawalsForAdmin);
-router.patch('/admin/withdrawals/:id/approve', protect, authorize('admin'), walletController.approveWithdrawal);
-router.patch('/admin/withdrawals/:id/reject', protect, authorize('admin'), walletController.rejectWithdrawal);
+// Admin review of customer withdrawals lives in adminRoutes.js (/api/admin/withdrawals)
 
 export default router;
 

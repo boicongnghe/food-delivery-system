@@ -6,6 +6,7 @@ import { dateString, keywordQuery, pageQueryKeys } from './commonValidation.js';
 // "refund_pending": cancelled paid orders whose refund is still owed (any status).
 // "attention": orders a timeout rule handed to the admin (kitchen overdue TO-05, no shipper TO-06,
 // shipper accepted but not picked up after pickupWait)
+// "open_case": orders with a complaint (UC42) or a delivery issue report (UC45) still open
 export const ADMIN_ORDER_TABS = [
   'pending',
   'confirmed',
@@ -16,6 +17,7 @@ export const ADMIN_ORDER_TABS = [
   'cancelled',
   'refund_pending',
   'attention',
+  'open_case',
 ];
 
 export const adminOrderQuerySchema = Joi.object({
