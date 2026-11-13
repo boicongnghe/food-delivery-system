@@ -45,10 +45,21 @@ const walletTransactionSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    // Bank transaction reference of a webhook credit: one bank transfer can be credited only once
+    externalRef: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
   },
+);
+
+// Partial (not sparse): only documents that carry a reference take part in the uniqueness
+walletTransactionSchema.index(
+  { externalRef: 1 },
+  { unique: true, partialFilterExpression: { externalRef: { $type: 'string' } } },
 );
 
 const WalletTransaction = mongoose.model('WalletTransaction', walletTransactionSchema, 'wallet_transactions');

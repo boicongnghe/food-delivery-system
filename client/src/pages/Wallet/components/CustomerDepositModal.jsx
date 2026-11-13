@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, QrCode, Copy, Check, ArrowRight, ArrowLeft, Loader2, Sparkles, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import walletApi from '../../../api/walletApi.js'
-import { paymentApi } from '../../../api/paymentApi.js'
+import { isPaymentSimulationEnabled, paymentApi } from '../../../api/paymentApi.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 
 const PRESET_AMOUNTS = [50000, 100000, 200000, 500000, 1000000, 2000000]
@@ -15,6 +15,35 @@ export default function CustomerDepositModal({ isOpen, onClose, onDone }) {
   const [loading, setLoading] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [copiedField, setCopiedField] = useState(null)
+
+  const depositId = depositData?.depositId
+
+  // The wallet is credited by the bank webhook only: wait for it, then close
+  useEffect(() => {
+    if (!isOpen || !depositId) return undefined
+    let stopped = false
+    const timer = setInterval(async () => {
+      try {
+        const res = await walletApi.getDepositStatus(depositId)
+        if (stopped || res.data?.status !== 'completed') return
+        stopped = true
+        clearInterval(timer)
+        toast.success(`Đã nhận ${formatCurrency(res.data.creditedAmount)} vào ví! 🎉`)
+        if (typeof onDone === 'function') onDone()
+        setStep(1)
+        setDepositData(null)
+        setAmount(100000)
+        setCustomAmountStr('100000')
+        onClose()
+      } catch {
+        // temporary error while polling: try again on the next tick
+      }
+    }, 3000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [isOpen, depositId, onClose, onDone])
 
   if (!isOpen) return null
 
@@ -68,13 +97,8 @@ export default function CustomerDepositModal({ isOpen, onClose, onDone }) {
     if (!depositData) return
     try {
       setConfirming(true)
-      // Bắn webhook SePay chuẩn hóa xử lý biến động số dư thực tế
-      const res = await paymentApi.simulateWebhook({
-        depositCode: depositData.depositCode,
-        content: depositData.transferContent,
-        amount: depositData.amount,
-        transferAmount: depositData.amount,
-      })
+      // Dev / demo only: the server credits the amount stored with this deposit code
+      const res = await paymentApi.simulateWebhook({ depositCode: depositData.depositCode })
 
       const responseData = res.data?.data || res.data
       if (res.data?.success || res.success) {
@@ -285,24 +309,31 @@ export default function CustomerDepositModal({ isOpen, onClose, onDone }) {
                   <span>Đổi số tiền</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleConfirmDeposit}
-                  disabled={confirming}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
-                >
-                  {confirming ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang gửi sự kiện Webhook...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Bắn Webhook: Tiền đã vào tài khoản</span>
-                    </>
-                  )}
-                </button>
+                {isPaymentSimulationEnabled ? (
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeposit}
+                    disabled={confirming}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
+                  >
+                    {confirming ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang gửi sự kiện Webhook...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Bắn Webhook: Tiền đã vào tài khoản</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-xs sm:text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang chờ ngân hàng xác nhận, ví sẽ tự cộng khi tiền về</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

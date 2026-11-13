@@ -1,215 +1,21 @@
+import { randomUUID, timingSafeEqual } from 'crypto';
+import mongoose from 'mongoose';
 import Payment from '../models/Payment.js';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
-import User from '../models/User.js';
-import WalletTransaction from '../models/WalletTransaction.js';
 import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import ApiError from '../utils/ApiError.js';
-import { sendRealtimeNotification, emitWalletUpdate } from '../socket.js';
+import { sendRealtimeNotification } from '../socket.js';
+import {
+  creditDepositFromBank,
+  creditWalletRefund,
+  findDepositByCode,
+  findDepositCode,
+  notifyWalletRefund,
+} from './walletService.js';
 
-const generateTransactionCode = (prefix = 'TXN') => {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-  return `${prefix}-${dateStr}-${randomSuffix}`;
-};
-
-export const processPayment = async (orderId, userId, data = {}) => {
-  const { paymentMethod = 'banking', simulateFailure = false } = data;
-
-  if (paymentMethod !== 'banking') {
-    throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
-  }
-
-  const order = await Order.findOne({ _id: orderId, customer: userId });
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng cần thanh toán');
-  }
-
-  if (order.status === 'cancelled') {
-    throw new ApiError(400, 'Không thể thanh toán cho đơn hàng đã bị hủy');
-  }
-
-  if (order.paymentStatus === 'paid') {
-    throw new ApiError(400, 'Đơn hàng này đã được thanh toán trước đó');
-  }
-
-  const transactionCode = generateTransactionCode('BANKING');
-
-  // Online Payment (Banking / VietQR)
-  order.paymentMethod = 'banking';
-
-  // Handle UC16: Payment Failure Simulation
-  if (simulateFailure === true) {
-    order.paymentStatus = 'failed';
-    await order.save();
-
-    const payment = await Payment.create({
-      order: order._id,
-      customer: userId,
-      amount: order.totalPrice,
-      paymentMethod,
-      transactionCode,
-      status: 'failed',
-      failureReason: 'Giao dịch bị từ chối: Số dư tài khoản không đủ hoặc thẻ bị khóa',
-    });
-
-    await OrderStatusHistory.create({
-      order: order._id,
-      fromStatus: order.status,
-      toStatus: order.status,
-      action: 'Thanh toán thất bại',
-      note: `Giao dịch qua ${paymentMethod.toUpperCase()} không thành công. Khách hàng có thể thanh toán lại.`,
-      changedByRole: 'system',
-    });
-
-    return {
-      success: false,
-      paymentStatus: 'failed',
-      failureReason: payment.failureReason,
-      retryAllowed: true,
-      payment,
-    };
-  }
-
-  // Payment Success
-  order.paymentStatus = 'paid';
-  await order.save();
-
-  const payment = await Payment.create({
-    order: order._id,
-    customer: userId,
-    amount: order.totalPrice,
-    paymentMethod,
-    transactionCode,
-    status: 'success',
-    paidAt: new Date(),
-  });
-
-  await OrderStatusHistory.create({
-    order: order._id,
-    fromStatus: order.status,
-    toStatus: order.status,
-    action: 'Thanh toán thành công',
-    note: `Khách hàng đã thanh toán ${order.totalPrice.toLocaleString('vi-VN')}đ qua ${paymentMethod.toUpperCase()} (Mã GD: ${transactionCode})`,
-    changedByRole: 'system',
-  });
-
-  return {
-    success: true,
-    paymentStatus: 'paid',
-    transactionCode,
-    message: 'Thanh toán thành công!',
-    payment,
-  };
-};
-
-export const retryPayment = async (orderId, userId, data = {}) => {
-  const { paymentMethod = 'banking', simulateFailure = false } = data;
-
-  if (paymentMethod !== 'banking') {
-    throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
-  }
-
-  const order = await Order.findOne({ _id: orderId, customer: userId });
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
-
-  if (order.paymentStatus === 'paid') {
-    throw new ApiError(400, 'Đơn hàng này đã thanh toán thành công rồi');
-  }
-
-  // Find previous failed payment to update retryCount
-  const lastPayment = await Payment.findOne({ order: order._id }).sort({ createdAt: -1 });
-  const retryCount = (lastPayment?.retryCount || 0) + 1;
-
-  const transactionCode = generateTransactionCode('RETRY');
-
-  if (simulateFailure === true) {
-    order.paymentStatus = 'failed';
-    order.paymentMethod = paymentMethod;
-    await order.save();
-
-    const payment = await Payment.create({
-      order: order._id,
-      customer: userId,
-      amount: order.totalPrice,
-      paymentMethod,
-      transactionCode,
-      status: 'failed',
-      retryCount,
-      failureReason: 'Lỗi kết nối tới ngân hàng phát hành thẻ. Vui lòng thử lại sau',
-    });
-
-    return {
-      success: false,
-      paymentStatus: 'failed',
-      failureReason: payment.failureReason,
-      retryCount,
-      payment,
-    };
-  }
-
-  order.paymentStatus = 'paid';
-  order.paymentMethod = paymentMethod;
-  await order.save();
-
-  const payment = await Payment.create({
-    order: order._id,
-    customer: userId,
-    amount: order.totalPrice,
-    paymentMethod,
-    transactionCode,
-    status: 'success',
-    retryCount,
-    paidAt: new Date(),
-  });
-
-  await OrderStatusHistory.create({
-    order: order._id,
-    fromStatus: order.status,
-    toStatus: order.status,
-    action: 'Thanh toán lại thành công',
-    note: `Khách hàng thanh toán lại thành công ở lần thử thứ ${retryCount} qua ${paymentMethod.toUpperCase()}`,
-    changedByRole: 'system',
-  });
-
-  try {
-    const restaurant = await Restaurant.findById(order.restaurant);
-    const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
-
-    if (restaurant?.owner) {
-      const recipientName = order.deliveryAddress?.recipientName || order.delivery?.recipientName || 'Khách hàng';
-      const itemsCount = order.items?.length || 1;
-      sendRealtimeNotification(restaurant.owner, {
-        title: `Đơn hàng mới #${shortCode} 🔔`,
-        message: `Khách ${recipientName} vừa thanh toán đơn (${itemsCount} món, ${order.totalPrice.toLocaleString('vi-VN')}đ). Bếp kiểm tra ngay!`,
-        type: 'order',
-        orderId: order._id,
-        link: '/restaurant/orders',
-      });
-    }
-
-    sendRealtimeNotification(order.customer, {
-      title: `Đặt hàng thành công #${shortCode} 🎉`,
-      message: `Đơn hàng của bạn đã được thanh toán thành công (${order.totalPrice.toLocaleString('vi-VN')}đ) và gửi tới ${restaurant?.name || 'nhà hàng'}. Bếp sẽ xác nhận trong giây lát.`,
-      type: 'order',
-      orderId: order._id,
-      link: `/orders/${order._id}`,
-    });
-  } catch (notifErr) {
-    console.warn('Failed to send notification on retryPayment:', notifErr?.message);
-  }
-
-  return {
-    success: true,
-    paymentStatus: 'paid',
-    retryCount,
-    transactionCode,
-    message: 'Thanh toán lại thành công!',
-    payment,
-  };
-};
+// An order is marked paid only by a verified bank webhook (or the dev-only simulation below).
+// There is no endpoint that lets a client declare its own order paid.
 
 export const getPaymentByOrder = async (orderId) => {
   return Payment.find({ order: orderId }).sort({ createdAt: -1 });
@@ -261,49 +67,18 @@ export const checkPaymentStatus = async (orderId) => {
   };
 };
 
-const confirmOrderPaid = async (order, transferAmount, transactionCode, gateway = 'SePay') => {
-  if (order.paymentStatus === 'paid') {
-    return {
-      success: true,
-      message: 'Đơn hàng này đã được xác nhận thanh toán trước đó',
-      alreadyPaid: true,
-      order,
-    };
-  }
-
-  order.paymentStatus = 'paid';
-  await order.save();
-
-  const payment = await Payment.create({
-    order: order._id,
-    customer: order.customer,
-    amount: transferAmount,
-    paymentMethod: 'banking',
-    transactionCode,
-    status: 'success',
-    paidAt: new Date(),
-  });
-
-  await OrderStatusHistory.create({
-    order: order._id,
-    fromStatus: order.status,
-    toStatus: order.status,
-    action: `Thanh toán thành công (${gateway})`,
-    note: `Tài khoản đã nhận ${Number(transferAmount).toLocaleString('vi-VN')}đ (Mã GD: ${transactionCode})`,
-    changedByRole: 'system',
-  });
-
-  // Khi tiền đã vào tài khoản qua VietQR / Webhook: Bắn thông báo Realtime cho Nhà hàng và Khách hàng
+const notifyOrderPaid = async (order, amount) => {
   try {
     const restaurant = await Restaurant.findById(order.restaurant);
     const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
+    const total = Number(order.totalPrice || amount).toLocaleString('vi-VN');
 
     if (restaurant?.owner) {
       const recipientName = order.deliveryAddress?.recipientName || order.delivery?.recipientName || 'Khách hàng';
       const itemsCount = order.items?.length || 1;
       sendRealtimeNotification(restaurant.owner, {
         title: `Đơn hàng mới #${shortCode} 🔔`,
-        message: `Khách ${recipientName} vừa thanh toán đơn (${itemsCount} món, ${Number(order.totalPrice || transferAmount).toLocaleString('vi-VN')}đ). Bếp kiểm tra ngay!`,
+        message: `Khách ${recipientName} vừa thanh toán đơn (${itemsCount} món, ${total}đ). Bếp kiểm tra ngay!`,
         type: 'order',
         orderId: order._id,
         link: '/restaurant/orders',
@@ -312,7 +87,7 @@ const confirmOrderPaid = async (order, transferAmount, transactionCode, gateway 
 
     sendRealtimeNotification(order.customer, {
       title: `Đặt hàng thành công #${shortCode} 🎉`,
-      message: `Đơn hàng của bạn đã được thanh toán thành công (${Number(order.totalPrice || transferAmount).toLocaleString('vi-VN')}đ) và gửi tới ${restaurant?.name || 'nhà hàng'}. Bếp sẽ xác nhận trong giây lát.`,
+      message: `Đơn hàng của bạn đã được thanh toán thành công (${total}đ) và gửi tới ${restaurant?.name || 'nhà hàng'}. Bếp sẽ xác nhận trong giây lát.`,
       type: 'order',
       orderId: order._id,
       link: `/orders/${order._id}`,
@@ -320,36 +95,143 @@ const confirmOrderPaid = async (order, transferAmount, transactionCode, gateway 
   } catch (notifErr) {
     console.warn('Failed to send notification on confirmOrderPaid:', notifErr?.message);
   }
+};
+
+/**
+ * Record a bank transfer for an order. In one transaction:
+ * - the Payment row is inserted first: its transactionCode is unique, so a webhook sent twice is a no-op;
+ * - the order turns "paid" only if it is still unpaid and not cancelled (conditional update, no read-then-save);
+ * - money that can no longer pay the order (cancelled, or already paid by another transfer) is refunded
+ *   to the customer's wallet, so it is never left hanging.
+ */
+const confirmOrderPaid = async (order, transferAmount, transactionCode, gateway = 'SePay') => {
+  const now = new Date();
+  const orderCode = order.orderNumber || order.orderCode;
+  const session = await mongoose.startSession();
+  let paidOrder = null;
+  let payment = null;
+  let refund = null;
+
+  try {
+    await session.withTransaction(async () => {
+      paidOrder = null;
+      refund = null;
+      [payment] = await Payment.create(
+        [
+          {
+            order: order._id,
+            customer: order.customer,
+            amount: transferAmount,
+            paymentMethod: 'banking',
+            transactionCode,
+            status: 'success',
+            paidAt: now,
+          },
+        ],
+        { session },
+      );
+
+      // findOneAndUpdate skips the model hook: write the canonical and the legacy fields together
+      paidOrder = await Order.findOneAndUpdate(
+        { _id: order._id, status: { $ne: 'cancelled' }, 'payment.status': 'unpaid' },
+        { $set: { 'payment.status': 'paid', 'payment.paidAt': now, paymentStatus: 'paid' } },
+        { returnDocument: 'after', runValidators: true, session },
+      );
+      if (paidOrder) return;
+
+      await Payment.updateOne({ _id: payment._id }, { $set: { status: 'refunded' } }, { session });
+      refund = await creditWalletRefund({
+        userId: order.customer,
+        orderId: order._id,
+        orderCode,
+        amount: transferAmount,
+        description: `Hoàn tiền chuyển khoản cho đơn #${orderCode} (đơn đã hủy hoặc đã được thanh toán) - Mã GD: ${transactionCode}`,
+        externalRef: transactionCode,
+        session,
+      });
+    });
+  } catch (error) {
+    // Duplicate transactionCode: this bank transaction was recorded before, nothing was changed
+    if (error?.code === 11000) {
+      return { success: true, alreadyProcessed: true, message: 'Giao dịch này đã được ghi nhận trước đó' };
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+
+  if (!paidOrder) {
+    const current = await Order.findById(order._id).select('status paymentStatus').lean();
+    const reason = current?.status === 'cancelled' ? 'đơn đã bị hủy' : 'đơn đã được thanh toán trước đó';
+    console.warn(`[payment] Transfer ${transactionCode} for order ${orderCode} refunded to wallet: ${reason}`);
+
+    await OrderStatusHistory.create({
+      order: order._id,
+      fromStatus: current?.status || order.status,
+      toStatus: current?.status || order.status,
+      action: `Hoàn tiền chuyển khoản vào ví (${gateway})`,
+      note: `Nhận ${Number(transferAmount).toLocaleString('vi-VN')}đ (Mã GD: ${transactionCode}) nhưng ${reason}: đã hoàn vào ví ảo của khách.`,
+      changedByRole: 'system',
+    });
+
+    if (refund) {
+      notifyWalletRefund({
+        userId: order.customer,
+        orderId: order._id,
+        orderCode,
+        amount: transferAmount,
+        balance: refund.updatedUser.walletBalance,
+      });
+    }
+
+    return {
+      success: true,
+      refunded: Boolean(refund),
+      message: `Không thể ghi nhận thanh toán vì ${reason}. Số tiền đã được hoàn vào ví ảo của khách.`,
+      payment,
+    };
+  }
+
+  await OrderStatusHistory.create({
+    order: paidOrder._id,
+    fromStatus: paidOrder.status,
+    toStatus: paidOrder.status,
+    action: `Thanh toán thành công (${gateway})`,
+    note: `Tài khoản đã nhận ${Number(transferAmount).toLocaleString('vi-VN')}đ (Mã GD: ${transactionCode})`,
+    changedByRole: 'system',
+  });
+
+  await notifyOrderPaid(paidOrder, transferAmount);
 
   return {
     success: true,
     message: 'Thanh toán đã được ghi nhận thành công!',
-    order,
+    order: paidOrder,
     payment,
   };
 };
 
-export const handleSepayWebhook = async (webhookData, authHeader = '') => {
-  // 1. Kiểm tra API Key nếu cấu hình trong .env
-  const secretKey = process.env.SEPAY_API_KEY;
-  if (secretKey && secretKey.trim()) {
-    const expectedHeader = `Apikey ${secretKey.trim()}`;
-    if (authHeader !== expectedHeader && authHeader !== secretKey.trim()) {
-      throw new ApiError(401, 'Unauthorized: Sai SePay API Key');
-    }
-  }
+const isSameSecret = (received, expected) => {
+  const a = Buffer.from(String(received));
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
 
-  const {
-    id: sepayId,
-    gateway,
-    transactionDate,
-    accountNumber,
-    code,
-    content = '',
-    transferType,
-    transferAmount,
-    referenceCode,
-  } = webhookData;
+/** SePay sends "Authorization: Apikey <key>". Without a configured key every call is refused. */
+const verifySepayApiKey = (authHeader = '') => {
+  const secretKey = (process.env.SEPAY_API_KEY || '').trim();
+  if (!secretKey) {
+    console.error('[payment] SEPAY_API_KEY is not set: SePay webhook refused');
+    throw new ApiError(401, 'Unauthorized: SePay webhook chưa được cấu hình API key');
+  }
+  if (!isSameSecret(authHeader, `Apikey ${secretKey}`) && !isSameSecret(authHeader, secretKey)) {
+    throw new ApiError(401, 'Unauthorized: Sai SePay API Key');
+  }
+};
+
+/** Apply one incoming bank transfer (already authenticated) to a wallet deposit or an order */
+const processBankTransfer = async (webhookData) => {
+  const { id: sepayId, gateway, code, content = '', transferType, transferAmount, referenceCode } = webhookData;
 
   // Chỉ xử lý giao dịch tiền vào tài khoản
   if (transferType && transferType !== 'in') {
@@ -357,115 +239,28 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   }
 
   const amount = Number(transferAmount || 0);
-  if (amount <= 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     return { success: false, message: 'Bỏ qua giao dịch số tiền <= 0' };
   }
 
-  // 2. Kiểm tra nếu giao dịch là nạp tiền vào ví ảo (nội dung chứa NAP VI hoặc NAPVI)
-  const isWalletDeposit = /NAP[\s_-]?VI/i.test(content) || /NAP[\s_-]?VI/i.test(code || '');
-  if (isWalletDeposit) {
-    let targetUser = null;
-
-    // Tìm theo số điện thoại (ví dụ: NAP VI 0901234567 8639)
-    const phoneMatch = content.match(/0\d{9}/);
-    if (phoneMatch) {
-      targetUser = await User.findOne({ phone: phoneMatch[0] });
-    }
-
-    // Nếu không khớp SĐT 10 số, quét các từ trong content để tìm theo phone hoặc _id
-    if (!targetUser) {
-      const words = content.split(/[^a-zA-Z0-9]+/);
-      for (const word of words) {
-        if (!word) continue;
-        if (word.length >= 9) {
-          const u = await User.findOne({ phone: word });
-          if (u) { targetUser = u; break; }
-        }
-        if (/^[0-9a-fA-F]{24}$/.test(word)) {
-          const u = await User.findById(word);
-          if (u) { targetUser = u; break; }
-        }
-      }
-    }
-
-    // Nếu người dùng dùng 6 ký tự cuối của _id
-    if (!targetUser) {
-      const allUsers = await User.find({}).select('phone _id').lean();
-      for (const u of allUsers) {
-        const idSuffix = u._id.toString().slice(-6).toUpperCase();
-        if (content.toUpperCase().includes(idSuffix)) {
-          targetUser = await User.findById(u._id);
-          break;
-        }
-      }
-    }
-
-    if (!targetUser) {
-      return {
-        success: false,
-        message: `Nạp tiền ví thất bại: Không tìm thấy người dùng khớp với nội dung "${content}"`,
-      };
-    }
-
-    const transactionCode = referenceCode || `SEPAY-${sepayId || Date.now()}`;
-
-    // Kiểm tra idempotency: Tránh nạp trùng nếu webhook được gửi lại
-    const existingTx = await WalletTransaction.findOne({
-      user: targetUser._id,
-      description: { $regex: transactionCode },
-    });
-    if (existingTx) {
-      return {
-        success: true,
-        message: 'Giao dịch nạp tiền này đã được ghi nhận trước đó',
-        alreadyProcessed: true,
-      };
-    }
-
-    // Cộng tiền vào số dư ví của người dùng
-    const updatedUser = await User.findByIdAndUpdate(
-      targetUser._id,
-      { $inc: { walletBalance: amount } },
-      { returnDocument: 'after', runValidators: true }
-    );
-
-    // Lưu lịch sử giao dịch ví ảo
-    await WalletTransaction.create({
-      user: targetUser._id,
-      type: 'deposit',
-      amount,
-      balanceAfter: updatedUser.walletBalance,
-      status: 'completed',
-      description: `Nạp tiền vào ví qua SePay Webhook (${content}) - Mã GD: ${transactionCode}`,
-    });
-
-    // Bắn realtime socket cập nhật số dư ngay lập tức trên Navbar
-    emitWalletUpdate(targetUser._id, updatedUser.walletBalance);
-
-    // Gửi thông báo chuông cho khách hàng
-    try {
-      await sendRealtimeNotification(targetUser._id, {
-        title: 'Nạp tiền vào ví thành công 👛',
-        message: `Bạn vừa nạp thành công ${amount.toLocaleString('vi-VN')}đ vào Ví ảo qua SePay. Số dư hiện tại: ${updatedUser.walletBalance.toLocaleString('vi-VN')}đ.`,
-        type: 'wallet',
-        link: '/wallet',
-      });
-    } catch {}
-
-    return {
-      success: true,
-      type: 'deposit',
-      message: `Đã nạp thành công ${amount.toLocaleString('vi-VN')}đ vào ví người dùng`,
-      data: {
-        userId: targetUser._id,
-        amount,
-        newBalance: updatedUser.walletBalance,
-        transactionCode,
-      },
-    };
+  // The bank reference is the idempotency key: without it a retried webhook could be applied twice
+  const transactionCode = referenceCode || (sepayId ? `SEPAY-${sepayId}` : null);
+  if (!transactionCode) {
+    return { success: false, message: 'Bỏ qua giao dịch không có mã tham chiếu (referenceCode / id)' };
   }
 
-  // 3. Tìm đơn hàng theo nội dung chuyển khoản hoặc mã giao dịch
+  // 1. Nạp tiền vào ví: chỉ khớp theo mã nạp đã lưu lúc tạo yêu cầu (NAPVIxxxxxxxx)
+  const depositCode = findDepositCode(content) || findDepositCode(code);
+  if (depositCode) {
+    return creditDepositFromBank({
+      code: depositCode,
+      amount,
+      externalRef: transactionCode,
+      source: gateway || 'SePay',
+    });
+  }
+
+  // 2. Tìm đơn hàng theo nội dung chuyển khoản hoặc mã giao dịch
   let order = null;
 
   // Thử khớp từ trường code nếu SePay đã bóc tách
@@ -480,17 +275,14 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   if (!order) {
     const regexMatch = content.match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
     if (regexMatch) {
-      const formattedOrderNumber = `ORD-${regexMatch[1]}-${regexMatch[2]}`;
-      order = await Order.findOne({ orderNumber: formattedOrderNumber });
+      order = await Order.findOne({ orderNumber: `ORD-${regexMatch[1]}-${regexMatch[2]}` });
     }
   }
 
   // Fallback: Tìm đơn trong danh sách các đơn đang chờ thanh toán (pending) gần nhất
   if (!order) {
     const normalizedContent = content.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const pendingOrders = await Order.find({ paymentStatus: 'pending' })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const pendingOrders = await Order.find({ paymentStatus: 'pending' }).sort({ createdAt: -1 }).limit(50);
 
     for (const pendingOrder of pendingOrders) {
       const normalizedOrderNumber = pendingOrder.orderNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -504,11 +296,11 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   if (!order) {
     return {
       success: false,
-      message: `Không tìm thấy đơn hàng hoặc thông tin nạp tiền nào khớp với nội dung chuyển khoản: "${content}"`,
+      message: `Không tìm thấy đơn hàng hoặc mã nạp tiền nào khớp với nội dung chuyển khoản: "${content}"`,
     };
   }
 
-  // 4. Kiểm tra số tiền chuyển
+  // 3. Kiểm tra số tiền chuyển
   if (amount < order.totalPrice) {
     return {
       success: false,
@@ -516,55 +308,66 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
     };
   }
 
-  const transactionCode = referenceCode || `SEPAY-${sepayId || Date.now()}`;
   return confirmOrderPaid(order, amount, transactionCode, gateway || 'SePay');
 };
 
-export const simulateWebhook = async (data = {}) => {
-  const { orderId, orderNumber, depositCode, content, amount, transferAmount } = data;
+export const handleSepayWebhook = async (webhookData, authHeader = '') => {
+  verifySepayApiKey(authHeader);
+  return processBankTransfer(webhookData || {});
+};
 
-  // 1. Nếu là nạp tiền vào ví
-  if (depositCode || (content && /NAP[\s_-]?VI/i.test(content))) {
-    const webhookPayload = {
-      id: Date.now(),
-      gateway: 'TPB',
-      transactionDate: new Date().toISOString(),
-      accountNumber: process.env.BANK_ACCOUNT_NO || '0393863658',
-      transferType: 'in',
-      transferAmount: Number(amount || transferAmount || 0),
-      content: content || depositCode,
-      referenceCode: `SIM-SEPAY-${Date.now().toString().slice(-6)}`,
-    };
-    return handleSepayWebhook(webhookPayload);
+/* ----- Giả lập webhook (chỉ môi trường dev / demo) ----- */
+
+// Off unless ENABLE_PAYMENT_SIMULATION=true, and never in production whatever the flag says
+export const isPaymentSimulationEnabled = () =>
+  process.env.ENABLE_PAYMENT_SIMULATION === 'true' && process.env.NODE_ENV !== 'production';
+
+const simulationReference = () => `SIM-${randomUUID().slice(0, 12).toUpperCase()}`;
+
+/**
+ * Pretend the bank received the transfer of the caller's own order or deposit request, for the amount the
+ * server stored (never an amount sent by the client). An admin may simulate for anyone.
+ */
+export const simulateWebhook = async (user, data = {}) => {
+  if (!isPaymentSimulationEnabled()) {
+    throw new ApiError(404, 'Chức năng giả lập thanh toán đang tắt');
+  }
+  const isAdmin = user.role === 'admin';
+  const { orderId, depositCode } = data;
+
+  if (depositCode) {
+    const code = findDepositCode(depositCode);
+    const deposit = code ? await findDepositByCode(code) : null;
+    if (!deposit || (!isAdmin && String(deposit.user) !== String(user._id))) {
+      throw new ApiError(404, 'Không tìm thấy yêu cầu nạp tiền');
+    }
+    if (deposit.status !== 'pending') {
+      throw new ApiError(409, 'Yêu cầu nạp tiền này đã được ghi nhận');
+    }
+    return creditDepositFromBank({
+      code: deposit.code,
+      amount: deposit.amount,
+      externalRef: simulationReference(),
+      source: 'Mock-SePay',
+    });
   }
 
-  // 2. Nếu là thanh toán đơn hàng bằng orderId hoặc orderNumber
-  let order = null;
   if (orderId) {
-    order = await Order.findById(orderId);
-  } else if (orderNumber) {
-    order = await Order.findOne({ orderNumber });
+    if (!mongoose.isValidObjectId(orderId)) {
+      throw new ApiError(404, 'Không tìm thấy đơn hàng');
+    }
+    const order = await Order.findOne(isAdmin ? { _id: orderId } : { _id: orderId, customer: user._id });
+    if (!order) {
+      throw new ApiError(404, 'Không tìm thấy đơn hàng');
+    }
+    if (order.status === 'cancelled') {
+      throw new ApiError(400, 'Không thể thanh toán cho đơn hàng đã bị hủy');
+    }
+    if (order.paymentStatus === 'paid') {
+      throw new ApiError(409, 'Đơn hàng này đã được thanh toán trước đó');
+    }
+    return confirmOrderPaid(order, order.totalPrice, simulationReference(), 'Mock-SePay');
   }
 
-  if (order) {
-    const transactionCode = `SIM-SEPAY-${Date.now().toString().slice(-6)}`;
-    return confirmOrderPaid(order, order.totalPrice, transactionCode, 'Mock-SePay');
-  }
-
-  // 3. Nếu truyền content tự do
-  if (content) {
-    const webhookPayload = {
-      id: Date.now(),
-      gateway: 'TPB',
-      transactionDate: new Date().toISOString(),
-      accountNumber: process.env.BANK_ACCOUNT_NO || '0393863658',
-      transferType: 'in',
-      transferAmount: Number(amount || transferAmount || 0),
-      content,
-      referenceCode: `SIM-SEPAY-${Date.now().toString().slice(-6)}`,
-    };
-    return handleSepayWebhook(webhookPayload);
-  }
-
-  throw new ApiError(404, 'Không tìm thấy thông tin đơn hàng hoặc mã nạp tiền để giả lập webhook');
+  throw new ApiError(400, 'Cần orderId hoặc depositCode để giả lập webhook');
 };
