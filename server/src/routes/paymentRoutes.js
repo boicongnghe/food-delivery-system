@@ -4,7 +4,7 @@ import { protect } from '../middlewares/authMiddleware.js';
 
 const router = Router();
 
-// 1. Webhook SePay (no JWT: SePay calls it, authenticated by the SEPAY_API_KEY header in the service)
+// 1. Webhook SePay (Public - Không dùng JWT token auth để SePay có thể gọi tới, xác thực bằng header SEPAY_API_KEY trong service)
 router.post('/sepay-webhook', paymentController.handleSepayWebhook);
 
 // 2. Protected endpoints (Yêu cầu đăng nhập JWT)

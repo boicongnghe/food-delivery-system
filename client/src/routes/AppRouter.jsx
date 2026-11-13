@@ -71,6 +71,7 @@ function AppRouter() {
       <CartProviderWithAuth>
         <Toaster
           position="top-right"
+          containerStyle={{ zIndex: 20000 }}
           toastOptions={{
             duration: 3500,
             style: {

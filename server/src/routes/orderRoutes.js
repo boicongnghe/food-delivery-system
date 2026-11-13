@@ -8,7 +8,7 @@ import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { requireApprovedShipper } from '../middlewares/shipperMiddleware.js';
 import validate from '../middlewares/validate.js';
 import { idParamSchema } from '../validations/commonValidation.js';
-import { confirmDeliverySchema, paginationQuerySchema } from '../validations/orderValidation.js';
+import { confirmDeliverySchema, createOrderSchema, paginationQuerySchema } from '../validations/orderValidation.js';
 import { createComplaintSchema } from '../validations/complaintValidation.js';
 import { createDeliveryIssueSchema } from '../validations/deliveryIssueValidation.js';
 import { createReviewSchema } from '../validations/reviewValidation.js';
@@ -94,7 +94,7 @@ router.patch(
 
 // Customer / General Order endpoints
 router.get('/estimate-shipping', protect, orderController.estimateShipping);
-router.post('/', protect, orderController.createOrder);
+router.post('/', protect, authorize('customer'), validate(createOrderSchema), orderController.createOrder);
 router.get('/', protect, orderController.getCustomerOrders);
 router.get('/:id', protect, orderController.getOrderById);
 router.post('/:id/cancel', protect, orderController.cancelOrder);

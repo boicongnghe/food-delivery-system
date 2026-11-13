@@ -14,14 +14,19 @@ const seed = async () => {
     // 1. Seed Customer User
     let customer = await User.findOne({ email: 'customer@demo.com' });
     if (!customer) {
+      const seedPassword = (process.env.SEED_DEMO_PASSWORD || '').trim();
+      if (!seedPassword) {
+        throw new Error('[Seed] Missing SEED_DEMO_PASSWORD in server/.env');
+      }
       customer = await User.create({
         fullName: 'Nguyễn Văn Đạt',
         email: 'customer@demo.com',
-        password: 'password123',
+        password: seedPassword,
         phone: '0988776655',
         role: 'customer',
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
         isActive: true,
+        isVerified: true,
       });
       console.log('[Seed] Created demo customer:', customer.email);
     }

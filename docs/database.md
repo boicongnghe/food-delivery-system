@@ -205,6 +205,17 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | `restaurant_withdrawals` | `RestaurantWithdrawal.js` | Lệnh rút tiền `RT-0001`: `amount`, bản sao `bankAccount`, `status` `processing → succeeded \| failed`, `providerRef`, `idempotencyKey` (unique theo quán) |
 | `order_messages` | `OrderMessage.js` | Tin nhắn theo đơn: `order`, `sender`, `message`; chỉ khách đặt đơn và shipper đang được gán có quyền đọc/gửi |
 
+### Quyết định thiết kế: Nguồn số dư ví duy nhất theo vai trò (Single Source of Truth)
+
+Để tránh trùng lặp số dư và sai lệch đối soát giữa các vai trò, mỗi vai trò chỉ có **một** nguồn số dư ví và một luồng nạp/rút tương ứng:
+
+| Vai trò (`User.role`) | Nguồn số dư duy nhất | Lịch sử & Lệnh rút | API ví & Chốt quyền |
+| --- | --- | --- | --- |
+| `customer` | `users.walletBalance` | `wallettransactions`, `withdrawalrequests` | `/api/wallet/my-wallet`, `/withdraw`, `/deposit/*` (`authorize('customer')`, service và SePay `NAP VI` webhook chặn role khác) |
+| `shipper` | **`driverdashboards.walletBalance`** | `shipperwithdrawals` (trừ trực tiếp từ `DriverDashboard.walletBalance`, cộng thu nhập tại `completeDelivery`) | `/api/drivers/me/dashboard`, `/api/drivers/me/withdrawals` (`authorize('shipper')`); dùng chung danh sách tài khoản ngân hàng nhận tiền ở `users.payoutAccounts` qua `/api/wallet/payout-accounts` (`authorize('customer', 'shipper')`). **Không** dùng `users.walletBalance` và **không** dùng trường cũ `driverdashboards.periods.*.walletBalance`. |
+| `restaurant_owner` | `restaurant_wallets` (`withdrawnTotal` & doanh thu đơn) | `restaurant_withdrawals` | `/api/restaurants/me/wallet/*` (`authorize('restaurant_owner')`) |
+| `admin` | Không có ví giao dịch riêng | — | Chỉ có quyền duyệt rút tiền khách (`/api/wallet/admin/withdrawals*`), không có ví cá nhân trên `users.walletBalance` |
+
 ## 7. `platform_settings`
 
 Tham số thời hạn xử lý đơn mà admin chỉnh được (một document `_id: "order-timeouts"`). Danh sách tham số, giá trị mặc định và decision log: [order-timeouts.md](order-timeouts.md). Hủy đơn bởi hệ thống ghi `cancellation.by = 'system'`, `reason` là `accept_timeout` (tính lỗi cho quán), `no_shipper`, `admin_cancel` hoặc `delivery_issue` (admin hủy khi xử lý sự cố giao hàng).
@@ -226,6 +237,7 @@ Các trường dưới đây đã bị xóa khỏi model vì không còn code n�
 | `users.deliveryAddress` | Bản sao tên đường của địa chỉ mặc định, client không đọc | Collection riêng `addresses` |
 | `users.addresses` | Mảng nhúng trong User gây phình to khi auth, khó đánh index địa lý | Collection riêng `addresses` (`/api/addresses`) |
 | `orders.delivery.distanceKm` | Trùng `orders.distanceKm` | `orders.distanceKm` |
+| `driverdashboards.periods.*.walletBalance` | Trùng số dư ví shipper giữa các kỳ (`periods`) với cấp gốc và ví khách (`users.walletBalance`) | `driverdashboards.walletBalance` (nguồn số dư duy nhất cho shipper) |
 | `platform_settings.reconInterval`, `refundSlaHours` | Lưu trên màn Cấu hình vận hành nhưng không code nào đọc | (không cần) |
 
 Dữ liệu cũ trên DB vẫn còn các trường này cho tới khi chạy migration (Mongoose bỏ qua chúng nên app vẫn chạy bình thường):

@@ -9,11 +9,11 @@ import { payoutAccountSchema } from '../validations/walletValidation.js';
 const router = Router();
 
 // Endpoint cho khách hàng (Customer)
-router.get('/my-wallet', protect, walletController.getMyWallet);
-router.post('/withdraw', protect, walletController.requestWithdrawal);
-router.post('/deposit/create', protect, walletController.createDeposit);
+router.get('/my-wallet', protect, authorize('customer'), walletController.getMyWallet);
+router.post('/withdraw', protect, authorize('customer'), walletController.requestWithdrawal);
+router.post('/deposit/create', protect, authorize('customer'), walletController.createDeposit);
 // The wallet is credited only by the verified bank webhook; the deposit screen polls this status
-router.get('/deposit/:id', protect, validate(idParamSchema, 'params'), walletController.getDepositStatus);
+router.get('/deposit/:id', protect, authorize('customer'), validate(idParamSchema, 'params'), walletController.getDepositStatus);
 
 // Bank accounts of customers and shippers (several, one default: withdrawals go to it). Restaurants have theirs
 // under /api/restaurants/me/wallet/payout-accounts

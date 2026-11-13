@@ -14,18 +14,43 @@ import {
   notifyWalletRefund,
 } from './walletService.js';
 
+const resolveUserContext = (userOrId) => {
+  if (userOrId && typeof userOrId === 'object' && userOrId._id) {
+    return { userId: userOrId._id, isAdmin: userOrId.role === 'admin' };
+  }
+  return { userId: userOrId, isAdmin: false };
+};
+
+const buildCustomerFilter = (userOrId) => {
+  const { userId, isAdmin } = resolveUserContext(userOrId);
+  return isAdmin ? {} : { customer: userId };
+};
+
+const findOrderForPayment = async (orderId, userOrId) => {
+  const { userId } = resolveUserContext(userOrId);
+  if (!userId) {
+    throw new ApiError(401, 'Vui lòng đăng nhập để thực hiện thao tác này');
+  }
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    throw new ApiError(400, 'ID đơn hàng không hợp lệ');
+  }
+  const order = await Order.findOne({ _id: orderId, ...buildCustomerFilter(userOrId) });
+  if (!order) {
+    throw new ApiError(404, 'Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập');
+  }
+  return order;
+};
+
 // An order is marked paid only by a verified bank webhook (or the dev-only simulation below).
 // There is no endpoint that lets a client declare its own order paid.
 
-export const getPaymentByOrder = async (orderId) => {
-  return Payment.find({ order: orderId }).sort({ createdAt: -1 });
+export const getPaymentByOrder = async (orderId, userOrId) => {
+  await findOrderForPayment(orderId, userOrId);
+  return Payment.find({ order: orderId, ...buildCustomerFilter(userOrId) }).sort({ createdAt: -1 });
 };
 
-export const getPaymentQrInfo = async (orderId) => {
-  const order = await Order.findById(orderId);
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
+export const getPaymentQrInfo = async (orderId, userOrId) => {
+  const order = await findOrderForPayment(orderId, userOrId);
 
   const bankId = (process.env.BANK_ID || 'TPB').trim().toUpperCase();
   const accountNo = (process.env.BANK_ACCOUNT_NO || '0393863658').trim();
@@ -52,11 +77,8 @@ export const getPaymentQrInfo = async (orderId) => {
   };
 };
 
-export const checkPaymentStatus = async (orderId) => {
-  const order = await Order.findById(orderId);
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
+export const checkPaymentStatus = async (orderId, userOrId) => {
+  const order = await findOrderForPayment(orderId, userOrId);
 
   return {
     orderId: order._id,

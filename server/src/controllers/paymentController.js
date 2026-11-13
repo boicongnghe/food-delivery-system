@@ -2,7 +2,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import * as paymentService from '../services/paymentService.js';
 
 export const getPaymentByOrder = asyncHandler(async (req, res) => {
-  const payments = await paymentService.getPaymentByOrder(req.params.orderId);
+  const payments = await paymentService.getPaymentByOrder(req.params.orderId, req.user);
   res.status(200).json({
     success: true,
     data: payments,
@@ -11,7 +11,7 @@ export const getPaymentByOrder = asyncHandler(async (req, res) => {
 });
 
 export const getPaymentQrInfo = asyncHandler(async (req, res) => {
-  const data = await paymentService.getPaymentQrInfo(req.params.orderId, req.user._id);
+  const data = await paymentService.getPaymentQrInfo(req.params.orderId, req.user);
   res.status(200).json({
     success: true,
     data,
@@ -20,7 +20,7 @@ export const getPaymentQrInfo = asyncHandler(async (req, res) => {
 });
 
 export const checkPaymentStatus = asyncHandler(async (req, res) => {
-  const data = await paymentService.checkPaymentStatus(req.params.orderId, req.user._id);
+  const data = await paymentService.checkPaymentStatus(req.params.orderId, req.user);
   res.status(200).json({
     success: true,
     data,

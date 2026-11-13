@@ -83,6 +83,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     isVerified: {
       type: Boolean,
       default: false,
@@ -133,10 +142,10 @@ userSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Compare entered password with hashed or plaintext password
+// Compare entered password with stored bcrypt hash only (reject raw hash / plaintext equality)
 userSchema.methods.comparePassword = async function (enteredPassword) {
-  if (this.password === enteredPassword) {
-    return true;
+  if (typeof enteredPassword !== 'string' || !enteredPassword || !this.password) {
+    return false;
   }
   try {
     return await bcrypt.compare(enteredPassword, this.password);
