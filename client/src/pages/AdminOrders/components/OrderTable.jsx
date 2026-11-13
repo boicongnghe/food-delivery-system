@@ -48,7 +48,15 @@ export default function OrderTable({ orders, onSelect }) {
                   </p>
                 </td>
                 <td className={ADMIN_TABLE_CELL}>
-                  <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                  <div className="flex flex-col items-start gap-1">
+                    <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                    {order.openCases?.deliveryIssue && (
+                      <AdminBadge tone="red">Sự cố {order.openCases.deliveryIssue.code}</AdminBadge>
+                    )}
+                    {order.openCases?.complaint && (
+                      <AdminBadge tone="amber">Khiếu nại {order.openCases.complaint.code}</AdminBadge>
+                    )}
+                  </div>
                 </td>
                 <td className={`${ADMIN_TABLE_CELL} text-right`}>
                   <button

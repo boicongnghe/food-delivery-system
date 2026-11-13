@@ -13,14 +13,15 @@ import { COMPLAINT_CATEGORY_LABELS, COMPLAINT_STATUS_LABELS } from '../../../uti
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDateTime } from '../../../utils/formatDate.js'
 import { ACTOR_LABELS, ORDER_STATUSES } from '../../../utils/orderLabels.js'
-import AdminCancelSection from './AdminCancelSection.jsx'
+import OrderInterventionSection from './OrderInterventionSection.jsx'
 import RefundSection from './RefundSection.jsx'
 
 const COMPLAINT_TONES = { open: 'amber', resolved: 'emerald', rejected: 'slate' }
 
 /**
- * Detail of one platform order; the admin can record the result of an owed refund. Mount with key={orderId}.
- * onChanged: the order changed (refund resolved), the list should reload.
+ * Detail of one order: monitoring flags, interventions (cancel, change shipper), refund result, and the complaint /
+ * delivery issue reports of the order with a link to their case. Mount with key={orderId}.
+ * onChanged: the order changed (cancelled, shipper changed, refund resolved), the list should reload.
  */
 export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
   const [order, setOrder] = useState(null)
@@ -79,9 +80,9 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
             <AdminOrderSnapshot order={order} />
           </AdminSection>
 
-          <AdminCancelSection
+          <OrderInterventionSection
             order={order}
-            onCancelled={(updated) => {
+            onChanged={(updated) => {
               setOrder(updated)
               onChanged?.()
             }}
@@ -153,7 +154,7 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
             )}
           </AdminSection>
 
-          <AdminSection title="Phản hồi sau giao hàng">
+          <AdminSection title="Đánh giá, khiếu nại & sự cố">
             <AdminInfoRow label="Đánh giá">
               {review ? (
                 <span className="inline-flex items-center gap-1">
@@ -169,7 +170,12 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
             <AdminInfoRow label="Khiếu nại">
               {complaint ? (
                 <span className="inline-flex flex-wrap items-center justify-end gap-2">
-                  <span className="font-mono">{complaint.code}</span>
+                  <Link
+                    to={`/admin/support-cases?tab=complaints&id=${complaint._id}`}
+                    className="font-mono font-bold text-primary hover:underline"
+                  >
+                    {complaint.code}
+                  </Link>
                   {COMPLAINT_CATEGORY_LABELS[complaint.category]}
                   <AdminBadge tone={COMPLAINT_TONES[complaint.status]}>{COMPLAINT_STATUS_LABELS[complaint.status]}</AdminBadge>
                   {complaint.resolution?.refundAmount > 0 && `hoàn ${formatCurrency(complaint.resolution.refundAmount)}`}
@@ -183,7 +189,12 @@ export default function OrderDetailDrawer({ orderId, onClose, onChanged }) {
                 <span className="inline-flex flex-col items-end gap-1">
                   {deliveryIssues.map((issue) => (
                     <span key={issue._id} className="inline-flex items-center gap-2">
-                      <span className="font-mono">{issue.code}</span>
+                      <Link
+                        to={`/admin/support-cases?tab=delivery-issues&id=${issue._id}`}
+                        className="font-mono font-bold text-primary hover:underline"
+                      >
+                        {issue.code}
+                      </Link>
                       {DELIVERY_ISSUE_TYPE_LABELS[issue.type]}
                       <AdminBadge tone={DELIVERY_ISSUE_STATUSES[issue.status]?.tone}>
                         {DELIVERY_ISSUE_STATUSES[issue.status]?.label}

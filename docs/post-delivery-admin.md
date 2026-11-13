@@ -10,18 +10,20 @@ Thành viên 5 phụ trách: UC17, UC18, UC37, UC40, UC41, UC42, UC43, UC44, UC4
 | `/hearings` | customer | Đối chất sự cố giao hàng và khiếu nại (menu avatar → "Đối chất"). `?type=delivery-issues\|complaints&id=<id>` mở thẳng một phiên (link trong thông báo mời) |
 | `/restaurant/hearings` | restaurant_owner | Như trên, cho chủ quán (menu tài khoản → "Đối chất") |
 | `/shipper/hearings` | shipper | Như trên, cho shipper (menu tài khoản → "Đối chất") |
-
-Đường dẫn cũ `/delivery-issues`, `/restaurant/delivery-issues`, `/shipper/issues` (thông báo đã gửi trước đây) tự chuyển sang trang mới, giữ `?id=` và hiểu là sự cố giao hàng.
 | `/admin/users` | admin | UC37 quản lý tài khoản khách hàng và quản trị viên |
 | `/admin/restaurants` | admin | Danh sách nhà hàng, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
 | `/admin/shippers` | admin | Danh sách tài xế, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
-| `/admin/orders` | admin | Đơn hàng toàn sàn (chỉ xem) |
+| `/admin/orders` | admin | Quản lý đơn hàng: giám sát mọi đơn (tab "Cần xử lý", "Có khiếu nại/sự cố", "Chờ hoàn tiền") và can thiệp (hủy thay khách, đổi shipper, ghi kết quả hoàn tiền). `?status=<tab>` mở thẳng tab, `?order=<id>` mở thẳng đơn |
+| `/admin/withdrawals` | admin | Duyệt yêu cầu rút tiền từ ví khách hàng: xác nhận đã chuyển khoản hoặc từ chối (hoàn lại ví) |
 | `/admin/commission-rules` | admin | UC40 quy tắc hoa hồng |
 | `/admin/promotions` | admin | UC41 mã khuyến mãi |
-| `/admin/support-cases` | admin | Trang "Khiếu nại & sự cố": tab Khiếu nại (UC42, mặc định) và tab Sự cố giao hàng (`?tab=delivery-issues`, UC45). Đường dẫn cũ `/admin/complaints`, `/admin/delivery-issues` tự chuyển sang tab tương ứng |
+| `/admin/support-cases` | admin | Trang "Khiếu nại & sự cố": tab Khiếu nại (UC42, mặc định) và tab Sự cố giao hàng (`?tab=delivery-issues`, UC45). `?id=<id>` mở thẳng một vụ việc (link từ Quản lý đơn hàng). Đường dẫn cũ `/admin/complaints`, `/admin/delivery-issues` tự chuyển sang tab tương ứng |
 | `/admin/reviews` | admin | UC43 kiểm duyệt đánh giá |
 | `/admin/analytics` | admin | UC44 thống kê & báo cáo |
+| `/admin/shipping-fee` | admin | Cước phí giao hàng theo khoảng cách và bán kính giao tối đa |
 | `/admin/settings` | admin | Cấu hình vận hành: thời hạn xử lý đơn, ngưỡng tự động đình chỉ khi vi phạm |
+
+Đường dẫn cũ `/delivery-issues`, `/restaurant/delivery-issues`, `/shipper/issues` (thông báo đã gửi trước đây) tự chuyển sang trang mới, giữ `?id=` và hiểu là sự cố giao hàng.
 
 ## 2. API
 
@@ -72,11 +74,15 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
 | GET | `/shippers/:id` | Hồ sơ đăng ký đầy đủ của tài xế, kèm `availability` |
 | PATCH | `/shippers/:id/status` | Như nhà hàng |
 | GET | `/pending-approvals`, `/stats` | Trang tổng quan (không kèm file) |
-| GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Đơn toàn sàn, chỉ xem. `status`: `all` | `pending` | `confirmed` (chờ shipper nhận) | `preparing` | `ready_for_pickup` | `delivering` | `delivered` | `cancelled`. `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
-| GET | `/orders/:id` | Chi tiết đơn + `related: { complaint, review, deliveryIssues }` |
-| PATCH | `/orders/:id/cancel` | `{ note }`. Hủy thay khách khi đơn chưa được lấy hàng, kể cả khi shipper đã nhận ([order-timeouts.md](order-timeouts.md)) |
+| GET | `/orders?page&limit&keyword&status&paymentMethod&from&to` | Quản lý đơn hàng. `status`: `all` | `pending` | `confirmed` (chờ shipper nhận) | `preparing` | `ready_for_pickup` | `delivering` | `delivered` | `cancelled` | `refund_pending` | `attention` (luật quá hạn chuyển admin) | `open_case` (có khiếu nại hoặc báo cáo sự cố đang mở). Mỗi đơn kèm `openCases: { complaint, deliveryIssue } | null` (`{ _id, code }` của vụ việc đang mở). `keyword` tìm theo mã đơn, người nhận, khách / nhà hàng / shipper. `from`, `to` là ngày đặt (giờ Việt Nam). Trả thêm `counts` theo tab |
+| GET | `/orders/:id` | Chi tiết đơn + `related: { complaint, review, deliveryIssues }` + `interventions: { cancel, releaseShipper, blockedReason, viaIssue }`: thao tác admin được làm ngay lúc này (client hiện nút theo đây). `viaIssue` (`{ _id, code }`) là báo cáo sự cố mà thao tác sẽ đi qua |
+| PATCH | `/orders/:id/cancel` | `{ note }`. Hủy thay khách khi đơn chưa được lấy hàng, kể cả khi shipper đã nhận ([order-timeouts.md](order-timeouts.md)). Có báo cáo sự cố đang mở thì hủy được cả đơn `delivering`, xem quy tắc "Quản lý đơn hàng" |
 | PATCH | `/orders/:id/release-shipper` | `{ note }`. Shipper đã nhận nhưng chưa lấy hàng (bếp đang nấu hoặc món đã xong): trả đơn về hàng chờ cho shipper khác, bếp giữ nguyên trạng thái |
 | PATCH | `/orders/:id/refund` | `{ result: 'succeeded' \| 'failed', reference?, note? }`. Ghi kết quả chuyển trả tiền (R06) |
+| GET | `/withdrawals?page&limit&status` | Yêu cầu rút tiền ví khách hàng, mới nhất trước. `status`: `all` \| `pending` \| `completed` \| `rejected`; `limit` mặc định 20, tối đa 100. Trả `{ withdrawals, pagination }` |
+| PATCH | `/withdrawals/:id/approve` | `{ reference, note? }`. Xác nhận đã chuyển khoản (`reference` ≤ 50 ký tự là mã giao dịch ngân hàng) |
+| PATCH | `/withdrawals/:id/reject` | `{ reason }` (≤ 300 ký tự). Từ chối và hoàn tiền vào ví khách trong cùng transaction. Yêu cầu đã xử lý trả 409 |
+| GET, PUT | `/settings/shipping-fee` | `{ baseDistanceKm, baseFee, perKmFee, maxDistanceKm }`. Cước phí theo khoảng cách và bán kính giao tối đa |
 | GET, POST | `/commission-rules` | UC40. GET trả `{ today, items, currentDefaults }` |
 | PUT, DELETE | `/commission-rules/:id` | UC40 |
 | GET, POST | `/promotion-rules` | UC41. Lọc `status`: `active` \| `scheduled` \| `expired` \| `disabled` \| `exhausted` |
@@ -140,8 +146,13 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
   - Chỉ duyệt được khi đủ các mục bắt buộc của form đăng ký (server kiểm tra, cùng danh sách hiển thị trong hồ sơ): email đã xác thực; nhà hàng có tên, địa chỉ thật, mặt hàng kinh doanh, CCCD 9–12 số, file giấy phép; tài xế đủ 18 tuổi, CCCD 9–12 số, thông tin xe. Bảo hiểm xe không bắt buộc (form cho bổ sung sau). **Mở lại** đối tác bị đình chỉ cũng kiểm tra lại các mục này theo hồ sơ hiện tại.
   - Hiệu lực: nhà hàng chưa `approved` không nhận được đơn mới; nhà hàng `suspended` không sửa được thực đơn lẫn hồ sơ quán (403), để admin mở lại đúng hồ sơ đã bị đình chỉ. Tài xế chưa `approved` không xem được `GET /api/orders/available-for-pickup` (403). Khóa tài khoản (UC37) là việc riêng: chặn đăng nhập.
   - Trang tổng quan chỉ liệt kê hồ sơ chờ duyệt và dẫn sang trang nhà hàng / tài xế; không còn duyệt nhanh khi chưa xem hồ sơ.
-- **Đơn hàng toàn sàn:** admin không tự chuyển bước cho đơn. Admin chỉ được: hủy thay khách khi đơn chưa được lấy hàng, đổi shipper khi shipper đã nhận nhưng chưa lấy hàng, và ghi kết quả hoàn tiền. Đơn đã lấy hàng (`delivering`) xử lý qua báo cáo sự cố. Không liệt kê đơn chuyển khoản khách bỏ dở (`PLACED_ORDER_FILTER`), giống thống kê UC44.
-- **Tài khoản (UC37):** admin không tự đổi vai trò hay tự khóa mình được. Không đổi vai trò khi chủ quán còn sở hữu nhà hàng, shipper còn đơn đang giao, hoặc khách còn đơn chưa hoàn tất. Không khóa được shipper đang giữ đơn (`ready_for_pickup`/`delivering`), vì shipper bị khóa không giao tiếp được mà cũng không ai nhận thay. Tài khoản bị khóa không đăng nhập được và token cũ trả 403.
+- **Quản lý đơn hàng:** không liệt kê đơn chuyển khoản khách bỏ dở (`PLACED_ORDER_FILTER`), giống thống kê UC44.
+  - **Giám sát:** tab "Cần xử lý" (luật quá hạn chuyển admin, [order-timeouts.md](order-timeouts.md)), "Có khiếu nại/sự cố" (khiếu nại hoặc báo cáo sự cố `open`), "Chờ hoàn tiền". Mỗi dòng có nhãn vụ việc đang mở; chi tiết đơn có link sang vụ việc và ngược lại (mã đơn trong chi tiết khiếu nại / sự cố mở đơn ở trang này).
+  - **Can thiệp:** admin không tự chuyển bước cho đơn. Admin chỉ được hủy thay khách, đổi shipper và ghi kết quả hoàn tiền. Server tính sẵn thao tác được phép (`interventions`), client không tự lặp quy tắc.
+  - **Đơn không có báo cáo sự cố đang mở:** hủy khi đơn chưa được lấy hàng (`cancellation.reason = admin_cancel`); đổi shipper khi shipper đã nhận nhưng chưa lấy hàng. Đơn `delivering` không hủy được ở đây: chờ shipper gửi báo cáo sự cố.
+  - **Đơn có báo cáo sự cố đang mở của chính shipper đang giữ đơn, chưa xử lý đơn:** hủy / đổi shipper ở trang này **chính là bước 1 "Xử lý đơn hàng" của báo cáo** (gọi chung `applyIssueOrderAction`): cùng điều kiện (hủy được cả khi `delivering`, đổi shipper chỉ khi chưa lấy hàng), `cancellation.reason = delivery_issue`, ghi vào `resolution.orderAction` của báo cáo, mỗi báo cáo một lần. Đối chất, xử phạt, kết luận vẫn làm ở trang Khiếu nại & sự cố.
+  - **Khiếu nại** chỉ có trên đơn đã kết thúc (`delivered` / `cancelled`) nên không có thao tác can thiệp đơn; hoàn tiền theo khiếu nại làm trong UC42.
+- **Tài khoản (UC37):** tài khoản khách đã tự xóa (xóa mềm `isDeleted`, thông tin đã ẩn danh) không hiện trong danh sách, không tính vào số người dùng ở trang tổng quan, và xem chi tiết / đổi vai trò / khóa trả 404. Admin không tự đổi vai trò hay tự khóa mình được. Không đổi vai trò khi chủ quán còn sở hữu nhà hàng, shipper còn đơn đang giao, hoặc khách còn đơn chưa hoàn tất. Không khóa được shipper đang giữ đơn (`ready_for_pickup`/`delivering`), vì shipper bị khóa không giao tiếp được mà cũng không ai nhận thay. Tài khoản bị khóa không đăng nhập được và token cũ trả 403.
 - **Hoa hồng (UC40):** quy tắc riêng của một nhà hàng ưu tiên hơn quy tắc mặc định. Các quy tắc cùng phạm vi không được trùng thời gian. Quy tắc **đã bắt đầu áp dụng** chỉ được sửa tên, ghi chú, ngày kết thúc (không sớm hơn hôm nay) và không xóa được, để giữ đúng số liệu báo cáo; muốn đổi tỷ lệ thì kết thúc quy tắc cũ và tạo quy tắc mới.
 - **Khuyến mãi (UC41):**
   - Mã đã được dùng (`usedCount > 0`) thì không đổi mã, không xóa được (chỉ tắt), và `usageLimit` không được nhỏ hơn `usedCount`. `usageLimit = null` nghĩa là không giới hạn.

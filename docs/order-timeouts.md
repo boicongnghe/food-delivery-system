@@ -76,7 +76,7 @@ Ràng buộc khi lưu: `acceptTimeout > acceptRemind` và `shipperTimeout > ship
 | --- | --- | --- |
 | GET / PUT | `/api/admin/settings/order-timeouts` | Xem / lưu tham số (admin) |
 | GET | `/api/admin/orders?status=attention` | Đơn admin cần xử lý (TO-05, TO-06, TO-08b) |
-| PATCH | `/api/admin/orders/:id/cancel` `{ note }` | Admin hủy thay khách; chỉ khi đơn chưa được lấy hàng (shipper đã nhận thì shipper được giải phóng) |
+| PATCH | `/api/admin/orders/:id/cancel` `{ note }` | Admin hủy thay khách; chỉ khi đơn chưa được lấy hàng (shipper đã nhận thì shipper được giải phóng). Đơn có báo cáo sự cố đang mở thì đi qua bước xử lý đơn của báo cáo ([post-delivery-admin.md](post-delivery-admin.md)) |
 | PATCH | `/api/admin/orders/:id/release-shipper` `{ note }` | TO-08b: trả đơn shipper đã nhận nhưng chưa lấy hàng về hàng chờ |
 | GET | `/api/restaurants/me/orders/board` | Đơn chờ có thêm `waitingSince`, `acceptRemindAt`, `acceptDeadline` |
 | PUT | `/api/restaurants/me` | Thêm trường `prepTime` (5–120 phút) |
