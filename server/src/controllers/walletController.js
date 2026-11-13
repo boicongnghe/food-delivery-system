@@ -32,12 +32,12 @@ export const createDeposit = asyncHandler(async (req, res) => {
   });
 });
 
-export const confirmDeposit = asyncHandler(async (req, res) => {
-  const data = await walletService.confirmDeposit(req.user._id, req.body);
+export const getDepositStatus = asyncHandler(async (req, res) => {
+  const data = await walletService.getDepositStatus(req.user._id, req.params.id);
   res.status(200).json({
     success: true,
     data,
-    message: 'Nạp tiền vào ví ảo thành công',
+    message: 'Trạng thái yêu cầu nạp tiền',
   });
 });
 
