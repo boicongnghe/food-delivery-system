@@ -43,10 +43,6 @@ const SHIPPER_DEPOSIT_CONFIG = {
   accountName: 'DO MANH DUONG',
 }
 
-// Authentic minimal 1-page blank PDF in Base64 for fast demo testing
-const SAMPLE_PDF_BASE64 =
-  'data:application/pdf;base64,JVBERi0xLjQKJeLjz9MKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+CmVuZG9iagoyIDAgb2JqPDwvVHlwZS9QYWdlcy9LaWRzWzMgMCBSXS9Db3VudCAxPj4KZW5kb2JqCjMgMCBvYmo8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA2MTIgNzkyXT4+CmVuZG9iagp4cmVmCjAgNAowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NiAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA0L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKMTc4CiUlRU9GCg=='
-
 const SUGGESTED_ITEMS = [
   '🍚 Cơm tấm / Cơm trưa',
   '🍜 Bún bò, Phở, Hủ tiếu',
@@ -278,68 +274,6 @@ export default function Register() {
   const hasConfirmPassword = formData.confirmPassword.length > 0
   const isPasswordMismatch = hasConfirmPassword && formData.password !== formData.confirmPassword
   const isPasswordMatch = hasConfirmPassword && formData.password === formData.confirmPassword
-
-  const handleQuickFill = (targetRole) => {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000)
-
-    if (targetRole === 'restaurant_owner') {
-      setCurrentStep(1)
-      setFormData((prev) => ({
-        ...prev,
-        fullName: 'Võ Thị Bích Thảo',
-        email: `nhahang.${randomSuffix}@fooddelivery.vn`,
-        phone: '0938556677',
-        password: 'password123',
-        confirmPassword: 'password123',
-        role: 'restaurant_owner',
-        agreeTerms: true,
-        restaurantName: 'Bếp Cơm Niêu & Trà Thảo Mộc Sài Gòn',
-        restaurantAddress: 'Số 128 Đường Hòa Lạc, Xã Thạch Hòa, Thạch Thất, Hà Nội',
-        businessItems: 'Cơm niêu cá kho tộ, Cơm tấm sườn nướng, Canh chua, Trà thảo mộc',
-        ownerCitizenId: '079198005432',
-        businessLicense: {
-          fileName: 'Giay_Phep_Kinh_Doanh_BepComNieu.pdf',
-          fileSize: 524288,
-          fileData: SAMPLE_PDF_BASE64,
-          uploadedAt: new Date().toISOString(),
-        },
-      }))
-      toast.success('Đã điền đầy đủ thông tin Quán Ăn & file PDF mẫu!')
-    } else if (targetRole === 'shipper') {
-      setCurrentStep(1)
-      setFormData((prev) => ({
-        ...prev,
-        fullName: 'Hoàng Minh Đức',
-        email: `taixe.${randomSuffix}@fooddelivery.vn`,
-        phone: '0977889911',
-        password: 'password123',
-        confirmPassword: 'password123',
-        role: 'shipper',
-        agreeTerms: true,
-        dateOfBirth: '2001-08-15',
-        driverCitizenId: '079201009876',
-        vehicleInfo: 'Honda Air Blade 150cc - Biển số: 59-V2 678.90 (Có Cà vẹt chính chủ)',
-        insuranceSubmitLater: true,
-        insuranceInfo: '',
-        depositConfirmed: true,
-        depositNote: `FT${Date.now().toString().slice(-6)}`,
-      }))
-      toast.success('Đã điền thông tin Tài Xế mẫu (Bảo hiểm nộp sau, đã chuyển cọc 500K)!')
-    } else {
-      setCurrentStep(1)
-      setFormData((prev) => ({
-        ...prev,
-        fullName: 'Lê Thu Hương',
-        email: `khachhang.${randomSuffix}@fooddelivery.vn`,
-        phone: '0912345678',
-        password: 'password123',
-        confirmPassword: 'password123',
-        role: 'customer',
-        agreeTerms: true,
-      }))
-      toast.success('Đã điền thông tin Khách Hàng mẫu!')
-    }
-  }
 
   // Xác thực sơ bộ Bước 1: Tài khoản cơ bản
   const validateStep1 = () => {
@@ -774,34 +708,6 @@ export default function Register() {
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                     Chọn vai trò tham gia và hoàn tất biểu mẫu để bắt đầu ngay
                   </p>
-                </div>
-
-                {/* Quick Fill Test Badges */}
-                <div className="flex flex-wrap items-center gap-2 p-3 bg-orange-50/70 dark:bg-slate-800/60 rounded-2xl border border-dashed border-orange-200 dark:border-slate-700 text-xs">
-                  <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" /> Điền nhanh test mẫu:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFill('restaurant_owner')}
-                    className="px-2.5 py-1 rounded-xl bg-orange-100 dark:bg-orange-950/80 text-primary font-bold hover:bg-orange-200 transition-colors"
-                  >
-                    🍳 Mẫu Quán Ăn (+PDF)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFill('shipper')}
-                    className="px-2.5 py-1 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-bold hover:bg-emerald-200 transition-colors"
-                  >
-                    🛵 Mẫu Tài Xế
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFill('customer')}
-                    className="px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-200 transition-colors"
-                  >
-                    👤 Mẫu Khách Hàng
-                  </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">

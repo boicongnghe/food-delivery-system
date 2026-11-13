@@ -4,11 +4,14 @@ import User from '../models/User.js';
 import Shipper from '../models/Shipper.js';
 
 const DEMO_EMAIL = 'taixe@fooddelivery.vn';
-const DEMO_PASSWORD = 'password123';
+const DEMO_PASSWORD = (process.env.DEMO_DRIVER_PASSWORD || process.env.SEED_DEMO_PASSWORD || '').trim();
 
 const seedDriverDemoAccount = async () => {
   if (process.env.NODE_ENV !== 'development') {
     throw new Error('Set NODE_ENV=development to create the demo driver account.');
+  }
+  if (!DEMO_PASSWORD) {
+    throw new Error('DEMO_DRIVER_PASSWORD or SEED_DEMO_PASSWORD is required in server/.env.');
   }
   if (!process.env.MONGO_URI) {
     throw new Error('MONGO_URI is missing. Configure server/.env before seeding.');

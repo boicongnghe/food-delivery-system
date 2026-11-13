@@ -70,14 +70,22 @@ export const creditWalletRefund = async ({ userId, orderId, orderCode, amount })
   return { updatedUser, transaction };
 };
 
+const ensureCustomerWalletUser = async (userId, select = 'role walletBalance fullName email phone') => {
+  const user = await User.findById(userId).select(select).lean();
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy thông tin người dùng');
+  }
+  if (user.role !== 'customer') {
+    throw new ApiError(403, 'Ví ảo chỉ dành cho tài khoản khách hàng');
+  }
+  return user;
+};
+
 /**
  * Lấy thông tin ví & lịch sử giao dịch của khách hàng
  */
 export const getMyWallet = async (userId) => {
-  const user = await User.findById(userId).select('walletBalance fullName email phone').lean();
-  if (!user) {
-    throw new ApiError(404, 'Không tìm thấy thông tin người dùng');
-  }
+  const user = await ensureCustomerWalletUser(userId, 'role walletBalance fullName email phone');
 
   const [transactions, withdrawals] = await Promise.all([
     WalletTransaction.find({ user: userId })
@@ -109,6 +117,8 @@ const CUSTOMER_MIN_WITHDRAWAL = 10000;
  * (bản sao tài khoản được lưu vào yêu cầu: đổi mặc định sau đó không làm sai lịch sử)
  */
 export const requestCustomerWithdrawal = async (userId, { amount }) => {
+  await ensureCustomerWalletUser(userId, 'role');
+
   const withdrawAmount = Number(amount);
   if (!withdrawAmount || withdrawAmount < CUSTOMER_MIN_WITHDRAWAL) {
     throw new ApiError(400, 'Số tiền rút tối thiểu là 10.000đ');
@@ -122,7 +132,7 @@ export const requestCustomerWithdrawal = async (userId, { amount }) => {
 
   // Trừ tiền ngay lập tức khi tạo yêu cầu
   const user = await User.findOneAndUpdate(
-    { _id: userId, walletBalance: { $gte: withdrawAmount } },
+    { _id: userId, role: 'customer', walletBalance: { $gte: withdrawAmount } },
     { $inc: { walletBalance: -withdrawAmount } },
     { returnDocument: 'after', runValidators: true },
   );
@@ -294,17 +304,14 @@ export const rejectWithdrawal = async (adminId, withdrawalId, { reason }) => {
  * Tạo thông tin VietQR nạp tiền vào ví ảo của khách hàng
  */
 export const createDepositRequest = async (userId, { amount }) => {
+  const user = await ensureCustomerWalletUser(userId, 'role fullName phone email');
+
   const numAmount = Number(amount);
   if (!numAmount || isNaN(numAmount) || numAmount < 10000) {
     throw new ApiError(400, 'Số tiền nạp tối thiểu là 10.000đ');
   }
   if (numAmount > 50000000) {
     throw new ApiError(400, 'Số tiền nạp tối đa mỗi lần là 50.000.000đ');
-  }
-
-  const user = await User.findById(userId).select('fullName phone email').lean();
-  if (!user) {
-    throw new ApiError(404, 'Không tìm thấy người dùng');
   }
 
   const bankId = (process.env.BANK_ID || 'TPB').trim().toUpperCase();
@@ -333,19 +340,21 @@ export const createDepositRequest = async (userId, { amount }) => {
  * Xác nhận nạp tiền vào ví ảo
  */
 export const confirmDeposit = async (userId, { amount, depositCode }) => {
+  await ensureCustomerWalletUser(userId, 'role');
+
   const numAmount = Number(amount);
   if (!numAmount || isNaN(numAmount) || numAmount < 10000) {
     throw new ApiError(400, 'Số tiền nạp không hợp lệ (tối thiểu 10.000đ)');
   }
 
-  const updatedUser = await User.findByIdAndUpdate(
-    userId,
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: userId, role: 'customer' },
     { $inc: { walletBalance: numAmount } },
     { returnDocument: 'after', runValidators: true },
   );
 
   if (!updatedUser) {
-    throw new ApiError(404, 'Không tìm thấy người dùng');
+    throw new ApiError(403, 'Ví ảo chỉ dành cho tài khoản khách hàng');
   }
 
   const transaction = await WalletTransaction.create({

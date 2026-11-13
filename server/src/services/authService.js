@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
@@ -6,6 +7,9 @@ import Restaurant from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import Order from '../models/Order.js';
 import Notification from '../models/Notification.js';
+import Address from '../models/Address.js';
+import WithdrawalRequest from '../models/WithdrawalRequest.js';
+import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
 import ApiError from '../utils/ApiError.js';
 import * as emailService from './emailService.js';
 import * as addressService from './addressService.js';
@@ -225,7 +229,7 @@ export const resendVerificationEmail = async (email) => {
 
 export const loginUser = async ({ email, password }) => {
   const normalizedEmail = email.trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select('+password');
+  const user = await User.findOne({ email: normalizedEmail, isDeleted: { $ne: true } }).select('+password');
 
   if (!user) {
     throw new ApiError(401, 'Email hoặc mật khẩu không chính xác');
@@ -235,15 +239,7 @@ export const loginUser = async ({ email, password }) => {
     throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ ban quản trị để được hỗ trợ.');
   }
 
-  // Danh sách email demo luôn được miễn kiểm tra xác thực
-  const demoEmails = [
-    'khachhang@fooddelivery.vn',
-    'chuquan@fooddelivery.vn',
-    'taixe@fooddelivery.vn',
-    'admin@fooddelivery.vn',
-  ];
-
-  if (user.isVerified === false && !demoEmails.includes(normalizedEmail)) {
+  if (user.isVerified === false) {
     const error = new ApiError(
       403,
       'Tài khoản của bạn chưa được kích hoạt qua email. Vui lòng kiểm tra hộp thư của bạn để kích hoạt hoặc yêu cầu gửi lại link kích hoạt.'
@@ -280,7 +276,7 @@ export const getCurrentUser = async (userId) => {
 
 export const forgotPassword = async (email) => {
   const normalizedEmail = (email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await User.findOne({ email: normalizedEmail, isDeleted: { $ne: true } });
 
   if (!user) {
     throw new ApiError(404, 'Không tìm thấy tài khoản nào ứng với email này');
@@ -309,7 +305,7 @@ export const forgotPassword = async (email) => {
 
 export const resetPassword = async ({ email, otp, newPassword }) => {
   const normalizedEmail = (email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select(
+  const user = await User.findOne({ email: normalizedEmail, isDeleted: { $ne: true } }).select(
     '+resetPasswordOtp +resetPasswordExpires'
   );
 
@@ -441,6 +437,7 @@ export const loginWithGoogle = async ({ idToken, accessToken }) => {
 
   const normalizedEmail = payload.email.trim().toLowerCase();
   let user = await User.findOne({
+    isDeleted: { $ne: true },
     $or: [{ email: normalizedEmail }, { googleId: payload.sub }],
   });
 
@@ -522,6 +519,7 @@ export const loginWithFacebook = async ({ accessToken, userID }) => {
     : `fb_${facebookId}@fooddelivery.vn`;
 
   let user = await User.findOne({
+    isDeleted: { $ne: true },
     $or: [{ facebookId }, { email }],
   });
 
@@ -573,7 +571,7 @@ export const loginWithFacebook = async ({ accessToken, userID }) => {
 
 export const deleteCustomerAccount = async (userId, { password, confirmationText } = {}) => {
   const user = await User.findById(userId).select('+password');
-  if (!user) {
+  if (!user || user.isDeleted) {
     throw new ApiError(404, 'Không tìm thấy thông tin tài khoản người dùng.');
   }
 
@@ -613,7 +611,26 @@ export const deleteCustomerAccount = async (userId, { password, confirmationText
     );
   }
 
-  // 4. Xác thực bảo mật:
+  // 4. Chặn xóa khi ví vẫn còn số dư hoặc còn yêu cầu rút tiền đang chờ xử lý
+  if (Number(user.walletBalance || 0) > 0) {
+    throw new ApiError(
+      400,
+      `Không thể xóa tài khoản khi ví vẫn còn số dư (${Number(user.walletBalance).toLocaleString('vi-VN')}đ). Vui lòng rút hết tiền trước khi xóa tài khoản.`
+    );
+  }
+
+  const [pendingWithdrawal, pendingShipperWithdrawal] = await Promise.all([
+    WithdrawalRequest.exists({ user: user._id, status: 'pending' }),
+    ShipperWithdrawal.exists({ shipper: user._id, status: 'requested' }),
+  ]);
+  if (pendingWithdrawal || pendingShipperWithdrawal) {
+    throw new ApiError(
+      400,
+      'Không thể xóa tài khoản khi đang có yêu cầu rút tiền chờ xử lý. Vui lòng đợi xử lý xong trước khi xóa tài khoản.'
+    );
+  }
+
+  // 5. Xác thực bảo mật:
   // Nếu tài khoản có mật khẩu: Bắt buộc kiểm tra mật khẩu hiện tại
   if (user.password) {
     if (!password) {
@@ -631,14 +648,41 @@ export const deleteCustomerAccount = async (userId, { password, confirmationText
     }
   }
 
-  // 5. Xóa thông báo liên quan của khách hàng
-  await Notification.deleteMany({ recipient: user._id });
+  // 6. Xóa thông báo và sổ địa chỉ cá nhân của khách hàng
+  await Promise.all([
+    Notification.deleteMany({ recipient: user._id }),
+    Address.deleteMany({ user: user._id }),
+  ]);
 
-  // 6. Xóa vĩnh viễn tài khoản người dùng khỏi hệ thống
-  await User.findByIdAndDelete(user._id);
+  // 7. Xóa mềm (soft-delete) & ẩn danh hóa PII để giữ toàn vẹn tham chiếu (Order, Review, Complaint...)
+  const anonymizedEmail = `deleted_${user._id}_${Date.now()}@deleted.local`;
+  const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+
+  await User.updateOne(
+    { _id: user._id, isDeleted: { $ne: true } },
+    {
+      $set: {
+        fullName: 'Người dùng đã xóa',
+        email: anonymizedEmail,
+        phone: '',
+        password: randomPasswordHash,
+        googleId: null,
+        facebookId: null,
+        avatar: '',
+        payoutAccounts: [],
+        verificationToken: null,
+        verificationTokenExpires: null,
+        resetPasswordOtp: null,
+        resetPasswordExpires: null,
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    }
+  );
 
   return {
     success: true,
-    message: 'Tài khoản của bạn đã được xóa vĩnh viễn khỏi hệ thống.',
+    message: 'Tài khoản của bạn đã được xóa khỏi hệ thống.',
   };
 };

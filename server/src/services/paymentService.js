@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Payment from '../models/Payment.js';
 import Order from '../models/Order.js';
 import Restaurant from '../models/Restaurant.js';
@@ -7,23 +8,47 @@ import OrderStatusHistory from '../models/OrderStatusHistory.js';
 import ApiError from '../utils/ApiError.js';
 import { sendRealtimeNotification, emitWalletUpdate } from '../socket.js';
 
+const resolveUserContext = (userOrId) => {
+  if (userOrId && typeof userOrId === 'object' && userOrId._id) {
+    return { userId: userOrId._id, isAdmin: userOrId.role === 'admin' };
+  }
+  return { userId: userOrId, isAdmin: false };
+};
+
+const buildCustomerFilter = (userOrId) => {
+  const { userId, isAdmin } = resolveUserContext(userOrId);
+  return isAdmin ? {} : { customer: userId };
+};
+
+const findOrderForPayment = async (orderId, userOrId) => {
+  const { userId } = resolveUserContext(userOrId);
+  if (!userId) {
+    throw new ApiError(401, 'Vui lòng đăng nhập để thực hiện thao tác này');
+  }
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    throw new ApiError(400, 'ID đơn hàng không hợp lệ');
+  }
+  const order = await Order.findOne({ _id: orderId, ...buildCustomerFilter(userOrId) });
+  if (!order) {
+    throw new ApiError(404, 'Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập');
+  }
+  return order;
+};
+
 const generateTransactionCode = (prefix = 'TXN') => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randomSuffix = Math.floor(100000 + Math.random() * 900000);
   return `${prefix}-${dateStr}-${randomSuffix}`;
 };
 
-export const processPayment = async (orderId, userId, data = {}) => {
+export const processPayment = async (orderId, userOrId, data = {}) => {
   const { paymentMethod = 'banking', simulateFailure = false } = data;
 
   if (paymentMethod !== 'banking') {
     throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
   }
 
-  const order = await Order.findOne({ _id: orderId, customer: userId });
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng cần thanh toán');
-  }
+  const order = await findOrderForPayment(orderId, userOrId);
 
   if (order.status === 'cancelled') {
     throw new ApiError(400, 'Không thể thanh toán cho đơn hàng đã bị hủy');
@@ -45,7 +70,7 @@ export const processPayment = async (orderId, userId, data = {}) => {
 
     const payment = await Payment.create({
       order: order._id,
-      customer: userId,
+      customer: order.customer,
       amount: order.totalPrice,
       paymentMethod,
       transactionCode,
@@ -77,7 +102,7 @@ export const processPayment = async (orderId, userId, data = {}) => {
 
   const payment = await Payment.create({
     order: order._id,
-    customer: userId,
+    customer: order.customer,
     amount: order.totalPrice,
     paymentMethod,
     transactionCode,
@@ -103,24 +128,21 @@ export const processPayment = async (orderId, userId, data = {}) => {
   };
 };
 
-export const retryPayment = async (orderId, userId, data = {}) => {
+export const retryPayment = async (orderId, userOrId, data = {}) => {
   const { paymentMethod = 'banking', simulateFailure = false } = data;
 
   if (paymentMethod !== 'banking') {
     throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng');
   }
 
-  const order = await Order.findOne({ _id: orderId, customer: userId });
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
+  const order = await findOrderForPayment(orderId, userOrId);
 
   if (order.paymentStatus === 'paid') {
     throw new ApiError(400, 'Đơn hàng này đã thanh toán thành công rồi');
   }
 
   // Find previous failed payment to update retryCount
-  const lastPayment = await Payment.findOne({ order: order._id }).sort({ createdAt: -1 });
+  const lastPayment = await Payment.findOne({ order: order._id, ...buildCustomerFilter(userOrId) }).sort({ createdAt: -1 });
   const retryCount = (lastPayment?.retryCount || 0) + 1;
 
   const transactionCode = generateTransactionCode('RETRY');
@@ -132,7 +154,7 @@ export const retryPayment = async (orderId, userId, data = {}) => {
 
     const payment = await Payment.create({
       order: order._id,
-      customer: userId,
+      customer: order.customer,
       amount: order.totalPrice,
       paymentMethod,
       transactionCode,
@@ -156,7 +178,7 @@ export const retryPayment = async (orderId, userId, data = {}) => {
 
   const payment = await Payment.create({
     order: order._id,
-    customer: userId,
+    customer: order.customer,
     amount: order.totalPrice,
     paymentMethod,
     transactionCode,
@@ -211,15 +233,13 @@ export const retryPayment = async (orderId, userId, data = {}) => {
   };
 };
 
-export const getPaymentByOrder = async (orderId) => {
-  return Payment.find({ order: orderId }).sort({ createdAt: -1 });
+export const getPaymentByOrder = async (orderId, userOrId) => {
+  await findOrderForPayment(orderId, userOrId);
+  return Payment.find({ order: orderId, ...buildCustomerFilter(userOrId) }).sort({ createdAt: -1 });
 };
 
-export const getPaymentQrInfo = async (orderId) => {
-  const order = await Order.findById(orderId);
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
+export const getPaymentQrInfo = async (orderId, userOrId) => {
+  const order = await findOrderForPayment(orderId, userOrId);
 
   const bankId = (process.env.BANK_ID || 'TPB').trim().toUpperCase();
   const accountNo = (process.env.BANK_ACCOUNT_NO || '0393863658').trim();
@@ -246,11 +266,8 @@ export const getPaymentQrInfo = async (orderId) => {
   };
 };
 
-export const checkPaymentStatus = async (orderId) => {
-  const order = await Order.findById(orderId);
-  if (!order) {
-    throw new ApiError(404, 'Không tìm thấy đơn hàng');
-  }
+export const checkPaymentStatus = async (orderId, userOrId) => {
+  const order = await findOrderForPayment(orderId, userOrId);
 
   return {
     orderId: order._id,
@@ -329,14 +346,81 @@ const confirmOrderPaid = async (order, transferAmount, transactionCode, gateway 
   };
 };
 
+const resolveWalletDepositTargetUser = async (content = '') => {
+  // Tìm theo số điện thoại (ví dụ: NAP VI 0901234567 8639)
+  const phoneMatch = content.match(/0\d{9}/);
+  if (phoneMatch) {
+    const user = await User.findOne({ phone: phoneMatch[0] });
+    if (user) return user;
+  }
+
+  // Nếu không khớp SĐT 10 số, quét các từ trong content để tìm theo phone hoặc _id
+  const words = content.split(/[^a-zA-Z0-9]+/);
+  for (const word of words) {
+    if (!word) continue;
+    if (word.length >= 9) {
+      const user = await User.findOne({ phone: word });
+      if (user) return user;
+    }
+    if (/^[0-9a-fA-F]{24}$/.test(word)) {
+      const user = await User.findById(word);
+      if (user) return user;
+    }
+  }
+
+  // Nếu người dùng dùng 6 ký tự cuối của _id
+  const allUsers = await User.find({}).select('phone _id').lean();
+  const upperContent = content.toUpperCase();
+  for (const u of allUsers) {
+    const idSuffix = u._id.toString().slice(-6).toUpperCase();
+    if (upperContent.includes(idSuffix)) {
+      return User.findById(u._id);
+    }
+  }
+
+  return null;
+};
+
+const resolveOrderFromWebhookContent = async (content = '', code = '') => {
+  if (code) {
+    const codeMatch = String(code).match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
+    if (codeMatch) {
+      const order = await Order.findOne({ orderNumber: `ORD-${codeMatch[1]}-${codeMatch[2]}` });
+      if (order) return order;
+    }
+  }
+
+  const regexMatch = content.match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
+  if (regexMatch) {
+    const order = await Order.findOne({ orderNumber: `ORD-${regexMatch[1]}-${regexMatch[2]}` });
+    if (order) return order;
+  }
+
+  const normalizedContent = content.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const pendingOrders = await Order.find({ paymentStatus: 'pending' })
+    .sort({ createdAt: -1 })
+    .limit(50);
+
+  for (const pendingOrder of pendingOrders) {
+    const normalizedOrderNumber = pendingOrder.orderNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (normalizedContent.includes(normalizedOrderNumber)) {
+      return pendingOrder;
+    }
+  }
+
+  return null;
+};
+
 export const handleSepayWebhook = async (webhookData, authHeader = '') => {
-  // 1. Kiểm tra API Key nếu cấu hình trong .env
+  // 1. Kiểm tra API Key nếu cấu hình trong .env (bắt buộc ở production)
   const secretKey = process.env.SEPAY_API_KEY;
   if (secretKey && secretKey.trim()) {
     const expectedHeader = `Apikey ${secretKey.trim()}`;
     if (authHeader !== expectedHeader && authHeader !== secretKey.trim()) {
       throw new ApiError(401, 'Unauthorized: Sai SePay API Key');
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    throw new ApiError(503, 'SePay Webhook chưa được cấu hình SEPAY_API_KEY');
   }
 
   const {
@@ -364,46 +448,19 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   // 2. Kiểm tra nếu giao dịch là nạp tiền vào ví ảo (nội dung chứa NAP VI hoặc NAPVI)
   const isWalletDeposit = /NAP[\s_-]?VI/i.test(content) || /NAP[\s_-]?VI/i.test(code || '');
   if (isWalletDeposit) {
-    let targetUser = null;
-
-    // Tìm theo số điện thoại (ví dụ: NAP VI 0901234567 8639)
-    const phoneMatch = content.match(/0\d{9}/);
-    if (phoneMatch) {
-      targetUser = await User.findOne({ phone: phoneMatch[0] });
-    }
-
-    // Nếu không khớp SĐT 10 số, quét các từ trong content để tìm theo phone hoặc _id
-    if (!targetUser) {
-      const words = content.split(/[^a-zA-Z0-9]+/);
-      for (const word of words) {
-        if (!word) continue;
-        if (word.length >= 9) {
-          const u = await User.findOne({ phone: word });
-          if (u) { targetUser = u; break; }
-        }
-        if (/^[0-9a-fA-F]{24}$/.test(word)) {
-          const u = await User.findById(word);
-          if (u) { targetUser = u; break; }
-        }
-      }
-    }
-
-    // Nếu người dùng dùng 6 ký tự cuối của _id
-    if (!targetUser) {
-      const allUsers = await User.find({}).select('phone _id').lean();
-      for (const u of allUsers) {
-        const idSuffix = u._id.toString().slice(-6).toUpperCase();
-        if (content.toUpperCase().includes(idSuffix)) {
-          targetUser = await User.findById(u._id);
-          break;
-        }
-      }
-    }
+    const targetUser = await resolveWalletDepositTargetUser(content);
 
     if (!targetUser) {
       return {
         success: false,
         message: `Nạp tiền ví thất bại: Không tìm thấy người dùng khớp với nội dung "${content}"`,
+      };
+    }
+
+    if (targetUser.role !== 'customer') {
+      return {
+        success: false,
+        message: 'Ví ảo chỉ hỗ trợ nạp tiền cho tài khoản khách hàng (customer)',
       };
     }
 
@@ -423,11 +480,17 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
     }
 
     // Cộng tiền vào số dư ví của người dùng
-    const updatedUser = await User.findByIdAndUpdate(
-      targetUser._id,
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: targetUser._id, role: 'customer' },
       { $inc: { walletBalance: amount } },
       { returnDocument: 'after', runValidators: true }
     );
+    if (!updatedUser) {
+      return {
+        success: false,
+        message: 'Ví ảo chỉ hỗ trợ nạp tiền cho tài khoản khách hàng (customer)',
+      };
+    }
 
     // Lưu lịch sử giao dịch ví ảo
     await WalletTransaction.create({
@@ -466,40 +529,7 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   }
 
   // 3. Tìm đơn hàng theo nội dung chuyển khoản hoặc mã giao dịch
-  let order = null;
-
-  // Thử khớp từ trường code nếu SePay đã bóc tách
-  if (code) {
-    const codeMatch = String(code).match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
-    if (codeMatch) {
-      order = await Order.findOne({ orderNumber: `ORD-${codeMatch[1]}-${codeMatch[2]}` });
-    }
-  }
-
-  // Thử khớp regex ORD-xxxxxxxx-xxxx từ content
-  if (!order) {
-    const regexMatch = content.match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
-    if (regexMatch) {
-      const formattedOrderNumber = `ORD-${regexMatch[1]}-${regexMatch[2]}`;
-      order = await Order.findOne({ orderNumber: formattedOrderNumber });
-    }
-  }
-
-  // Fallback: Tìm đơn trong danh sách các đơn đang chờ thanh toán (pending) gần nhất
-  if (!order) {
-    const normalizedContent = content.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const pendingOrders = await Order.find({ paymentStatus: 'pending' })
-      .sort({ createdAt: -1 })
-      .limit(50);
-
-    for (const pendingOrder of pendingOrders) {
-      const normalizedOrderNumber = pendingOrder.orderNumber.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      if (normalizedContent.includes(normalizedOrderNumber)) {
-        order = pendingOrder;
-        break;
-      }
-    }
-  }
+  const order = await resolveOrderFromWebhookContent(content, code);
 
   if (!order) {
     return {
@@ -520,11 +550,33 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
   return confirmOrderPaid(order, amount, transactionCode, gateway || 'SePay');
 };
 
-export const simulateWebhook = async (data = {}) => {
+export const simulateWebhook = async (data = {}, user = null) => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new ApiError(403, 'Chức năng giả lập webhook không khả dụng trên môi trường production');
+  }
+  if (!user) {
+    throw new ApiError(401, 'Vui lòng đăng nhập để thực hiện thao tác này');
+  }
+
   const { orderId, orderNumber, depositCode, content, amount, transferAmount } = data;
+  const internalAuthHeader = process.env.SEPAY_API_KEY?.trim()
+    ? `Apikey ${process.env.SEPAY_API_KEY.trim()}`
+    : '';
 
   // 1. Nếu là nạp tiền vào ví
   if (depositCode || (content && /NAP[\s_-]?VI/i.test(content))) {
+    const depositContent = content || depositCode;
+    const targetUser = await resolveWalletDepositTargetUser(depositContent);
+    if (!targetUser) {
+      throw new ApiError(404, `Không tìm thấy người dùng khớp với nội dung "${depositContent}"`);
+    }
+    if (targetUser.role !== 'customer') {
+      throw new ApiError(403, 'Ví ảo chỉ hỗ trợ nạp tiền cho tài khoản khách hàng');
+    }
+    if (user.role !== 'admin' && targetUser._id.toString() !== user._id.toString()) {
+      throw new ApiError(403, 'Bạn không có quyền giả lập nạp tiền vào ví của người khác');
+    }
+
     const webhookPayload = {
       id: Date.now(),
       gateway: 'TPB',
@@ -532,39 +584,33 @@ export const simulateWebhook = async (data = {}) => {
       accountNumber: process.env.BANK_ACCOUNT_NO || '0393863658',
       transferType: 'in',
       transferAmount: Number(amount || transferAmount || 0),
-      content: content || depositCode,
+      content: depositContent,
       referenceCode: `SIM-SEPAY-${Date.now().toString().slice(-6)}`,
     };
-    return handleSepayWebhook(webhookPayload);
+    return handleSepayWebhook(webhookPayload, internalAuthHeader);
   }
 
-  // 2. Nếu là thanh toán đơn hàng bằng orderId hoặc orderNumber
+  // 2. Nếu là thanh toán đơn hàng bằng orderId, orderNumber hoặc content chứa mã đơn
+  const customerFilter = buildCustomerFilter(user);
   let order = null;
   if (orderId) {
-    order = await Order.findById(orderId);
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new ApiError(400, 'ID đơn hàng không hợp lệ');
+    }
+    order = await Order.findOne({ _id: orderId, ...customerFilter });
   } else if (orderNumber) {
-    order = await Order.findOne({ orderNumber });
+    order = await Order.findOne({ orderNumber, ...customerFilter });
+  } else if (content) {
+    const matched = await resolveOrderFromWebhookContent(content);
+    if (matched && (user.role === 'admin' || matched.customer?.toString() === user._id.toString())) {
+      order = matched;
+    }
   }
 
-  if (order) {
-    const transactionCode = `SIM-SEPAY-${Date.now().toString().slice(-6)}`;
-    return confirmOrderPaid(order, order.totalPrice, transactionCode, 'Mock-SePay');
+  if (!order) {
+    throw new ApiError(404, 'Không tìm thấy đơn hàng thuộc tài khoản của bạn để giả lập webhook');
   }
 
-  // 3. Nếu truyền content tự do
-  if (content) {
-    const webhookPayload = {
-      id: Date.now(),
-      gateway: 'TPB',
-      transactionDate: new Date().toISOString(),
-      accountNumber: process.env.BANK_ACCOUNT_NO || '0393863658',
-      transferType: 'in',
-      transferAmount: Number(amount || transferAmount || 0),
-      content,
-      referenceCode: `SIM-SEPAY-${Date.now().toString().slice(-6)}`,
-    };
-    return handleSepayWebhook(webhookPayload);
-  }
-
-  throw new ApiError(404, 'Không tìm thấy thông tin đơn hàng hoặc mã nạp tiền để giả lập webhook');
+  const transactionCode = `SIM-SEPAY-${Date.now().toString().slice(-6)}`;
+  return confirmOrderPaid(order, order.totalPrice, transactionCode, 'Mock-SePay');
 };
