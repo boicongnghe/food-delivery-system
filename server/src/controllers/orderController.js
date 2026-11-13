@@ -11,7 +11,8 @@ export const estimateShipping = asyncHandler(async (req, res) => {
 });
 
 export const createOrder = asyncHandler(async (req, res) => {
-  const order = await orderService.createOrder(req.user._id, req.body);
+  const idempotencyKey = req.headers['idempotency-key'] || req.body.idempotencyKey || null;
+  const order = await orderService.createOrder(req.user._id, { ...req.body, idempotencyKey });
   res.status(201).json({
     success: true,
     data: order,

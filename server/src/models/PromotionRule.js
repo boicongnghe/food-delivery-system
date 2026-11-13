@@ -50,6 +50,11 @@ const promotionRuleSchema = new mongoose.Schema(
       type: Number,
       default: 100,
     },
+    usageLimitPerCustomer: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     usedCount: {
       type: Number,
       default: 0,

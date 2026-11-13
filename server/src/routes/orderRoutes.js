@@ -99,7 +99,8 @@ router.get('/', protect, orderController.getCustomerOrders);
 router.get('/:id', protect, orderController.getOrderById);
 router.post('/:id/cancel', protect, orderController.cancelOrder);
 router.patch('/:id/receive', protect, orderController.receiveOrder);
-router.patch('/:id/progress', protect, orderController.progressOrder);
+// Demo progression is strictly restricted to admin role
+router.patch('/:id/progress', protect, authorize('admin'), orderController.progressOrder);
 
 // After delivery: the customer rates (UC17) or complains (UC18); the shipper reports a delivery issue (UC34)
 router.post(

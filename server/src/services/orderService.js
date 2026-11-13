@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import MenuItem from '../models/MenuItem.js';
 import Food from '../models/Food.js';
 import Order from '../models/Order.js';
@@ -109,17 +110,17 @@ const invalidItem = (message) => new ApiError(400, message);
  * Options chosen by the customer -> the menu's own options with their current price.
  * Required groups must be chosen, a group never exceeds maxSelect, unknown groups/options are rejected.
  */
-const resolveItemOptions = (menuItem, selected = []) => {
+const resolveItemOptions = (menuItem, selected = [], itemQuantity = 1) => {
   if (!Array.isArray(selected)) throw invalidItem(`Lựa chọn của món "${menuItem.name}" không hợp lệ`);
 
-  const knownGroups = new Set(menuItem.optionGroups.map((group) => group.name));
+  const knownGroups = new Set((menuItem.optionGroups || []).map((group) => group.name));
   const unknown = selected.find((choice) => !knownGroups.has(choice?.groupName));
   if (unknown) {
     throw invalidItem(`Lựa chọn "${unknown?.groupName || ''}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
   }
 
   const chosen = [];
-  for (const group of menuItem.optionGroups) {
+  for (const group of menuItem.optionGroups || []) {
     const choicesForGroup = selected.filter((choice) => choice.groupName === group.name);
     const totalCount = choicesForGroup.reduce(
       (sum, choice) => sum + (Number(choice.quantity) > 0 ? Number(choice.quantity) : 1),
@@ -129,22 +130,27 @@ const resolveItemOptions = (menuItem, selected = []) => {
     if (group.isRequired && totalCount === 0) {
       throw invalidItem(`Vui lòng chọn "${group.name}" cho món "${menuItem.name}"`);
     }
-    if (group.isRequired && totalCount > group.maxSelect) {
+    // M2: Check maxSelect for ALL groups (both required and optional)
+    if (group.maxSelect && totalCount > group.maxSelect) {
       throw invalidItem(`"${group.name}" của món "${menuItem.name}" chỉ được chọn tối đa ${group.maxSelect}`);
     }
 
     for (const choice of choicesForGroup) {
-      const option = group.options.find((candidate) => candidate.name === choice.name);
+      const option = (group.options || []).find((candidate) => candidate.name === choice.name);
       if (!option) {
         throw invalidItem(`Lựa chọn "${choice.name}" không còn trong món "${menuItem.name}", vui lòng chọn lại`);
       }
       const qty = Number(choice.quantity) > 0 ? Number(choice.quantity) : 1;
       const currentStock = option.stock !== undefined ? option.stock : 50;
+      // M2: Validate needed stock multiplying by itemQuantity
+      const totalNeeded = qty * itemQuantity;
       if (currentStock <= 0) {
         throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" hiện đã hết hàng`);
       }
-      if (qty > currentStock) {
-        throw invalidItem(`Topping "${option.name}" của món "${menuItem.name}" chỉ còn lại ${currentStock} phần (bạn đang chọn ${qty})`);
+      if (totalNeeded > currentStock) {
+        throw invalidItem(
+          `Topping "${option.name}" của món "${menuItem.name}" chỉ còn lại ${currentStock} phần (bạn đang chọn ${totalNeeded} phần cho ${itemQuantity} món)`
+        );
       }
 
       const existing = chosen.find((c) => c.groupName === group.name && c.name === option.name);
@@ -165,16 +171,20 @@ const resolveItemOptions = (menuItem, selected = []) => {
 
 // One cart line -> order item snapshot (later menu changes never alter it)
 const buildOrderItem = async (restaurantId, item) => {
-  // menuItemId; foodId / food kept for carts saved before the menu became the only catalogue
   const menuItemId = item.menuItemId || item.foodId || item.food?._id || item.food?.id || item.food;
   const quantity = Number(item.quantity);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) {
     throw invalidItem(`Số lượng mỗi món phải là số nguyên từ 1 đến ${MAX_ITEM_QUANTITY}`);
   }
 
+  // C5: Strictly find item belonging to the specified restaurant only!
   let menuItem = null;
   if (menuItemId && /^[0-9a-fA-F]{24}$/.test(String(menuItemId))) {
-    menuItem = await MenuItem.findOne({ _id: menuItemId, isDeleted: false }).lean();
+    menuItem = await MenuItem.findOne({
+      _id: menuItemId,
+      restaurant: restaurantId,
+      isDeleted: false,
+    }).lean();
   }
   if (!menuItem) {
     const itemName = item.name || item.food?.name;
@@ -188,15 +198,15 @@ const buildOrderItem = async (restaurantId, item) => {
     }
   }
 
+  // Fallback check in Food collection, strictly filtered by restaurantId
   if (!menuItem && menuItemId && /^[0-9a-fA-F]{24}$/.test(String(menuItemId))) {
     try {
-      menuItem = await Food.findById(menuItemId).lean();
+      menuItem = await Food.findOne({ _id: menuItemId, restaurant: restaurantId }).lean();
     } catch {
       // ignore
     }
   }
 
-  // Also try finding by name in Food collection if not found in MenuItem
   if (!menuItem) {
     const itemName = item.name || item.food?.name;
     if (itemName) {
@@ -208,31 +218,24 @@ const buildOrderItem = async (restaurantId, item) => {
     }
   }
 
+  // C5: Reject immediately if item does not exist or does not belong to the restaurant.
+  // NEVER trust client prices!
   if (!menuItem) {
-    // Graceful fallback: use the actual price and name passed from the client cart
-    const price = Number(item.price || item.food?.price || 40000);
-    return {
-      menuItem: null,
-      name: item.name || item.food?.name || 'Món ăn',
-      image: item.image || item.food?.image || '',
-      price,
-      unitPrice: price,
-      quantity,
-      options: item.options || [],
-      note: String(item.note || '').trim().slice(0, MAX_ITEM_NOTE_LENGTH),
-      lineTotal: price * quantity,
-    };
+    throw new ApiError(
+      400,
+      `Món ăn "${item.name || 'không xác định'}" không thuộc nhà hàng này hoặc không tồn tại. Vui lòng làm mới giỏ hàng.`
+    );
   }
 
   if (menuItem.isVisible === false) {
-    throw new ApiError(404, 'Món ăn không tồn tại hoặc đã ngừng phục vụ');
+    throw new ApiError(400, `Món '${menuItem.name}' đã ngừng phục vụ`);
   }
   if (menuItem.isAvailable === false) {
     throw invalidItem(`Món '${menuItem.name}' hiện tại đã hết hàng`);
   }
 
   const options = Array.isArray(menuItem.optionGroups) && menuItem.optionGroups.length > 0
-    ? resolveItemOptions(menuItem, item.options)
+    ? resolveItemOptions(menuItem, item.options, quantity)
     : [];
   const unitPrice = menuItem.price + options.reduce((sum, option) => sum + option.price * (option.quantity || 1), 0);
   return {
@@ -248,14 +251,39 @@ const buildOrderItem = async (restaurantId, item) => {
   };
 };
 
-const generateOrderNumber = () => {
+// M6: Guaranteed unique order number generator
+const generateOrderNumber = async () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-  return `ORD-${dateStr}-${randomSuffix}`;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase(); // 16.7M combinations per day
+    const candidate = `ORD-${dateStr}-${randomSuffix}`;
+    const exists = await Order.exists({ orderNumber: candidate });
+    if (!exists) return candidate;
+  }
+  return `ORD-${dateStr}-${Date.now().toString().slice(-4)}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 };
 
 export const createOrder = async (userId, data) => {
-  const { restaurantId, items, deliveryAddress, paymentMethod = 'banking', promotionCode, restaurantVoucherCode } = data;
+  const {
+    restaurantId,
+    items,
+    deliveryAddress,
+    paymentMethod = 'banking',
+    promotionCode,
+    restaurantVoucherCode,
+    idempotencyKey,
+  } = data;
+
+  // m3: Idempotency Key check - return existing order if previously created with this key
+  if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim()) {
+    const existingOrder = await Order.findOne({
+      customer: userId,
+      idempotencyKey: idempotencyKey.trim(),
+    });
+    if (existingOrder) {
+      return existingOrder;
+    }
+  }
 
   if (!['banking', 'wallet'].includes(paymentMethod)) {
     throw new ApiError(400, 'Hệ thống hiện tại chỉ chấp nhận thanh toán bằng chuyển khoản ngân hàng hoặc ví ảo');
@@ -367,106 +395,189 @@ export const createOrder = async (userId, data) => {
   let appliedPromoCode = null;
 
   if (promotionCode) {
-    const promoResult = await validateAndApplyPromotion(promotionCode, subtotal - restaurantVoucher.discountAmount);
+    // M4: Pass userId to check usageLimitPerCustomer
+    const promoResult = await validateAndApplyPromotion(
+      promotionCode,
+      subtotal - restaurantVoucher.discountAmount,
+      userId
+    );
     discountAmount = promoResult.discountAmount;
     appliedPromoCode = promoResult.promotion ? promoResult.promotion.code : null;
 
     if (appliedPromoCode) {
-      await PromotionRule.updateOne({ code: appliedPromoCode }, { $inc: { usedCount: 1 } });
+      // M4: Atomic increment with limit condition to avoid race condition overshooting usageLimit
+      const updatedRule = await PromotionRule.findOneAndUpdate(
+        {
+          code: appliedPromoCode,
+          $or: [{ usageLimit: null }, { $expr: { $lt: ['$usedCount', '$usageLimit'] } }],
+        },
+        { $inc: { usedCount: 1 } },
+        { returnDocument: 'after' }
+      );
+      if (!updatedRule) {
+        throw new ApiError(400, 'Mã khuyến mãi đã hết lượt sử dụng do có người vừa áp dụng');
+      }
     }
   }
 
   const totalDiscount = restaurantVoucher.discountAmount + discountAmount;
   const totalPrice = Math.max(0, subtotal + shippingFee - totalDiscount);
 
-  // Nếu thanh toán bằng ví ảo, kiểm tra và trừ số dư ví trước khi tạo đơn
-  let updatedUser = null;
+  // C6: Transaction & wallet balance deduction
   const isWalletPaid = paymentMethod === 'wallet';
-  if (isWalletPaid) {
-    const userDoc = await User.findById(userId).select('walletBalance').lean();
-    const balance = userDoc?.walletBalance || 0;
-    if (balance < totalPrice) {
-      throw new ApiError(
-        400,
-        `Số dư ví không đủ (hiện có: ${balance.toLocaleString('vi-VN')}đ, cần: ${totalPrice.toLocaleString('vi-VN')}đ). Vui lòng nạp thêm tiền vào ví.`
+  let session = null;
+  let transactionStarted = false;
+
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+    transactionStarted = true;
+  } catch {
+    session = null;
+    transactionStarted = false;
+  }
+
+  let walletDeducted = false;
+  let updatedUser = null;
+  let order = null;
+
+  try {
+    if (isWalletPaid) {
+      const userDoc = await User.findById(userId).select('walletBalance').session(session || undefined).lean();
+      const balance = userDoc?.walletBalance || 0;
+      if (balance < totalPrice) {
+        throw new ApiError(
+          400,
+          `Số dư ví không đủ (hiện có: ${balance.toLocaleString('vi-VN')}đ, cần: ${totalPrice.toLocaleString('vi-VN')}đ). Vui lòng nạp thêm tiền vào ví.`
+        );
+      }
+
+      updatedUser = await User.findOneAndUpdate(
+        { _id: userId, walletBalance: { $gte: totalPrice } },
+        { $inc: { walletBalance: -totalPrice } },
+        { returnDocument: 'after', runValidators: true, session: session || undefined }
       );
+      if (!updatedUser) {
+        throw new ApiError(400, 'Số dư ví không đủ để thanh toán đơn hàng này.');
+      }
+      walletDeducted = true;
     }
 
-    updatedUser = await User.findOneAndUpdate(
-      { _id: userId, walletBalance: { $gte: totalPrice } },
-      { $inc: { walletBalance: -totalPrice } },
-      { returnDocument: 'after', runValidators: true }
-    );
-    if (!updatedUser) {
-      throw new ApiError(400, 'Số dư ví không đủ để thanh toán đơn hàng này.');
+    const orderNumber = await generateOrderNumber();
+
+    const orderDocData = {
+      orderNumber,
+      orderCode: orderNumber,
+      idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : null,
+      customer: userId,
+      restaurant: realRestaurantId,
+      items: snapshotItems,
+      deliveryAddress: {
+        recipientName: deliveryAddress.recipientName,
+        phone: deliveryAddress.phone,
+        addressLine: deliveryAddress.addressLine,
+        note: deliveryAddress.note || '',
+        location: destLat != null && destLng != null ? { lat: destLat, lng: destLng } : null,
+      },
+      distanceKm,
+      subtotal,
+      shippingFee,
+      discount: totalDiscount,
+      promotion: {
+        code: appliedPromoCode,
+        discountAmount,
+      },
+      restaurantVoucher,
+      totalPrice,
+      total: totalPrice,
+      paymentMethod,
+      paymentStatus: isWalletPaid ? 'paid' : 'pending',
+      status: 'pending',
+      refundStatus: 'not_applicable',
+      ...(isWalletPaid
+        ? {
+            payment: {
+              method: 'wallet',
+              status: 'paid',
+              paidAt: new Date(),
+            },
+          }
+        : {}),
+    };
+
+    if (session) {
+      const created = await Order.create([orderDocData], { session });
+      order = created[0];
+    } else {
+      order = await Order.create(orderDocData);
+    }
+
+    // Nếu thanh toán ví, ghi nhận biến động số dư
+    if (isWalletPaid && updatedUser) {
+      const txData = {
+        user: userId,
+        type: 'payment',
+        amount: -totalPrice,
+        balanceAfter: updatedUser.walletBalance,
+        order: order._id,
+        status: 'completed',
+        description: `Thanh toán đơn hàng #${order.orderNumber}`,
+      };
+      if (session) {
+        await WalletTransaction.create([txData], { session });
+      } else {
+        await WalletTransaction.create(txData);
+      }
+    }
+
+    // Record initial status history
+    const historyData = {
+      order: order._id,
+      fromStatus: null,
+      toStatus: 'pending',
+      action: isWalletPaid ? 'Tạo & Thanh toán bằng Ví' : 'Tạo đơn chờ thanh toán',
+      note: isWalletPaid
+        ? `Khách hàng đã thanh toán ${totalPrice.toLocaleString('vi-VN')}đ bằng Ví ảo`
+        : 'Khách hàng tạo đơn - chờ quét mã VietQR thanh toán',
+      changedByRole: 'customer',
+    };
+    if (session) {
+      await OrderStatusHistory.create([historyData], { session });
+    } else {
+      await OrderStatusHistory.create(historyData);
+    }
+
+    if (transactionStarted && session) {
+      await session.commitTransaction();
+    }
+  } catch (createErr) {
+    if (transactionStarted && session) {
+      try { await session.abortTransaction(); } catch {}
+    } else if (isWalletPaid && walletDeducted) {
+      // Compensating rollback for standalone mongo
+      try {
+        await User.findByIdAndUpdate(userId, { $inc: { walletBalance: totalPrice } });
+      } catch {}
+    }
+    // Roll back promotion rule usage counter on failure
+    if (appliedPromoCode) {
+      try {
+        await PromotionRule.updateOne(
+          { code: appliedPromoCode, usedCount: { $gt: 0 } },
+          { $inc: { usedCount: -1 } }
+        );
+      } catch {}
+    }
+    throw createErr;
+  } finally {
+    if (session) {
+      try { session.endSession(); } catch {}
     }
   }
 
-  const orderNumber = generateOrderNumber();
-
-  const order = await Order.create({
-    orderNumber,
-    customer: userId,
-    restaurant: realRestaurantId,
-    items: snapshotItems,
-    deliveryAddress: {
-      recipientName: deliveryAddress.recipientName,
-      phone: deliveryAddress.phone,
-      addressLine: deliveryAddress.addressLine,
-      note: deliveryAddress.note || '',
-      location: destLat != null && destLng != null ? { lat: destLat, lng: destLng } : null,
-    },
-    distanceKm,
-    subtotal,
-    shippingFee,
-    // discount = everything the customer saved; each voucher keeps its own part (who pays it)
-    discount: totalDiscount,
-    promotion: {
-      code: appliedPromoCode,
-      discountAmount,
-    },
-    restaurantVoucher,
-    totalPrice,
-    paymentMethod,
-    paymentStatus: isWalletPaid ? 'paid' : 'pending',
-    status: 'pending',
-    refundStatus: 'not_applicable',
-    ...(isWalletPaid
-      ? {
-          payment: {
-            method: 'wallet',
-            status: 'paid',
-            paidAt: new Date(),
-          },
-        }
-      : {}),
-  });
-
-  // Nếu thanh toán ví, ghi nhận biến động số dư và bắn realtime cập nhật ví
   if (isWalletPaid && updatedUser) {
-    await WalletTransaction.create({
-      user: userId,
-      type: 'payment',
-      amount: -totalPrice,
-      balanceAfter: updatedUser.walletBalance,
-      order: order._id,
-      status: 'completed',
-      description: `Thanh toán đơn hàng #${order.orderNumber}`,
-    });
     emitWalletUpdate(userId, updatedUser.walletBalance);
   }
-
-  // Record initial status history
-  await OrderStatusHistory.create({
-    order: order._id,
-    fromStatus: null,
-    toStatus: 'pending',
-    action: isWalletPaid ? 'Tạo & Thanh toán bằng Ví' : 'Tạo đơn chờ thanh toán',
-    note: isWalletPaid
-      ? `Khách hàng đã thanh toán ${totalPrice.toLocaleString('vi-VN')}đ bằng Ví ảo`
-      : 'Khách hàng tạo đơn - chờ quét mã VietQR thanh toán',
-    changedByRole: 'customer',
-  });
 
   // Bắn thông báo Realtime cho Nhà hàng và Khách hàng
   const shortCode = (order.orderNumber || order.orderCode || '').split('-').pop();
@@ -639,6 +750,14 @@ export const cancelOrder = async (orderId, userId, reason) => {
     await Payment.updateMany({ order: cancelled._id, status: 'success' }, { $set: { status: 'refunded' } });
   }
 
+  // Roll back promotion usage count when customer cancels
+  if (cancelled.promotion?.code) {
+    await PromotionRule.updateOne(
+      { code: cancelled.promotion.code, usedCount: { $gt: 0 } },
+      { $inc: { usedCount: -1 } },
+    ).catch(() => {});
+  }
+
   await recordStatusChange({
     orderId: cancelled._id,
     fromStatus: order.status,
@@ -740,8 +859,8 @@ export const receiveOrder = async (orderId, userId) => {
 const DEMO_PROGRESS_STATUSES = ['confirmed', 'preparing', 'delivering'];
 
 export const progressOrderStatus = async (orderId, user, nextStatus, note = '') => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new ApiError(403, 'Chức năng giả lập tiến độ chỉ dùng khi demo');
+  if (process.env.NODE_ENV === 'production' || user?.role !== 'admin') {
+    throw new ApiError(403, 'Chức năng giả lập tiến độ chỉ dùng khi demo và chỉ dành cho Admin');
   }
   if (!DEMO_PROGRESS_STATUSES.includes(nextStatus)) {
     throw new ApiError(400, `Chỉ giả lập được các trạng thái: ${DEMO_PROGRESS_STATUSES.join(', ')}`);

@@ -470,17 +470,18 @@ export const handleSepayWebhook = async (webhookData, authHeader = '') => {
 
   // Thử khớp từ trường code nếu SePay đã bóc tách
   if (code) {
-    const codeMatch = String(code).match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
+    const codeMatch = String(code).match(/ORD[-_\s]?(\d{8})[-_\s]?([A-Za-z0-9]{4,12})/i);
     if (codeMatch) {
-      order = await Order.findOne({ orderNumber: `ORD-${codeMatch[1]}-${codeMatch[2]}` });
+      const formattedOrderNumber = `ORD-${codeMatch[1]}-${codeMatch[2].toUpperCase()}`;
+      order = await Order.findOne({ orderNumber: formattedOrderNumber });
     }
   }
 
   // Thử khớp regex ORD-xxxxxxxx-xxxx từ content
   if (!order) {
-    const regexMatch = content.match(/ORD[-_\s]?(\d{8})[-_\s]?(\d{4})/i);
+    const regexMatch = content.match(/ORD[-_\s]?(\d{8})[-_\s]?([A-Za-z0-9]{4,12})/i);
     if (regexMatch) {
-      const formattedOrderNumber = `ORD-${regexMatch[1]}-${regexMatch[2]}`;
+      const formattedOrderNumber = `ORD-${regexMatch[1]}-${regexMatch[2].toUpperCase()}`;
       order = await Order.findOne({ orderNumber: formattedOrderNumber });
     }
   }
