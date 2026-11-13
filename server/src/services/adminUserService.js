@@ -58,7 +58,7 @@ export const summarizeOrders = async (match) => {
 
 export const getUserDetail = async (userId) => {
   const user = await User.findById(userId).select('-resetPasswordOtp -resetPasswordExpires').lean();
-  if (!user) {
+  if (!user || user.isDeleted) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
   }
 
