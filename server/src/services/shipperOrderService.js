@@ -197,7 +197,7 @@ export const getAvailableOrderDetail = async (shipperId, orderId) => {
   const currentlyHeldByOther = await Order.findOne({
     _id: orderId,
     ...availableFilter,
-    holdBy: { $ne: null, $ne: shipperId },
+    holdBy: { $ne: null, $nin: [shipperId] },
     heldUntil: { $gt: now },
   })
     .select('orderCode heldUntil')
@@ -298,7 +298,7 @@ export const acceptOrder = async (shipperId, orderId) => {
   const heldByOther = await Order.findOne({
     _id: orderId,
     ...availableFilter,
-    holdBy: { $ne: null, $ne: shipperId },
+    holdBy: { $ne: null, $nin: [shipperId] },
     heldUntil: { $gt: now },
   })
     .select('orderCode heldUntil')
@@ -380,6 +380,11 @@ export const acceptOrder = async (shipperId, orderId) => {
     );
     throw new ApiError(409, 'Đơn hàng vừa được shipper khác nhận');
   }
+
+  broadcastRealtimeNotification('shipper', 'order_taken', {
+    orderId: accepted._id,
+    orderCode: codeOf(accepted),
+  });
 
   if (startsKitchen) {
     const ticket = String(kitchen.kitchenTicketNo).padStart(2, '0');
