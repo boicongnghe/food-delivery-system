@@ -1,7 +1,8 @@
 // Shared business rules for orders (kitchen, shipper and later checkout use the same filters)
 
 // 'banking' = bank transfer / VietQR from checkout: the money must arrive before the kitchen sees the order
-export const ONLINE_PAYMENT_METHODS = ['momo', 'vnpay', 'banking'];
+// 'wallet' = Customer Virtual Wallet balance: already paid at checkout
+export const ONLINE_PAYMENT_METHODS = ['momo', 'vnpay', 'banking', 'wallet'];
 
 // Payment states of an online order whose money never arrived: still on the payment page (unpaid,
 // or pending / failed in data older than the payment field sync), or cancelled there before paying

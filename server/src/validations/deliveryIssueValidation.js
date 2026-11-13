@@ -3,11 +3,10 @@ import {
   DELIVERY_ISSUE_STATUSES,
   DELIVERY_ISSUE_TYPES,
   ISSUE_ORDER_ACTIONS,
-  PENALTY_ACTIONS,
-  PENALTY_TARGETS,
 } from '../models/DeliveryIssue.js';
 import { keywordQuery, pageQueryKeys } from './commonValidation.js';
 import { evidenceImages, resolutionNote } from './complaintValidation.js';
+import { penaltySchema } from './hearingValidation.js';
 
 // POST /api/orders/:id/delivery-issues (shipper of the order)
 export const createDeliveryIssueSchema = Joi.object({
@@ -30,28 +29,8 @@ export const adminDeliveryIssueQuerySchema = Joi.object({
     .default('all'),
 });
 
-const penaltySchema = Joi.object({
-  target: Joi.string()
-    .valid(...PENALTY_TARGETS)
-    .required()
-    .messages({ 'any.only': 'Đối tượng xử phạt không hợp lệ', 'any.required': 'Vui lòng chọn đối tượng xử phạt' }),
-  action: Joi.string()
-    .valid(...PENALTY_ACTIONS)
-    .required()
-    .messages({ 'any.only': 'Hình thức xử phạt không hợp lệ', 'any.required': 'Vui lòng chọn hình thức xử phạt' }),
-  fineAmount: Joi.when('action', {
-    is: 'fine',
-    then: Joi.number().integer().min(10000).max(5000000).required(),
-    otherwise: Joi.any().strip(),
-  }).messages({
-    'number.base': 'Số tiền phạt phải là số',
-    'number.min': 'Số tiền phạt tối thiểu 10.000đ',
-    'number.max': 'Số tiền phạt tối đa 5.000.000đ',
-    'any.required': 'Vui lòng nhập số tiền phạt',
-  }),
-});
-
 // PATCH /api/admin/delivery-issues/:id/resolution - a penalty is only possible when the report is upheld
+// (and, checked in the service, once the hearing has ended). The order is handled apart: /order-action
 export const resolveDeliveryIssueSchema = Joi.object({
   decision: Joi.string()
     .valid('resolved', 'dismissed')
@@ -63,9 +42,13 @@ export const resolveDeliveryIssueSchema = Joi.object({
     then: penaltySchema.allow(null).default(null),
     otherwise: Joi.any().strip(),
   }),
-  // Also allowed when the report is dismissed: the order may still need a new shipper or a cancellation
+});
+
+// PATCH /api/admin/delivery-issues/:id/order-action - right away, the order cannot wait for the hearing
+export const issueOrderActionSchema = Joi.object({
   orderAction: Joi.string()
-    .valid(...ISSUE_ORDER_ACTIONS)
-    .default('none')
-    .messages({ 'any.only': 'Cách xử lý đơn hàng không hợp lệ' }),
+    .valid(...ISSUE_ORDER_ACTIONS.filter((action) => action !== 'none'))
+    .required()
+    .messages({ 'any.only': 'Cách xử lý đơn hàng không hợp lệ', 'any.required': 'Vui lòng chọn cách xử lý đơn hàng' }),
+  note: resolutionNote,
 });

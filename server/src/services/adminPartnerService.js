@@ -1,4 +1,3 @@
-import DeliveryIssue from '../models/DeliveryIssue.js';
 import DriverDashboard from '../models/DriverDashboard.js';
 import Order from '../models/Order.js';
 import Restaurant, { PARTNER_STATUSES } from '../models/Restaurant.js';
@@ -10,6 +9,7 @@ import { toPage } from '../utils/pagination.js';
 import { summarizeOrders } from './adminUserService.js';
 import { countByStatus } from './feedbackPolicy.js';
 import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
+import { countViolations } from './violationService.js';
 
 const CITIZEN_ID_PATTERN = /^[0-9]{9,12}$/; // same rule as the register form
 const PLACEHOLDER_ADDRESS = 'Đang cập nhật địa chỉ'; // set by registerUser when no address was given
@@ -197,7 +197,7 @@ const getPartnerDetail = async (config, id) => {
   const account = partner[config.accountField];
   const [orderStats, violationCount, dashboard] = await Promise.all([
     summarizeOrders(config.getOrderMatch(partner)),
-    account ? DeliveryIssue.countDocuments({ 'resolution.penalty.targetUser': account._id }) : 0,
+    account ? countViolations([account._id]).then((counts) => counts.get(String(account._id))) : 0,
     config === PARTNERS.shipper && account
       ? DriverDashboard.findOne({ userId: account._id }).select('isOnline').lean()
       : null,

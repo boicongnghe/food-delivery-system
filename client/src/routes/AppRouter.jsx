@@ -7,6 +7,7 @@ import MainLayout from '../layouts/MainLayout.jsx'
 import AdminLayout from '../layouts/AdminLayout.jsx'
 import RestaurantLayout from '../layouts/RestaurantLayout.jsx'
 import PublicOnlyRoute from '../components/routes/PublicOnlyRoute.jsx'
+import LegacyHearingRedirect from '../components/routes/LegacyHearingRedirect.jsx'
 import ProtectedRoute from '../components/routes/ProtectedRoute.jsx'
 
 // Home is kept eager for instant LCP on landing page
@@ -26,6 +27,7 @@ const PaymentResult = lazy(() => import('../pages/Payment/PaymentResult.jsx'))
 const OrderTracking = lazy(() => import('../pages/OrderTracking/OrderTracking.jsx'))
 const OrderHistory = lazy(() => import('../pages/Orders/OrderHistory.jsx'))
 const Feedback = lazy(() => import('../pages/Feedback/Feedback.jsx'))
+const Hearings = lazy(() => import('../pages/Hearings/Hearings.jsx'))
 
 const Login = lazy(() => import('../pages/Login/Login.jsx'))
 const Register = lazy(() => import('../pages/Register/Register.jsx'))
@@ -86,6 +88,8 @@ function AppRouter() {
             {/* Shipper dashboard stays outside the storefront layout. */}
             <Route element={<ProtectedRoute allowedRoles={['shipper']} />}>
               <Route path="/shipper" element={<Navigate to="/shipper/dashboard" replace />} />
+              {/* Old address of the hearing tab (delivery issues only) */}
+              <Route path="/shipper/issues" element={<LegacyHearingRedirect to="/shipper/hearings" />} />
               <Route path="/shipper/:tab/*" element={<DriverDashboard />} />
               {/* Dev-only tool: changes real orders, never part of a production build */}
               {import.meta.env.DEV && <Route path="/shipper/debug" element={<DebugShipperFlow />} />}
@@ -106,6 +110,8 @@ function AppRouter() {
                 <Route path="/orders" element={<OrderHistory />} />
                 <Route path="/orders/:id" element={<OrderTracking />} />
                 <Route path="/feedback" element={<Feedback />} />
+                <Route path="/hearings" element={<Hearings />} />
+                <Route path="/delivery-issues" element={<LegacyHearingRedirect to="/hearings" />} />
               </Route>
 
               {/* Guest only routes: logged-in users redirected to their dashboards */}
@@ -132,6 +138,8 @@ function AppRouter() {
                 <Route path="/restaurant/orders" element={<OrderBoard />} />
                 <Route path="/restaurant/revenue" element={<RevenueReport />} />
                 <Route path="/restaurant/vouchers" element={<RestaurantVouchers />} />
+                <Route path="/restaurant/hearings" element={<Hearings />} />
+                <Route path="/restaurant/delivery-issues" element={<LegacyHearingRedirect to="/restaurant/hearings" />} />
                 <Route path="/restaurant/*" element={<NotFound />} />
               </Route>
             </Route>

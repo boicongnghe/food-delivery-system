@@ -23,6 +23,24 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
   });
 });
 
+export const createDeposit = asyncHandler(async (req, res) => {
+  const data = await walletService.createDepositRequest(req.user._id, req.body);
+  res.status(200).json({
+    success: true,
+    data,
+    message: 'Tạo yêu cầu nạp tiền VietQR thành công',
+  });
+});
+
+export const confirmDeposit = asyncHandler(async (req, res) => {
+  const data = await walletService.confirmDeposit(req.user._id, req.body);
+  res.status(200).json({
+    success: true,
+    data,
+    message: 'Nạp tiền vào ví ảo thành công',
+  });
+});
+
 export const listWithdrawalsForAdmin = asyncHandler(async (req, res) => {
   const data = await walletService.listWithdrawalsForAdmin(req.query);
   res.status(200).json({

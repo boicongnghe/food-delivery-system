@@ -10,7 +10,7 @@ import RestaurantWithdrawal, {
 import ApiError from '../utils/ApiError.js';
 import { addDays, mondayOf, vietnamDateString } from '../utils/date.js';
 import { toPage } from '../utils/pagination.js';
-import { sendRealtimeNotification } from '../socket.js';
+import { sendRealtimeNotification, emitWalletUpdate } from '../socket.js';
 import { getNextSequence } from './counterService.js';
 import { createTransfer, getPayoutMode } from './payoutGateway.js';
 import { getWalletEarnings, toPayoutAccountView } from './restaurantReportService.js';
@@ -58,7 +58,8 @@ export const creditWalletRefund = async ({ userId, orderId, orderCode, amount })
     description: `Hoàn tiền đơn hàng #${orderCode || orderId}`,
   });
 
-  // Bắn thông báo realtime và lưu vào Notification
+  // Bắn sự kiện realtime cập nhật số dư ví và lưu vào Notification
+  emitWalletUpdate(userId, updatedUser.walletBalance);
   sendRealtimeNotification(userId, {
     title: 'Đã hoàn tiền vào ví ảo 💰',
     message: `Đơn #${orderCode || orderId} đã hủy. Số tiền ${amount.toLocaleString('vi-VN')}đ đã được hoàn vào ví ảo của bạn.`,
@@ -146,6 +147,8 @@ export const requestCustomerWithdrawal = async (userId, { amount }) => {
     status: 'pending',
     description: `Yêu cầu rút tiền về ${bankName} (${maskAccountNumber(accountNumber)})`,
   });
+
+  emitWalletUpdate(userId, user.walletBalance);
 
   return withdrawal;
 };
@@ -276,6 +279,7 @@ export const rejectWithdrawal = async (adminId, withdrawalId, { reason }) => {
   });
 
   // Thông báo tới khách hàng
+  emitWalletUpdate(withdrawal.user, updatedUser.walletBalance);
   sendRealtimeNotification(withdrawal.user, {
     title: 'Yêu cầu rút tiền bị từ chối ⚠️',
     message: `Yêu cầu rút ${withdrawal.amount.toLocaleString('vi-VN')}đ đã bị từ chối: "${reason.trim()}". Số tiền đã được hoàn lại vào ví ảo của bạn.`,
@@ -284,6 +288,88 @@ export const rejectWithdrawal = async (adminId, withdrawalId, { reason }) => {
   }).catch(() => {});
 
   return withdrawal;
+};
+
+/**
+ * Tạo thông tin VietQR nạp tiền vào ví ảo của khách hàng
+ */
+export const createDepositRequest = async (userId, { amount }) => {
+  const numAmount = Number(amount);
+  if (!numAmount || isNaN(numAmount) || numAmount < 10000) {
+    throw new ApiError(400, 'Số tiền nạp tối thiểu là 10.000đ');
+  }
+  if (numAmount > 50000000) {
+    throw new ApiError(400, 'Số tiền nạp tối đa mỗi lần là 50.000.000đ');
+  }
+
+  const user = await User.findById(userId).select('fullName phone email').lean();
+  if (!user) {
+    throw new ApiError(404, 'Không tìm thấy người dùng');
+  }
+
+  const bankId = (process.env.BANK_ID || 'TPB').trim().toUpperCase();
+  const accountNo = (process.env.BANK_ACCOUNT_NO || '0393863658').trim();
+  const accountName = (process.env.BANK_ACCOUNT_NAME || 'DO MANH DUONG').trim().toUpperCase();
+
+  const userIdentifier = user.phone ? user.phone.replace(/[\s.-]/g, '') : userId.toString().slice(-6).toUpperCase();
+  const depositCode = `NAP VI ${userIdentifier} ${Date.now().toString().slice(-4)}`;
+
+  const encodedName = encodeURIComponent(accountName);
+  const encodedInfo = encodeURIComponent(depositCode);
+  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${numAmount}&addInfo=${encodedInfo}&accountName=${encodedName}`;
+
+  return {
+    depositCode,
+    amount: numAmount,
+    bankId,
+    accountNo,
+    accountName,
+    transferContent: depositCode,
+    qrUrl,
+  };
+};
+
+/**
+ * Xác nhận nạp tiền vào ví ảo
+ */
+export const confirmDeposit = async (userId, { amount, depositCode }) => {
+  const numAmount = Number(amount);
+  if (!numAmount || isNaN(numAmount) || numAmount < 10000) {
+    throw new ApiError(400, 'Số tiền nạp không hợp lệ (tối thiểu 10.000đ)');
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { walletBalance: numAmount } },
+    { returnDocument: 'after', runValidators: true },
+  );
+
+  if (!updatedUser) {
+    throw new ApiError(404, 'Không tìm thấy người dùng');
+  }
+
+  const transaction = await WalletTransaction.create({
+    user: userId,
+    type: 'deposit',
+    amount: numAmount,
+    balanceAfter: updatedUser.walletBalance,
+    status: 'completed',
+    description: `Nạp tiền vào ví ảo qua VietQR (${depositCode || 'Nạp trực tiếp'})`,
+  });
+
+  emitWalletUpdate(userId, updatedUser.walletBalance);
+
+  sendRealtimeNotification(userId, {
+    title: 'Nạp tiền vào ví thành công 💰',
+    message: `Bạn vừa nạp thành công ${numAmount.toLocaleString('vi-VN')}đ vào ví ảo. Số dư hiện tại: ${updatedUser.walletBalance.toLocaleString('vi-VN')}đ.`,
+    type: 'wallet',
+    link: '/wallet',
+  }).catch(() => {});
+
+  return {
+    walletBalance: updatedUser.walletBalance,
+    transaction,
+  };
 };
 
 /* ==========================================================================

@@ -30,6 +30,7 @@ export const PAYMENT_METHOD_LABELS = {
   momo: 'MoMo',
   vnpay: 'VNPay',
   banking: 'Chuyển khoản',
+  wallet: 'Ví ảo FoodDelivery',
 }
 
 export const PAYMENT_STATUS_LABELS = {

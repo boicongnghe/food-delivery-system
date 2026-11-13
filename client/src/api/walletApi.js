@@ -37,6 +37,18 @@ const walletApi = {
     return response.data
   },
 
+  // Tạo yêu cầu nạp tiền vào ví VietQR (Customer): { amount }
+  createDeposit: async (data) => {
+    const response = await axiosClient.post('/wallet/deposit/create', data)
+    return response.data
+  },
+
+  // Xác nhận nạp tiền vào ví (Customer): { amount, depositCode }
+  confirmDeposit: async (data) => {
+    const response = await axiosClient.post('/wallet/deposit/confirm', data)
+    return response.data
+  },
+
   // Lấy danh sách yêu cầu rút tiền (Admin)
   getAdminWithdrawals: async (params) => {
     const response = await axiosClient.get('/wallet/admin/withdrawals', { params })

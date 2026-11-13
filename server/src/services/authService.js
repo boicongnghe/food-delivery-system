@@ -309,7 +309,9 @@ export const forgotPassword = async (email) => {
 
 export const resetPassword = async ({ email, otp, newPassword }) => {
   const normalizedEmail = (email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    '+resetPasswordOtp +resetPasswordExpires'
+  );
 
   if (!user) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');

@@ -1,10 +1,11 @@
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
-import { DELIVERY_ISSUE_TYPE_LABELS, PENALTY_ACTION_LABELS } from '../../../utils/deliveryIssueLabels.js'
+import { PENALTY_ACTION_LABELS } from '../../../utils/deliveryIssueLabels.js'
 import { formatCurrency } from '../../../utils/formatCurrency.js'
 import { formatDate } from '../../../utils/formatDate.js'
+import { HEARING_CASE_LABELS } from '../../../utils/hearingLabels.js'
 
-// Penalties received from delivery issue reports (UC45), newest first
+// Penalties received from delivery issue reports (UC45) and complaints (UC42), newest first
 export default function UserViolationList({ violations }) {
   return (
     <AdminSection
@@ -17,11 +18,12 @@ export default function UserViolationList({ violations }) {
         <ul className="space-y-2">
           {violations.items.map((violation) => {
             const { penalty, note, at } = violation.resolution
+            const labels = HEARING_CASE_LABELS[violation.caseType]
             return (
               <li key={violation._id} className="rounded-2xl border border-slate-100 dark:border-crave-border bg-slate-50 dark:bg-crave-dark/60 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-bold text-slate-800 dark:text-slate-200">
-                    {violation.code} · {DELIVERY_ISSUE_TYPE_LABELS[violation.type]}
+                    {violation.code} · {labels.noun}: {labels.kindLabels[violation.type || violation.category]}
                   </p>
                   <div className="flex flex-wrap gap-1">
                     <AdminBadge tone={penalty.action === 'warning' ? 'amber' : 'red'}>

@@ -61,9 +61,8 @@ export const resolveComplaint = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: complaint,
-    message:
-      complaint.status === 'resolved'
-        ? `Đã giải quyết khiếu nại ${complaint.code}`
-        : `Đã từ chối khiếu nại ${complaint.code}`,
+    message: `${complaint.status === 'resolved' ? 'Đã giải quyết' : 'Đã từ chối'} khiếu nại ${complaint.code}${
+      complaint.resolution.penalty?.autoSuspended ? '. Bên vi phạm đã đạt ngưỡng và bị tự động đình chỉ' : ''
+    }`,
   });
 });

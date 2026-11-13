@@ -35,7 +35,7 @@ const resolveRestaurantObjectId = async (cartRestaurant) => {
 }
 
 function Checkout() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const { cart, subtotal, clearCart } = useCart()
   const navigate = useNavigate()
   const isOrderPlaced = useRef(false)
@@ -72,8 +72,8 @@ function Checkout() {
     ? cart.restaurant.id || cart.restaurant._id
     : cart?.restaurant?.name || ''
 
-  // Payment Method (UC15) - Only Bank Transfer
-  const paymentMethod = 'banking'
+  // Payment Method (UC15) - Bank Transfer or Virtual Wallet
+  const [paymentMethod, setPaymentMethod] = useState('banking')
 
   // Form states
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -433,6 +433,12 @@ function Checkout() {
         return
       }
 
+      if (paymentMethod === 'wallet' && (user?.walletBalance || 0) < totalPrice) {
+        setErrorMsg(`Số dư ví không đủ để thanh toán (hiện có: ${(user?.walletBalance || 0).toLocaleString('vi-VN')}đ, cần: ${totalPrice.toLocaleString('vi-VN')}đ). Vui lòng nạp thêm tiền vào ví hoặc chọn hình thức VietQR.`)
+        setIsSubmitting(false)
+        return
+      }
+
       const payload = {
         restaurantId: orderRestaurantId,
         items: cart.items.map((item) => ({
@@ -469,8 +475,15 @@ function Checkout() {
       isOrderPlaced.current = true
       clearCart()
 
-      // Chuyển thẳng sang trang quét mã VietQR thanh toán
-      navigate(`/payment-result?orderId=${createdOrder._id}&method=banking`)
+      if (paymentMethod === 'wallet') {
+        if (typeof refreshUser === 'function') refreshUser()
+        window.dispatchEvent(new CustomEvent('wallet_updated', { detail: {} }))
+        toast.success('Đặt hàng và thanh toán bằng ví ảo thành công! 🎉')
+        navigate(`/orders/${createdOrder._id}`)
+      } else {
+        // Chuyển thẳng sang trang quét mã VietQR thanh toán
+        navigate(`/payment-result?orderId=${createdOrder._id}&method=banking`)
+      }
     } catch (err) {
       console.error('Order creation failed:', err)
       setErrorMsg(err.response?.data?.message || 'Đặt hàng thất bại. Vui lòng thử lại.')
@@ -620,25 +633,88 @@ function Checkout() {
             <h2 className="text-xl font-bold mt-0 mb-4 mx-0">
               💳 2. Phương thức thanh toán
             </h2>
-            <div
-              className="flex items-center gap-3.5 border-2 border-orange-500 rounded-xl bg-orange-50 p-4"
-            >
+            <div className="space-y-3">
+              {/* Option 1: VietQR Banking */}
               <div
-                className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm font-extrabold shrink-0"
+                onClick={() => setPaymentMethod('banking')}
+                className={`flex items-center gap-3.5 border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                  paymentMethod === 'banking'
+                    ? 'border-orange-500 bg-orange-50/70 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
               >
-                ✓
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-base">
-                    Chuyển khoản Ngân hàng / Quét mã VietQR
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700 text-xs">
-                    Duy nhất
-                  </span>
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-extrabold shrink-0 ${
+                    paymentMethod === 'banking' ? 'bg-orange-500' : 'border-2 border-slate-300 text-transparent'
+                  }`}
+                >
+                  ✓
                 </div>
-                <div className="text-sm text-slate-500 mt-0.5">
-                  Quét mã QR tự động qua ứng dụng ngân hàng hoặc Internet Banking
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-base text-slate-900">
+                      Chuyển khoản Ngân hàng / Quét mã VietQR
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-bold uppercase tracking-wide bg-indigo-50 text-indigo-700 text-xs">
+                      Tiện lợi
+                    </span>
+                  </div>
+                  <div className="text-sm text-slate-500 mt-0.5">
+                    Quét mã QR tự động qua ứng dụng ngân hàng hoặc Internet Banking
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: Virtual Wallet */}
+              <div
+                onClick={() => setPaymentMethod('wallet')}
+                className={`flex items-center gap-3.5 border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                  paymentMethod === 'wallet'
+                    ? 'border-emerald-500 bg-emerald-50/70 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-extrabold shrink-0 ${
+                    paymentMethod === 'wallet' ? 'bg-emerald-500' : 'border-2 border-slate-300 text-transparent'
+                  }`}
+                >
+                  ✓
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-base text-slate-900">
+                        Ví ảo FoodDelivery
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                        Số dư: {(user?.walletBalance || 0).toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+
+                    {(user?.walletBalance || 0) >= totalPrice ? (
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-0.5">
+                        ✓ Đủ số dư
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-red-500 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5">
+                          Thiếu {(totalPrice - (user?.walletBalance || 0)).toLocaleString('vi-VN')}đ
+                        </span>
+                        <Link
+                          to="/wallet"
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs font-bold text-emerald-600 hover:text-emerald-700 underline"
+                        >
+                          Nạp ví ngay ↗
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-500 mt-0.5">
+                    Thanh toán tức thì bằng số dư ví ảo FoodDelivery, không cần mở app ngân hàng
+                  </div>
                 </div>
               </div>
             </div>
@@ -932,16 +1008,33 @@ function Checkout() {
               </div>
             )}
 
+            {paymentMethod === 'wallet' && (user?.walletBalance || 0) < totalPrice && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium mt-3.5 flex items-center justify-between">
+                <span>Số dư ví của bạn không đủ để thanh toán đơn hàng này.</span>
+                <Link to="/wallet" target="_blank" className="font-bold text-emerald-700 hover:text-emerald-800 underline ml-2 shrink-0">
+                  Nạp ví ngay ↗
+                </Link>
+              </div>
+            )}
+
             <button
               type="button"
-              className={`inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 w-full mt-5 ${!isDeliverable ? '!bg-slate-400' : ''} ${!isDeliverable ? 'cursor-not-allowed' : ''}`}
-              disabled={isSubmitting || !isDeliverable || loadingShipping}
+              className={`inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500 w-full mt-5 ${
+                paymentMethod === 'wallet' && (user?.walletBalance || 0) >= totalPrice
+                  ? '!bg-gradient-to-r !from-emerald-500 !to-teal-500 hover:!from-emerald-600 hover:!to-teal-600 !shadow-emerald-500/25'
+                  : ''
+              } ${!isDeliverable || (paymentMethod === 'wallet' && (user?.walletBalance || 0) < totalPrice) ? '!bg-slate-400 cursor-not-allowed' : ''}`}
+              disabled={isSubmitting || !isDeliverable || loadingShipping || (paymentMethod === 'wallet' && (user?.walletBalance || 0) < totalPrice)}
               onClick={handlePlaceOrder}
             >
               {isSubmitting
                 ? 'Đang tạo đơn hàng...'
                 : !isDeliverable
-                ? 'Quá bán kính phục vụ (tối đa 10km)'
+                ? 'Quá bán kính phục vụ'
+                : paymentMethod === 'wallet' && (user?.walletBalance || 0) < totalPrice
+                ? 'Số dư ví không đủ để thanh toán'
+                : paymentMethod === 'wallet'
+                ? 'Thanh toán bằng Ví & Đặt hàng ➔'
                 : 'Xác nhận Đặt hàng ➔'}
             </button>
           </div>

@@ -8,6 +8,7 @@ import {
   AlertCircle,
   RefreshCw,
   Info,
+  PlusCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import walletApi from '../../api/walletApi.js'
@@ -16,6 +17,7 @@ import useAuth from '../../hooks/useAuth.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
 import { formatDateTime } from '../../utils/formatDate.js'
 import CustomerWithdrawForm from './components/CustomerWithdrawForm.jsx'
+import CustomerDepositModal from './components/CustomerDepositModal.jsx'
 
 const USER_ACCOUNT_API = {
   add: walletApi.addMyPayoutAccount,
@@ -26,6 +28,7 @@ const USER_ACCOUNT_API = {
 export default function WalletPage() {
   const { refreshUser } = useAuth()
   const [loading, setLoading] = useState(true)
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [walletData, setWalletData] = useState({
     balance: 0,
     transactions: [],
@@ -112,8 +115,25 @@ export default function WalletPage() {
               </p>
             </div>
 
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDepositModalOpen(true)}
+                className="flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-800 font-extrabold text-sm sm:text-base shadow-lg shadow-black/10 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <PlusCircle className="w-5 h-5 text-emerald-600" />
+                <span>Nạp tiền vào ví</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Modal Nạp tiền vào ví qua VietQR */}
+        <CustomerDepositModal
+          isOpen={isDepositModalOpen}
+          onClose={() => setIsDepositModalOpen(false)}
+          onDone={reload}
+        />
 
         {/* Bank accounts (one default) + withdrawal, same layout as the restaurant wallet */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
