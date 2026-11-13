@@ -11,6 +11,8 @@ const router = Router();
 // Endpoint cho khách hàng (Customer)
 router.get('/my-wallet', protect, walletController.getMyWallet);
 router.post('/withdraw', protect, walletController.requestWithdrawal);
+router.post('/deposit/create', protect, walletController.createDeposit);
+router.post('/deposit/confirm', protect, walletController.confirmDeposit);
 
 // Bank accounts of customers and shippers (several, one default: withdrawals go to it). Restaurants have theirs
 // under /api/restaurants/me/wallet/payout-accounts

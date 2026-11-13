@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Clock } from 'lucide-react'
 import { orderApi } from '../../api/orderApi.js'
 import { paymentApi } from '../../api/paymentApi.js'
 import toast from 'react-hot-toast'
@@ -13,13 +14,38 @@ function PaymentResult() {
   const [qrInfo, setQrInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const [checkingStatus, setCheckingStatus] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState('pending') // pending, success, failed
   const [failureReason, setFailureReason] = useState('')
   const [transactionCode, setTransactionCode] = useState('')
   const [copiedField, setCopiedField] = useState(null)
+  const [timeLeft, setTimeLeft] = useState(600) // 10 phút = 600 giây
 
   const pollingRef = useRef(null)
+
+  // Đếm ngược 10 phút chuyển khoản
+  useEffect(() => {
+    if (paymentStatus !== 'pending') return
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          setPaymentStatus('failed')
+          setFailureReason('Hết thời gian chờ thanh toán (10 phút). Vui lòng quét lại mã hoặc đặt lại.')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [paymentStatus])
+
+  const formatCountdown = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
 
   // 1. Tải thông tin đơn hàng và mã VietQR động từ server
   useEffect(() => {
@@ -97,26 +123,6 @@ function PaymentResult() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  // Nút kiểm tra thủ công
-  const handleManualCheck = async () => {
-    try {
-      setCheckingStatus(true)
-      const res = await paymentApi.checkPaymentStatus(orderId)
-      if (res.data?.data?.paymentStatus === 'paid') {
-        setPaymentStatus('success')
-      } else {
-        toast('Hệ thống chưa nhận được thông báo tiền vào tài khoản. Nếu bạn vừa chuyển khoản, vui lòng đợi 10 - 30 giây để ngân hàng gửi thông báo!', {
-          icon: '⏳',
-          duration: 6000,
-        })
-      }
-    } catch {
-      toast.error('Không thể kiểm tra trạng thái lúc này')
-    } finally {
-      setCheckingStatus(false)
-    }
-  }
-
   // Giả lập webhook SePay nhận tiền thành công (hỗ trợ test localhost)
   const handleSimulateReceiveMoney = async () => {
     try {
@@ -133,28 +139,10 @@ function PaymentResult() {
     }
   }
 
-  // Giả lập lỗi thanh toán (UC16)
-  const handleSimulateFailure = async () => {
-    try {
-      setProcessing(true)
-      const res = await paymentApi.processPayment(orderId, {
-        paymentMethod: 'banking',
-        simulateFailure: true,
-      })
-      const data = res.data.data
-      setPaymentStatus('failed')
-      setFailureReason(data.failureReason || 'Giao dịch bị từ chối từ ngân hàng')
-    } catch (err) {
-      setPaymentStatus('failed')
-      setFailureReason(err.response?.data?.message || 'Giao dịch bị từ chối')
-    } finally {
-      setProcessing(false)
-    }
-  }
-
   // Thử lại thanh toán
   const handleRetryPayment = () => {
     setPaymentStatus('pending')
+    setTimeLeft(600)
   }
 
   if (loading) {
@@ -264,10 +252,16 @@ function PaymentResult() {
       {paymentStatus === 'pending' && qrInfo && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
           <div className="text-center mb-5">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700 mb-2">
-              Đang chờ chuyển khoản
-            </span>
-            <h1 className="text-[1.6rem] font-extrabold my-1.5 mx-0">
+            <div className="flex items-center justify-center flex-wrap gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700">
+                Đang chờ chuyển khoản
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-red-50 text-red-600 border border-red-200">
+                <Clock className="w-3.5 h-3.5 animate-pulse" />
+                Thời gian còn lại: <span className="font-mono font-extrabold text-sm">{formatCountdown(timeLeft)}</span>
+              </span>
+            </div>
+            <h1 className="text-[1.6rem] font-extrabold my-1.5 mx-0 text-slate-900">
               Quét mã VietQR để thanh toán
             </h1>
             <p className="text-slate-500 text-sm m-0">
@@ -354,44 +348,16 @@ function PaymentResult() {
             </div>
           </div>
 
-          {/* Nút hỗ trợ người dùng */}
-          <div className="flex flex-col gap-3">
+          {/* Nút Bắn Webhook xác nhận tiền đã vào tài khoản */}
+          <div className="flex flex-col gap-3 mt-5">
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px hover:bg-orange-600 disabled:translate-y-0 disabled:bg-orange-500"
-              disabled={checkingStatus}
-              onClick={handleManualCheck}
+              className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-xl px-7 py-3.5 text-[1.05rem] border-transparent bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-px active:translate-y-0 disabled:translate-y-0 disabled:bg-orange-500 w-full cursor-pointer"
+              disabled={processing}
+              onClick={handleSimulateReceiveMoney}
             >
-              {checkingStatus ? 'Đang kiểm tra giao dịch...' : '🔄 Tôi đã chuyển tiền (Kiểm tra ngay)'}
+              {processing ? 'Đang gửi sự kiện...' : 'Bắn Webhook: Tiền đã vào tài khoản'}
             </button>
-
-            {/* Khung Test công cụ Dev / Chấm điểm đồ án */}
-            <div className="border border-dashed border-slate-300 rounded-xl bg-slate-50 mt-3 p-4">
-              <div className="text-sm font-bold text-slate-500 mb-2.5">
-                ⚡ Công cụ kiểm thử SePay Webhook (Dành cho demo localhost):
-              </div>
-              <div className="flex gap-2.5 flex-wrap">
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-slate-200 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"
-                  disabled={processing}
-                  onClick={handleSimulateReceiveMoney}
-                  title="Giả lập sự kiện SePay webhook gửi báo có số tiền về tài khoản ngân hàng"
-                >
-                  {processing ? 'Đang gửi sự kiện...' : '⚡ Bắn Webhook: Tiền đã vào tài khoản'}
-                </button>
-
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm border-red-500/20 bg-red-50 text-red-500 hover:bg-red-100"
-                  disabled={processing}
-                  onClick={handleSimulateFailure}
-                  title="Test kịch bản thất bại UC16"
-                >
-                  ⚠️ Test UC16: Báo thất bại
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
