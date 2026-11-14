@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Complaint, { COMPLAINT_STATUSES } from '../models/Complaint.js';
 import Order from '../models/Order.js';
-import { emitWalletUpdate } from '../socket.js';
+import { emitWalletUpdate, sendRealtimeNotification } from '../socket.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
@@ -258,5 +258,16 @@ export const resolveComplaint = async (adminId, complaintId, { decision, note, r
   await applySuspension(adminId, complaint, penaltyRecord, { threshold, caseLabel: `khiếu nại ${complaint.code}` });
   notifyHearingUpdated('complaint', complaint);
   await notifyHearingOutcome('complaint', complaint, { status: decision, note, penalty: penaltyRecord, refundAmount: refund });
+  // With a hearing every party was told above, and a refund already sent its own notification; otherwise the
+  // customer would only see the answer by opening the complaint page
+  if (!complaint.hearing && !refunded) {
+    await sendRealtimeNotification(complaint.customer, {
+      title: `Phản hồi khiếu nại ${complaint.code}`,
+      message: `Khiếu nại đơn #${complaint.orderCode} ${decision === 'resolved' ? 'đã được chấp nhận' : 'không được chấp nhận'}. Phản hồi: ${note}`,
+      type: 'complaint',
+      orderId: complaint.order._id,
+      link: '/feedback?tab=complaints',
+    });
+  }
   return getComplaintDetail(complaintId);
 };
