@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   MessageSquareText,
@@ -102,8 +103,14 @@ function PaginationBar({ page, totalPages, totalItems, limit, onPageChange, unit
 }
 
 // UC17 + UC18 - reviews and complaints of the customer after delivery
+const TAB_VALUES = ['pending', 'reviews', 'complaints']
+
 export default function Feedback() {
-  const [activeTab, setActiveTab] = useState('pending')
+  const [searchParams] = useSearchParams()
+  // ?tab=complaints opens the complaints directly (link of the complaint answer notification)
+  const [activeTab, setActiveTab] = useState(() =>
+    TAB_VALUES.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'pending',
+  )
   const [reviewable, setReviewable] = useState({ items: [], windowDays: 7 })
   const [reviews, setReviews] = useState(EMPTY_PAGE)
   const [complainable, setComplainable] = useState({ items: [], windowDays: 7 })

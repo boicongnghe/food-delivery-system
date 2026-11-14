@@ -3,12 +3,14 @@ import Order from '../models/Order.js';
 import Restaurant, { PARTNER_STATUSES } from '../models/Restaurant.js';
 import Shipper from '../models/Shipper.js';
 import User from '../models/User.js';
+import { sendRealtimeNotification } from '../socket.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
 import { summarizeOrders } from './adminUserService.js';
 import { countByStatus } from './feedbackPolicy.js';
 import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
+import { sendPartnerStatusEmail } from './emailService.js';
 import { countViolations } from './violationService.js';
 
 const CITIZEN_ID_PATTERN = /^[0-9]{9,12}$/; // same rule as the register form
@@ -65,7 +67,8 @@ const restaurantChecks = (restaurant, owner) => [
   },
 ];
 
-const shipperChecks = (shipper, account) => {
+// Exported for the shipper portal, which shows the same checklist before a resubmission
+export const shipperChecks = (shipper, account) => {
   const age = getAge(shipper.dateOfBirth);
   return [
     { key: 'emailVerified', label: 'Email đăng ký đã được xác thực', ok: Boolean(account?.isVerified), required: true },
@@ -125,6 +128,10 @@ const PARTNERS = {
     Model: Restaurant,
     accountField: 'owner',
     notFound: 'Không tìm thấy nhà hàng',
+    noun: 'Hồ sơ nhà hàng',
+    nameOf: (restaurant) => restaurant.name,
+    // Where the partner reads the decision and, when rejected, fixes and resubmits the profile
+    link: { approved: '/restaurant/orders', rejected: '/restaurant/profile', suspended: '/restaurant/profile' },
     // Uploaded files stay out of lists: a business license can weigh several MB
     listFields: 'owner name address phone logo status rating ratingCount statusChange createdAt',
     searchFields: ['name', 'address', 'phone'],
@@ -135,6 +142,9 @@ const PARTNERS = {
     Model: Shipper,
     accountField: 'user',
     notFound: 'Không tìm thấy tài xế',
+    noun: 'Hồ sơ tài xế',
+    nameOf: (shipper) => shipper.fullName,
+    link: { approved: '/shipper/dashboard', rejected: '/shipper/dashboard', suspended: '/shipper/dashboard' },
     listFields: 'user fullName phone citizenId vehicleInfo deposit status rating statusChange createdAt',
     searchFields: ['fullName', 'phone', 'citizenId', 'vehicleInfo'],
     getChecks: shipperChecks,
@@ -211,8 +221,39 @@ const getPartnerDetail = async (config, id) => {
   };
 };
 
+/**
+ * Tells the partner the decision of the admin, in the app and by email (when SMTP is configured): the partner no
+ * longer has to log in again to find out that its profile was approved, rejected (with the reason) or suspended.
+ */
+const notifyPartnerDecision = (config, partner, { status, note }) => {
+  const account = partner[config.accountField];
+  if (!account?._id) return;
+  const name = config.nameOf(partner);
+  const reason = note?.trim() ? ` Lý do: ${note.trim()}.` : '';
+  const messages = {
+    approved:
+      partner.status === 'suspended'
+        ? { title: `${config.noun} đã được mở lại`, message: `${name} đã được mở lại và có thể hoạt động bình thường.` }
+        : { title: `${config.noun} đã được duyệt 🎉`, message: `${name} đã được duyệt và có thể bắt đầu hoạt động trên FoodDelivery.` },
+    rejected: {
+      title: `${config.noun} chưa được duyệt`,
+      message: `${name} chưa được duyệt.${reason} Hãy sửa hồ sơ và gửi lại để được duyệt.`,
+    },
+    suspended: {
+      title: `${config.noun} bị đình chỉ hoạt động`,
+      message: `${name} bị đình chỉ hoạt động.${reason} Vui lòng liên hệ ban quản trị.`,
+    },
+  };
+  const { title, message } = messages[status];
+  const link = config.link[status];
+  sendRealtimeNotification(account._id, { title, message, type: 'system', link }).catch(() => {});
+  if (account.email) {
+    sendPartnerStatusEmail({ email: account.email, fullName: account.fullName, title, message, link }).catch(() => {});
+  }
+};
+
 const changePartnerStatus = async (config, adminId, id, { status, note }) => {
-  const partner = await config.Model.findById(id).populate(config.accountField, 'isVerified').lean();
+  const partner = await config.Model.findById(id).populate(config.accountField, 'isVerified email fullName').lean();
   if (!partner) {
     throw new ApiError(404, config.notFound);
   }
@@ -246,6 +287,7 @@ const changePartnerStatus = async (config, adminId, id, { status, note }) => {
   if (config === PARTNERS.shipper) {
     await DriverDashboard.updateOne({ userId: partner.user._id }, { $set: { isOnline: false } });
   }
+  notifyPartnerDecision(config, partner, { status, note });
   return getPartnerDetail(config, id);
 };
 

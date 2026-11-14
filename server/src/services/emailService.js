@@ -247,3 +247,32 @@ export const sendResetPasswordOtpEmail = async ({ email, fullName, otp }) => {
 
   return { success: true, isDevMode: true };
 };
+
+const escapeHtml = (value = '') =>
+  String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Decision of the admin on a partner profile (approved, rejected with the reason, suspended, reopened).
+ * Without SMTP settings nothing is sent: the in-app notification already carries the same message.
+ * @returns {Promise<{ sent: boolean }>}
+ */
+export const sendPartnerStatusEmail = async ({ email, fullName, title, message, link }) => {
+  const mailTransporter = getTransporter();
+  if (!mailTransporter) return { sent: false };
+
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  const actionUrl = `${clientUrl}${link || '/'}`;
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B;">
+      <h2 style="color: #E8432A; margin-bottom: 4px;">FoodDelivery</h2>
+      <p>Xin chào ${escapeHtml(fullName || '')},</p>
+      <p style="font-size: 16px; font-weight: bold;">${escapeHtml(title)}</p>
+      <p>${escapeHtml(message)}</p>
+      <p><a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #E8432A; color: #FFFFFF; padding: 10px 18px; border-radius: 8px; text-decoration: none;">Mở FoodDelivery</a></p>
+      <p style="font-size: 12px; color: #94A3B8;">Email tự động từ hệ thống FoodDelivery, vui lòng không trả lời.</p>
+    </div>
+  `;
+  await mailTransporter.sendMail({ from: senderEmail, to: email, subject: `[FoodDelivery] ${title}`, html });
+  return { sent: true };
+};

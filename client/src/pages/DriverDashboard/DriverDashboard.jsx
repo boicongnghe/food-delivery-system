@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { CircleAlert, Headphones, Landmark, ReceiptText, Scale, Settings, Wallet, X } from 'lucide-react'
+import { CircleAlert, Headphones, Landmark, ReceiptText, Scale, Settings, TriangleAlert, Wallet, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import driverApi from '../../api/driverApi'
 import walletApi from '../../api/walletApi.js'
@@ -16,6 +16,9 @@ import TripLedger from './components/TripLedger'
 import CustomerPraise from './components/CustomerPraise'
 import DriverSettings from './components/DriverSettings'
 import DeliveryOrders from './components/DeliveryOrders'
+import ShipperApplicationCard from './components/ShipperApplicationCard.jsx'
+import ShipperIssueReports from './components/ShipperIssueReports.jsx'
+import ShipperWithdrawalHistory from './components/ShipperWithdrawalHistory.jsx'
 import Hearings from '../Hearings/Hearings.jsx'
 
 // Bank accounts of the shipper (same card and rules as the restaurant / customer wallets)
@@ -36,11 +39,12 @@ const SHIPPER_NAV_ITEMS = [
 // Less used pages go to the account menu (keeps the header on one line)
 const SHIPPER_MENU_ITEMS = [
   { to: '/shipper/wallet', label: 'Ví & rút tiền', icon: Wallet },
+  { to: '/shipper/reports', label: 'Báo cáo sự cố', icon: TriangleAlert },
   { to: '/shipper/support', label: 'Hỗ trợ', icon: Headphones },
   { to: '/shipper/hearings', label: 'Đối chất', icon: Scale },
   { to: '/shipper/settings', label: 'Cài đặt tài khoản', icon: Settings },
 ]
-const SHIPPER_TABS = ['dashboard', 'orders', 'history', 'wallet', 'ranking', 'support', 'hearings', 'settings']
+const SHIPPER_TABS = ['dashboard', 'orders', 'history', 'wallet', 'ranking', 'support', 'reports', 'hearings', 'settings']
 const PERIOD_TABS = ['dashboard', 'history', 'ranking'] // screens filtered by Hôm nay / Tuần / Tháng
 
 const DATE_TABS = [
@@ -251,6 +255,9 @@ function DriverDashboard() {
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 lg:px-8">
         {actionError && <p className="rounded-md bg-red-50 px-4 py-2.5 text-sm text-red-700" role="alert">{actionError}</p>}
 
+        {/* Profile not approved yet / rejected / suspended: reason and resubmission (nothing once approved) */}
+        <ShipperApplicationCard />
+
         {isLoading && (
           <div className="flex justify-center py-24" role="status" aria-label="Đang tải dữ liệu bảng điều khiển">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
@@ -340,7 +347,8 @@ function DriverDashboard() {
                   Yêu cầu rút tiền
                 </button>
                 <p className="mt-2 text-xs text-slate-500">
-                  Yêu cầu rút sẽ trừ ví ảo; hiện chưa thực hiện chuyển khoản ngân hàng thật.
+                  Số tiền được trừ khỏi ví khi gửi yêu cầu. Quản trị viên chuyển khoản và xác nhận; nếu yêu cầu bị từ chối, tiền
+                  được hoàn lại vào ví.
                 </p>
               </SectionCard>
               <PayoutAccountsCard
@@ -349,6 +357,7 @@ function DriverDashboard() {
                 api={USER_ACCOUNT_API}
                 onChanged={() => setReloadCount(count => count + 1)}
               />
+              <ShipperWithdrawalHistory key={reloadCount} />
               </div>
             )}
 
@@ -362,6 +371,8 @@ function DriverDashboard() {
             )}
 
             {activeTab === 'support' && <SupportCenter />}
+
+            {activeTab === 'reports' && <ShipperIssueReports />}
 
             {activeTab === 'hearings' && <Hearings embedded />}
 

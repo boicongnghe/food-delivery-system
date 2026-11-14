@@ -39,7 +39,38 @@ const BANK_BINS = {
   SHB: 'shb',
 }
 
+// Two kinds of request share this page: customers (virtual wallet) and shippers (earnings wallet)
+const SOURCES = {
+  customer: {
+    label: 'Khách hàng',
+    wallet: 'ví ảo của khách hàng',
+    list: walletApi.getAdminWithdrawals,
+    approve: walletApi.approveWithdrawal,
+    reject: walletApi.rejectWithdrawal,
+    // "pending" is the waiting status of both kinds on this page
+    toQueryStatus: (status) => status,
+    normalize: (item) => item,
+  },
+  shipper: {
+    label: 'Shipper',
+    wallet: 'ví thu nhập của shipper',
+    list: walletApi.getAdminShipperWithdrawals,
+    approve: walletApi.approveShipperWithdrawal,
+    reject: walletApi.rejectShipperWithdrawal,
+    toQueryStatus: (status) => (status === 'pending' ? 'requested' : status),
+    // Shipper requests keep the shipper account and the bank account under other names
+    normalize: (item) => ({
+      ...item,
+      user: item.shipper,
+      bankInfo: item.bankAccount,
+      status: item.status === 'requested' ? 'pending' : item.status,
+    }),
+  },
+}
+
 export default function AdminWithdrawals() {
+  const [source, setSource] = useState('customer')
+  const sourceConfig = SOURCES[source]
   const [loading, setLoading] = useState(true)
   const [withdrawals, setWithdrawals] = useState([])
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 })
@@ -60,12 +91,12 @@ export default function AdminWithdrawals() {
   const fetchWithdrawals = async () => {
     try {
       setLoading(true)
-      const res = await walletApi.getAdminWithdrawals({
-        status: statusFilter,
+      const res = await sourceConfig.list({
+        status: sourceConfig.toQueryStatus(statusFilter),
         page: pagination.page,
       })
       if (res.success && res.data) {
-        setWithdrawals(res.data.withdrawals || [])
+        setWithdrawals((res.data.withdrawals || []).map(sourceConfig.normalize))
         setPagination(res.data.pagination || { page: 1, limit: 20, total: 0, totalPages: 1 })
       }
     } catch {
@@ -77,7 +108,7 @@ export default function AdminWithdrawals() {
 
   useEffect(() => {
     fetchWithdrawals()
-  }, [statusFilter, pagination.page])
+  }, [source, statusFilter, pagination.page])
 
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text)
@@ -112,7 +143,7 @@ export default function AdminWithdrawals() {
 
     try {
       setProcessing(true)
-      const res = await walletApi.approveWithdrawal(selectedItem._id, approveForm)
+      const res = await sourceConfig.approve(selectedItem._id, approveForm)
       if (res.success) {
         toast.success(res.message || 'Đã duyệt yêu cầu rút tiền')
         setShowApproveModal(false)
@@ -134,9 +165,9 @@ export default function AdminWithdrawals() {
 
     try {
       setProcessing(true)
-      const res = await walletApi.rejectWithdrawal(selectedItem._id, { reason: rejectReason.trim() })
+      const res = await sourceConfig.reject(selectedItem._id, { reason: rejectReason.trim() })
       if (res.success) {
-        toast.success(res.message || 'Đã từ chối yêu cầu và hoàn lại tiền vào ví khách')
+        toast.success(res.message || `Đã từ chối yêu cầu và hoàn lại tiền vào ${sourceConfig.wallet}`)
         setShowRejectModal(false)
         fetchWithdrawals()
       }
@@ -164,10 +195,10 @@ export default function AdminWithdrawals() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
             <HandCoins className="w-7 h-7 text-primary" />
-            Yêu cầu rút tiền từ ví ảo
+            Yêu cầu rút tiền
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Duyệt và xác nhận chuyển khoản ngân hàng cho các lệnh rút tiền từ ví ảo của khách hàng
+            Duyệt và xác nhận chuyển khoản ngân hàng cho các lệnh rút tiền từ ví ảo của khách hàng và ví thu nhập của shipper
           </p>
         </div>
 
@@ -179,6 +210,27 @@ export default function AdminWithdrawals() {
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Làm mới
         </button>
+      </div>
+
+      {/* Who asked for the money */}
+      <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-crave-surface p-1" role="tablist" aria-label="Loại yêu cầu rút tiền">
+        {Object.entries(SOURCES).map(([key, config]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={source === key}
+            onClick={() => {
+              setSource(key)
+              setPagination((prev) => ({ ...prev, page: 1 }))
+            }}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              source === key ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            {config.label}
+          </button>
+        ))}
       </div>
 
       {/* Filter Tabs */}
@@ -224,7 +276,7 @@ export default function AdminWithdrawals() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-100 dark:border-crave-border text-slate-500 uppercase font-black tracking-wider">
                 <tr>
-                  <th className="px-5 py-3.5">Khách hàng</th>
+                  <th className="px-5 py-3.5">{sourceConfig.label}</th>
                   <th className="px-5 py-3.5">Số tiền rút</th>
                   <th className="px-5 py-3.5">Thông tin tài khoản ngân hàng</th>
                   <th className="px-5 py-3.5">Trạng thái</th>
@@ -244,7 +296,7 @@ export default function AdminWithdrawals() {
                           className="w-9 h-9 rounded-xl object-cover shrink-0"
                         />
                         <div>
-                          <p className="font-bold text-slate-900 dark:text-white">{item.user?.fullName || 'Khách hàng'}</p>
+                          <p className="font-bold text-slate-900 dark:text-white">{item.user?.fullName || sourceConfig.label}</p>
                           <p className="text-[11px] text-slate-400">{item.user?.phone || item.user?.email}</p>
                         </div>
                       </div>
@@ -361,7 +413,7 @@ export default function AdminWithdrawals() {
             </h3>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/5 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
-              <p>Khách hàng: <strong className="text-slate-900 dark:text-white">{selectedItem.user?.fullName}</strong></p>
+              <p>{sourceConfig.label}: <strong className="text-slate-900 dark:text-white">{selectedItem.user?.fullName}</strong></p>
               <p>Số tiền: <strong className="text-emerald-600 dark:text-emerald-400 text-sm">{formatCurrency(selectedItem.amount)}</strong></p>
               <p>Ngân hàng: <strong>{selectedItem.bankInfo?.bankName}</strong></p>
               <p>STK: <strong className="font-mono">{selectedItem.bankInfo?.accountNumber}</strong> ({selectedItem.bankInfo?.accountHolder})</p>
@@ -427,7 +479,7 @@ export default function AdminWithdrawals() {
 
             <p className="text-xs text-slate-500">
               Khi từ chối, số tiền <strong className="text-red-500">{formatCurrency(selectedItem.amount)}</strong> sẽ được{' '}
-              <strong>tự động hoàn lại vào ví ảo</strong> của khách hàng.
+              <strong>tự động hoàn lại vào {sourceConfig.wallet}</strong>.
             </p>
 
             <form onSubmit={handleRejectSubmit} className="space-y-4">

@@ -1,6 +1,8 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import driverDashboardService from '../services/driverDashboardService.js';
+import * as deliveryIssueService from '../services/deliveryIssueService.js';
+import * as shipperApplicationService from '../services/shipperApplicationService.js';
 import * as shipperWalletService from '../services/shipperWalletService.js';
 
 const getDashboard = asyncHandler(async (req, res) => {
@@ -68,8 +70,32 @@ const requestWithdrawal = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     data: result,
-    message: 'Yêu cầu rút tiền đã được ghi nhận vào ví ảo; hệ thống chưa chuyển khoản ngân hàng',
+    message: 'Đã gửi yêu cầu rút tiền, vui lòng chờ quản trị viên chuyển khoản',
   });
+});
+
+const listWithdrawals = asyncHandler(async (req, res) => {
+  const result = await shipperWalletService.listMyWithdrawals(req.user.id, req.query);
+  res.status(200).json({ success: true, data: result, message: 'Lấy lịch sử rút tiền thành công' });
+});
+
+const getApplication = asyncHandler(async (req, res) => {
+  const application = await shipperApplicationService.getMyApplication(req.user.id);
+  res.status(200).json({ success: true, data: application, message: 'Lấy hồ sơ tài xế thành công' });
+});
+
+const resubmitApplication = asyncHandler(async (req, res) => {
+  const application = await shipperApplicationService.resubmitApplication(req.user.id, req.body);
+  res.status(200).json({
+    success: true,
+    data: application,
+    message: application.status === 'pending' ? 'Đã gửi lại hồ sơ, vui lòng chờ quản trị viên duyệt' : 'Đã lưu hồ sơ',
+  });
+});
+
+const listDeliveryIssues = asyncHandler(async (req, res) => {
+  const result = await deliveryIssueService.listMyDeliveryIssues(req.user.id, req.query);
+  res.status(200).json({ success: true, data: result, message: 'Lấy danh sách báo cáo sự cố thành công' });
 });
 
 const driverDashboardController = {
@@ -79,6 +105,10 @@ const driverDashboardController = {
   updateSettings,
   changePassword,
   requestWithdrawal,
+  listWithdrawals,
+  getApplication,
+  resubmitApplication,
+  listDeliveryIssues,
 };
 
 export default driverDashboardController;

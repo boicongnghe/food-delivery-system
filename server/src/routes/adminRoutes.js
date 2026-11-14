@@ -43,6 +43,7 @@ import { hearingMessageSchema, openHearingSchema } from '../validations/hearingV
 import { promotionRuleQuerySchema, promotionRuleSchema } from '../validations/promotionRuleValidation.js';
 import { adminReviewQuerySchema, reviewVisibilitySchema } from '../validations/reviewValidation.js';
 import {
+  adminShipperWithdrawalQuerySchema,
   adminWithdrawalQuerySchema,
   approveWithdrawalSchema,
   rejectWithdrawalSchema,
@@ -92,6 +93,25 @@ router.patch(
   validateId,
   validate(rejectWithdrawalSchema),
   walletController.rejectWithdrawal,
+);
+
+// Shipper withdrawals - same review: confirm the bank transfer, or reject and refund the earnings wallet
+router.get(
+  '/shipper-withdrawals',
+  validate(adminShipperWithdrawalQuerySchema, 'query'),
+  walletController.listShipperWithdrawalsForAdmin,
+);
+router.patch(
+  '/shipper-withdrawals/:id/approve',
+  validateId,
+  validate(approveWithdrawalSchema),
+  walletController.approveShipperWithdrawal,
+);
+router.patch(
+  '/shipper-withdrawals/:id/reject',
+  validateId,
+  validate(rejectWithdrawalSchema),
+  walletController.rejectShipperWithdrawal,
 );
 
 // Order timeout rules (docs/order-timeouts.md)

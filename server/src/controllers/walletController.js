@@ -1,4 +1,5 @@
 import asyncHandler from '../utils/asyncHandler.js';
+import * as shipperWalletService from '../services/shipperWalletService.js';
 import * as walletService from '../services/walletService.js';
 
 /* ==========================================================================
@@ -66,6 +67,23 @@ export const rejectWithdrawal = asyncHandler(async (req, res) => {
     data,
     message: 'Đã từ chối yêu cầu và hoàn lại tiền vào ví ảo của khách hàng',
   });
+});
+
+// ---------- Admin: shipper withdrawals (earnings wallet of the driver portal) ----------
+
+export const listShipperWithdrawalsForAdmin = asyncHandler(async (req, res) => {
+  const data = await shipperWalletService.listShipperWithdrawalsForAdmin(req.query);
+  res.status(200).json({ success: true, data, message: 'Lấy danh sách yêu cầu rút tiền của shipper thành công' });
+});
+
+export const approveShipperWithdrawal = asyncHandler(async (req, res) => {
+  const data = await shipperWalletService.approveShipperWithdrawal(req.user._id, req.params.id, req.body);
+  res.status(200).json({ success: true, data, message: 'Đã xác nhận chuyển khoản cho shipper' });
+});
+
+export const rejectShipperWithdrawal = asyncHandler(async (req, res) => {
+  const data = await shipperWalletService.rejectShipperWithdrawal(req.user._id, req.params.id, req.body);
+  res.status(200).json({ success: true, data, message: 'Đã từ chối yêu cầu và hoàn lại tiền vào ví tài xế' });
 });
 
 /* ==========================================================================

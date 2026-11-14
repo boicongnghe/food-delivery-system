@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+// requested -> completed (the admin transferred the money) | rejected (the amount went back to the earnings wallet)
+export const SHIPPER_WITHDRAWAL_STATUSES = ['requested', 'completed', 'rejected'];
+
 const shipperWithdrawalSchema = new mongoose.Schema(
   {
     shipper: {
@@ -16,7 +19,12 @@ const shipperWithdrawalSchema = new mongoose.Schema(
       accountNumber: { type: String, default: '' },
       accountHolder: { type: String, default: '' },
     },
-    status: { type: String, enum: ['requested'], default: 'requested' },
+    status: { type: String, enum: SHIPPER_WITHDRAWAL_STATUSES, default: 'requested', index: true },
+    reference: { type: String, trim: true, default: '' }, // bank transfer reference, set on completion
+    note: { type: String, trim: true, default: '' },
+    rejectionReason: { type: String, trim: true, default: '' },
+    processedAt: { type: Date, default: null },
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true },
 );

@@ -3,15 +3,24 @@ import { randomUUID } from 'node:crypto';
 import DriverDashboard from '../models/DriverDashboard.js';
 import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
 import WalletTransaction from '../models/WalletTransaction.js';
+import { sendRealtimeNotification } from '../socket.js';
 import ApiError from '../utils/ApiError.js';
 import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
+import { toPage } from '../utils/pagination.js';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
 import driverDashboardService from './driverDashboardService.js';
 import { getUserDefaultAccount } from './payoutAccountService.js';
 
+// A rejected request gave its money back: it no longer uses the daily limit
 const getDailyWithdrawals = async (shipperId, start, end, session = null) => {
   const aggregation = ShipperWithdrawal.aggregate([
-    { $match: { shipper: new mongoose.Types.ObjectId(shipperId), createdAt: { $gte: start, $lt: end } } },
+    {
+      $match: {
+        shipper: new mongoose.Types.ObjectId(shipperId),
+        createdAt: { $gte: start, $lt: end },
+        status: { $ne: 'rejected' },
+      },
+    },
     { $group: { _id: null, amount: { $sum: '$amount' } } },
   ]);
   if (session) aggregation.session(session);
@@ -86,6 +95,111 @@ export const requestWithdrawal = async (shipperId, amount) => {
     withdrawal: withdrawal.toObject(),
     walletBalance: (await DriverDashboard.findOne({ userId: shipperId }).select('walletBalance').lean()).walletBalance,
   };
+};
+
+const WITHDRAWAL_LINK = '/shipper/wallet';
+const formatMoney = (amount) => `${amount.toLocaleString('vi-VN')}đ`;
+
+/** The shipper's own withdrawal requests, newest first (wallet tab of the shipper portal) */
+export const listMyWithdrawals = async (shipperId, { page, limit }) => {
+  const filter = { shipper: shipperId };
+  const [items, total] = await Promise.all([
+    ShipperWithdrawal.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select('-processedBy')
+      .lean(),
+    ShipperWithdrawal.countDocuments(filter),
+  ]);
+  return toPage(items, { page, limit }, total);
+};
+
+/**
+ * Admin: shipper withdrawal requests, newest first, with the shipper account.
+ * Same shape as the customer list (listWithdrawalsForAdmin) so one admin page shows both.
+ */
+export const listShipperWithdrawalsForAdmin = async ({ status, page, limit }) => {
+  const filter = status && status !== 'all' ? { status } : {};
+  const [withdrawals, total] = await Promise.all([
+    ShipperWithdrawal.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('shipper', 'fullName email phone avatar')
+      .populate('processedBy', 'fullName')
+      .lean(),
+    ShipperWithdrawal.countDocuments(filter),
+  ]);
+  return { withdrawals, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
+};
+
+/**
+ * Move a request out of "requested" in one atomic step: of two admins processing it at once only the first one
+ * gets the document, the other one receives 409.
+ */
+const claimRequestedWithdrawal = async (withdrawalId, fields, session = null) => {
+  const withdrawal = await ShipperWithdrawal.findOneAndUpdate(
+    { _id: withdrawalId, status: 'requested' },
+    { $set: fields },
+    { returnDocument: 'after', runValidators: true, session },
+  );
+  if (withdrawal) return withdrawal;
+  const exists = await ShipperWithdrawal.exists({ _id: withdrawalId }).session(session);
+  if (!exists) {
+    throw new ApiError(404, 'Không tìm thấy yêu cầu rút tiền');
+  }
+  throw new ApiError(409, 'Yêu cầu rút tiền này đã được xử lý trước đó. Vui lòng tải lại danh sách.');
+};
+
+/** Admin: the money was transferred to the shipper's bank account */
+export const approveShipperWithdrawal = async (adminId, withdrawalId, { reference, note }) => {
+  const withdrawal = await claimRequestedWithdrawal(withdrawalId, {
+    status: 'completed',
+    reference: reference.trim(),
+    note: (note || '').trim(),
+    processedAt: new Date(),
+    processedBy: adminId,
+  });
+  sendRealtimeNotification(withdrawal.shipper, {
+    title: 'Rút tiền thành công 💸',
+    message: `Yêu cầu ${withdrawal.transactionCode} (${formatMoney(withdrawal.amount)}) đã được chuyển về ${withdrawal.bankAccount.bankName} (Mã GD: ${reference.trim()}).`,
+    type: 'wallet',
+    link: WITHDRAWAL_LINK,
+  }).catch(() => {});
+  return withdrawal;
+};
+
+/** Admin: the request is refused and its amount goes back to the earnings wallet, in the same transaction */
+export const rejectShipperWithdrawal = async (adminId, withdrawalId, { reason }) => {
+  const session = await mongoose.startSession();
+  let withdrawal;
+  try {
+    await session.withTransaction(async () => {
+      withdrawal = await claimRequestedWithdrawal(
+        withdrawalId,
+        { status: 'rejected', rejectionReason: reason.trim(), processedAt: new Date(), processedBy: adminId },
+        session,
+      );
+      const refunded = await DriverDashboard.updateOne(
+        { userId: withdrawal.shipper },
+        { $inc: { walletBalance: withdrawal.amount } },
+        { session },
+      );
+      if (!refunded.matchedCount) {
+        throw new ApiError(404, 'Không tìm thấy ví của shipper');
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
+  sendRealtimeNotification(withdrawal.shipper, {
+    title: 'Yêu cầu rút tiền bị từ chối ⚠️',
+    message: `Yêu cầu ${withdrawal.transactionCode} (${formatMoney(withdrawal.amount)}) bị từ chối: "${reason.trim()}". Số tiền đã được hoàn lại vào ví tài xế.`,
+    type: 'wallet',
+    link: WITHDRAWAL_LINK,
+  }).catch(() => {});
+  return withdrawal;
 };
 
 /**

@@ -10,11 +10,12 @@ Thành viên 5 phụ trách: UC17, UC18, UC37, UC40, UC41, UC42, UC43, UC44, UC4
 | `/hearings` | customer | Đối chất sự cố giao hàng và khiếu nại (menu avatar → "Đối chất"). `?type=delivery-issues\|complaints&id=<id>` mở thẳng một phiên (link trong thông báo mời) |
 | `/restaurant/hearings` | restaurant_owner | Như trên, cho chủ quán (menu tài khoản → "Đối chất") |
 | `/shipper/hearings` | shipper | Như trên, cho shipper (menu tài khoản → "Đối chất") |
+| `/shipper/reports` | shipper | Báo cáo sự cố shipper đã gửi: trạng thái, cách xử lý đơn, kết luận (và mức phạt nếu phạt chính shipper), link sang phiên đối chất nếu có (menu tài khoản → "Báo cáo sự cố") |
 | `/admin/users` | admin | UC37 quản lý tài khoản khách hàng và quản trị viên |
 | `/admin/restaurants` | admin | Danh sách nhà hàng, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
 | `/admin/shippers` | admin | Danh sách tài xế, duyệt hồ sơ đăng ký, đình chỉ, mở lại (`?review=<id>` mở thẳng hồ sơ) |
 | `/admin/orders` | admin | Quản lý đơn hàng: giám sát mọi đơn (tab "Cần xử lý", "Có khiếu nại/sự cố", "Chờ hoàn tiền") và can thiệp (hủy thay khách, đổi shipper, ghi kết quả hoàn tiền). `?status=<tab>` mở thẳng tab, `?order=<id>` mở thẳng đơn |
-| `/admin/withdrawals` | admin | Duyệt yêu cầu rút tiền từ ví khách hàng: xác nhận đã chuyển khoản hoặc từ chối (hoàn lại ví) |
+| `/admin/withdrawals` | admin | Duyệt yêu cầu rút tiền của **khách hàng** (ví ảo) và **shipper** (ví thu nhập), chọn bằng nút Khách hàng / Shipper: xác nhận đã chuyển khoản hoặc từ chối (hoàn lại ví) |
 | `/admin/commission-rules` | admin | UC40 quy tắc hoa hồng |
 | `/admin/promotions` | admin | UC41 mã khuyến mãi |
 | `/admin/support-cases` | admin | Trang "Khiếu nại & sự cố": tab Khiếu nại (UC42, mặc định) và tab Sự cố giao hàng (`?tab=delivery-issues`, UC45). `?id=<id>` mở thẳng một vụ việc (link từ Quản lý đơn hàng). Đường dẫn cũ `/admin/complaints`, `/admin/delivery-issues` tự chuyển sang tab tương ứng |
@@ -82,6 +83,9 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
 | GET | `/withdrawals?page&limit&status` | Yêu cầu rút tiền ví khách hàng, mới nhất trước. `status`: `all` \| `pending` \| `completed` \| `rejected`; `limit` mặc định 20, tối đa 100. Trả `{ withdrawals, pagination }` |
 | PATCH | `/withdrawals/:id/approve` | `{ reference, note? }`. Xác nhận đã chuyển khoản (`reference` ≤ 50 ký tự là mã giao dịch ngân hàng) |
 | PATCH | `/withdrawals/:id/reject` | `{ reason }` (≤ 300 ký tự). Từ chối và hoàn tiền vào ví khách trong cùng transaction. Yêu cầu đã xử lý trả 409 |
+| GET | `/shipper-withdrawals?page&limit&status` | Yêu cầu rút tiền của shipper, mới nhất trước, kèm `shipper` (tên, email, SĐT). `status`: `all` | `requested` | `completed` | `rejected` |
+| PATCH | `/shipper-withdrawals/:id/approve` | `{ reference, note? }` như của khách. `requested → completed`, báo cho shipper. Đã xử lý trả 409 |
+| PATCH | `/shipper-withdrawals/:id/reject` | `{ reason }`. `requested → rejected` và cộng lại số tiền vào `driverdashboards.walletBalance` trong cùng transaction; báo cho shipper. Yêu cầu bị từ chối không tính vào hạn mức rút trong ngày |
 | GET, PUT | `/settings/shipping-fee` | `{ baseDistanceKm, baseFee, perKmFee, maxDistanceKm }`. Cước phí theo khoảng cách và bán kính giao tối đa |
 | GET, POST | `/commission-rules` | UC40. GET trả `{ today, items, currentDefaults }` |
 | PUT, DELETE | `/commission-rules/:id` | UC40 |
@@ -123,12 +127,13 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
   2. **Đối chất** giữa shipper, khách và chủ quán (bắt buộc trước khi xử phạt, xem mục dưới).
   3. **Kết luận** (`/resolution`): bác bỏ (`dismissed`) hoặc xác nhận không xử phạt làm được bất cứ lúc nào; xác nhận có xử phạt cần phiên đối chất đã kết thúc. Chỉ xác nhận (`resolved`) mới kèm xử phạt.
   - Khóa shipper khi shipper còn giữ đơn đang giao: phải hủy hoặc trả đơn về hàng chờ ở bước 1 trước.
+  - **Phản hồi cho shipper báo cáo:** đổi shipper hay hủy đơn ở bước 1 đều báo cho shipper; kết luận báo cho mọi bên nếu đã đối chất, nếu không thì vẫn báo cho shipper báo cáo. Shipper xem lại các báo cáo của mình ở `/shipper/reports` (`GET /api/drivers/me/delivery-issues`).
 - **Đối chất & xử phạt (dùng chung cho sự cố UC45 và khiếu nại UC42):**
   - **Đối chất:** admin mời các bên của đơn (shipper, khách, chủ quán; khiếu nại trên đơn không có shipper thì chỉ khách và chủ quán) vào **chat tự do** với nhau (admin cũng nhắn được), thời hạn 1–24 giờ.
     - Mở: các bên nhận thông báo kèm link vào trang đối chất của cổng mình.
     - **Nhắc trước hạn:** job chạy mỗi phút trong server (`startHearingReminderJobs`, tắt bằng `DISABLE_ORDER_JOBS=true` như job hạn xử lý đơn). Khi phiên còn dưới 2 giờ (phiên ngắn hơn 4 giờ: còn dưới một nửa thời hạn), bên nào **chưa nhắn tin nào trong phiên này** nhận một thông báo nhắc. Mỗi phiên nhắc một lần (`hearing.remindedAt`); mở lại phiên thì nhắc lại được.
     - Phiên kết thúc khi hết hạn, khi admin bấm "Kết thúc đối chất sớm", hoặc khi vụ việc được kết luận. Sau đó chỉ xem lại được.
-    - **Thông báo kết luận:** vụ việc đã từng mở đối chất thì khi admin kết luận, mọi bên của phiên nhận thông báo: kết quả và nội dung kết luận. Riêng khách nhận thêm số tiền được hoàn (khiếu nại), còn bên bị phạt nhận thêm hình thức phạt (vi phạm của nhà hàng gửi cho chủ quán). Các bên khác không biết ai bị phạt. Vụ việc kết luận mà chưa từng đối chất thì không gửi thông báo này.
+    - **Thông báo kết luận:** vụ việc đã từng mở đối chất thì khi admin kết luận, mọi bên của phiên nhận thông báo: kết quả và nội dung kết luận. Riêng khách nhận thêm số tiền được hoàn (khiếu nại), còn bên bị phạt nhận thêm hình thức phạt (vi phạm của nhà hàng gửi cho chủ quán). Các bên khác không biết ai bị phạt. Vụ việc kết luận mà chưa từng đối chất thì không gửi thông báo này; thay vào đó người gửi vẫn nhận câu trả lời: khách nhận "Phản hồi khiếu nại" (chấp nhận / không chấp nhận + phản hồi, link `/feedback?tab=complaints`; có hoàn tiền thì thông báo hoàn tiền thay cho thông báo này), shipper nhận "Kết luận báo cáo sự cố".
     - Phiên đã kết thúc có thể mở lại (thời hạn mới, giữ tin nhắn cũ) khi vụ việc còn mở. Không mở 2 phiên cùng lúc (409).
     - Mỗi bên chỉ thấy tên các bên và nội dung, không thấy số điện thoại hay lịch sử vi phạm.
   - **Xử phạt** một bên chỉ khi phiên đối chất **đã kết thúc** (chưa mở hoặc đang diễn ra → 409):
@@ -147,6 +152,8 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
   - Chỉ duyệt được khi đủ các mục bắt buộc của form đăng ký (server kiểm tra, cùng danh sách hiển thị trong hồ sơ): email đã xác thực; nhà hàng có tên, địa chỉ thật, mặt hàng kinh doanh, CCCD 9–12 số, file giấy phép; tài xế đủ 18 tuổi, CCCD 9–12 số, thông tin xe. Bảo hiểm xe không bắt buộc (form cho bổ sung sau). **Mở lại** đối tác bị đình chỉ cũng kiểm tra lại các mục này theo hồ sơ hiện tại.
   - Hiệu lực: nhà hàng chưa `approved` không nhận được đơn mới; nhà hàng `suspended` không sửa được thực đơn lẫn hồ sơ quán (403), để admin mở lại đúng hồ sơ đã bị đình chỉ. Tài xế chưa `approved` không xem được `GET /api/orders/available-for-pickup` (403). Khóa tài khoản (UC37) là việc riêng: chặn đăng nhập.
   - Trang tổng quan chỉ liệt kê hồ sơ chờ duyệt và dẫn sang trang nhà hàng / tài xế; không còn duyệt nhanh khi chưa xem hồ sơ.
+  - **Báo cho đối tác:** mỗi lần duyệt, từ chối, đình chỉ hay mở lại, chủ quán / tài xế nhận thông báo trong app (kèm lý do) và email nếu đã cấu hình SMTP (`sendPartnerStatusEmail`; không có SMTP thì chỉ có thông báo).
+  - **Gửi lại hồ sơ:** nhà hàng bị từ chối sửa hồ sơ quán rồi lưu là về `pending`. Tài xế xem lý do, checklist và sửa hồ sơ ngay trên portal (`GET`/`PUT /api/drivers/me/application`): sửa được khi `pending` hoặc `rejected`; lưu hồ sơ `rejected` thì về `pending` để admin duyệt lại.
 - **Quản lý đơn hàng:** không liệt kê đơn chuyển khoản khách bỏ dở (`PLACED_ORDER_FILTER`), giống thống kê UC44.
   - **Giám sát:** tab "Cần xử lý" (luật quá hạn chuyển admin, [order-timeouts.md](order-timeouts.md)), "Có khiếu nại/sự cố" (khiếu nại hoặc báo cáo sự cố `open`), "Chờ hoàn tiền" (chỉ còn khoản hoàn `pending` / `failed` của đơn cũ: đơn hủy bây giờ được hoàn thẳng vào ví). Mỗi dòng có nhãn vụ việc đang mở; chi tiết đơn có link sang vụ việc và ngược lại (mã đơn trong chi tiết khiếu nại / sự cố mở đơn ở trang này).
   - **Can thiệp:** admin không tự chuyển bước cho đơn. Admin chỉ được hủy thay khách, đổi shipper và ghi kết quả hoàn tiền. Server tính sẵn thao tác được phép (`interventions`), client không tự lặp quy tắc.
