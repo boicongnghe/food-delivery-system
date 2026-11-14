@@ -80,8 +80,8 @@ export default function ComplaintResolveForm({
               </button>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Tối đa {formatCurrency(maxRefund)} (số tiền khách đã trả trừ phần đã hoàn). Hoàn tiền hiện là mô phỏng, không cần chờ
-              đối chất.
+              Tối đa {formatCurrency(maxRefund)} (số tiền khách đã trả trừ phần đã hoàn). Tiền được cộng ngay vào ví ảo của khách
+              khi lưu, do nền tảng chi trả; không cần chờ đối chất.
             </p>
             <AdminFieldError message={errors.refundAmount} />
           </div>

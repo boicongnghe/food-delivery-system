@@ -12,7 +12,7 @@ import useNow from '../../../hooks/useNow.js'
 import { ADMIN_BUTTON } from '../../../utils/adminClassNames.js'
 import { willAutoSuspend, willSuspend } from '../../../utils/autoSuspend.js'
 import {
-  PENALTY_ACTION_LABELS,
+  penaltyBadgeText,
   PENALTY_TARGET_LABELS,
 } from '../../../utils/deliveryIssueLabels.js'
 import { COMPLAINT_CATEGORY_LABELS, COMPLAINT_STATUS_LABELS } from '../../../utils/feedbackLabels.js'
@@ -241,15 +241,14 @@ export default function ComplaintDetailDrawer({ complaintId, onClose, onResolved
                 <p className="text-sm text-slate-800 dark:text-slate-200">{complaint.resolution.note}</p>
                 {complaint.resolution.refundAmount > 0 && (
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-300">
-                    Đã hoàn {formatCurrency(complaint.resolution.refundAmount)} cho khách
+                    Đã hoàn {formatCurrency(complaint.resolution.refundAmount)} vào ví ảo của khách
                   </p>
                 )}
                 {savedPenalty ? (
                   <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     Xử phạt {PENALTY_TARGET_LABELS[savedPenalty.target].toLowerCase()}:
                     <AdminBadge tone={savedPenalty.action === 'warning' ? 'amber' : 'red'}>
-                      {PENALTY_ACTION_LABELS[savedPenalty.action]}
-                      {savedPenalty.action === 'fine' && ` ${formatCurrency(savedPenalty.fineAmount)}`}
+                      {penaltyBadgeText(savedPenalty)}
                     </AdminBadge>
                     {savedPenalty.autoSuspended && <AdminBadge tone="red">Tự động đình chỉ (đạt ngưỡng vi phạm)</AdminBadge>}
                   </p>

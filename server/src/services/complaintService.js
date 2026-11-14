@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import Complaint, { COMPLAINT_STATUSES } from '../models/Complaint.js';
 import Order from '../models/Order.js';
+import { emitWalletUpdate } from '../socket.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
@@ -16,8 +18,10 @@ import {
   applySuspension,
   assertShipperCanBeLocked,
   buildPenaltyRecord,
+  collectFine,
   getViolationSummary,
 } from './violationService.js';
+import { creditWalletRefund, notifyWalletRefund } from './walletService.js';
 import {
   COMPLAINT_WINDOW_DAYS,
   FEEDBACK_ORDER_FIELDS,
@@ -175,6 +179,8 @@ export const getComplaintDetail = async (complaintId) => {
  * Answer to the customer: accept (optional refund) or reject. Both can penalize the party at fault (restaurant,
  * shipper, or the customer for an abusive complaint), but only once a hearing between the parties has ended.
  * Accepting or rejecting without a penalty is possible at any time.
+ * One transaction saves the decision, credits the refund to the customer wallet (paid by the platform, not taken
+ * from the restaurant) and takes the fine from the wallet of the penalized party: all of it or nothing.
  */
 export const resolveComplaint = async (adminId, complaintId, { decision, note, refundAmount = 0, penalty = null }) => {
   const complaint = await Complaint.findById(complaintId)
@@ -197,22 +203,60 @@ export const resolveComplaint = async (adminId, complaintId, { decision, note, r
   const { record: penaltyRecord, threshold } = await buildPenaltyRecord(complaint, penalty);
   await assertShipperCanBeLocked(penaltyRecord, 'Chờ shipper giao xong đơn đang giữ, hoặc chọn hình thức phạt khác');
 
-  // Only an open complaint can be resolved: two admins answering at once cannot both win
-  const resolved = await Complaint.findOneAndUpdate(
-    { _id: complaintId, status: 'open' },
-    {
-      $set: {
-        status: decision,
-        resolution: { note, refundAmount, penalty: penaltyRecord, by: adminId, at: new Date() },
-      },
-    },
-    { returnDocument: 'after', runValidators: true },
-  );
-  if (!resolved) {
-    throw new ApiError(409, 'Khiếu nại vừa được xử lý bởi người khác, vui lòng tải lại');
+  const refund = decision === 'resolved' ? refundAmount : 0;
+  const caseLabel = `khiếu nại ${complaint.code}`;
+  let refunded = null;
+  let customerBalance = null;
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      // Only an open complaint can be resolved: two admins answering at once cannot both win
+      const claimed = await Complaint.findOneAndUpdate(
+        { _id: complaintId, status: 'open' },
+        { $set: { status: decision } },
+        { returnDocument: 'after', runValidators: true, session },
+      );
+      if (!claimed) {
+        throw new ApiError(409, 'Khiếu nại vừa được xử lý bởi người khác, vui lòng tải lại');
+      }
+
+      ({ customerBalance } = await collectFine(complaint, penaltyRecord, { caseLabel, session }));
+      refunded =
+        refund > 0
+          ? await creditWalletRefund({
+              userId: complaint.customer,
+              orderId: complaint.order._id,
+              orderCode: complaint.orderCode,
+              amount: refund,
+              description: `Hoàn tiền ${caseLabel} (đơn #${complaint.orderCode})`,
+              session,
+            })
+          : null;
+
+      await Complaint.updateOne(
+        { _id: complaintId },
+        { $set: { resolution: { note, refundAmount: refund, penalty: penaltyRecord, by: adminId, at: new Date() } } },
+        { runValidators: true, session },
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  if (refunded) {
+    notifyWalletRefund({
+      userId: complaint.customer,
+      orderId: complaint.order._id,
+      orderCode: complaint.orderCode,
+      amount: refund,
+      balance: refunded.updatedUser.walletBalance,
+      message: `Khiếu nại ${complaint.code} được chấp nhận: ${refund.toLocaleString('vi-VN')}đ đã được hoàn vào ví ảo của bạn.`,
+    });
+  } else if (customerBalance !== null) {
+    emitWalletUpdate(complaint.customer, customerBalance);
   }
   await applySuspension(adminId, complaint, penaltyRecord, { threshold, caseLabel: `khiếu nại ${complaint.code}` });
   notifyHearingUpdated('complaint', complaint);
-  await notifyHearingOutcome('complaint', complaint, { status: decision, note, penalty: penaltyRecord, refundAmount });
+  await notifyHearingOutcome('complaint', complaint, { status: decision, note, penalty: penaltyRecord, refundAmount: refund });
   return getComplaintDetail(complaintId);
 };

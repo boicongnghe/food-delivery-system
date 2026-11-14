@@ -37,12 +37,17 @@ import {
    CUSTOMER VIRTUAL WALLET (Hoàn tiền đơn hàng & Rút tiền ví ảo)
    ========================================================================== */
 
-/** Realtime balance + bell notification after a refund was credited (and committed) */
-export const notifyWalletRefund = ({ userId, orderId, orderCode, amount, balance }) => {
+/**
+ * Realtime balance + bell notification after a refund was credited (and committed).
+ * `message` replaces the default text (cancelled order), e.g. for a complaint refund.
+ */
+export const notifyWalletRefund = ({ userId, orderId, orderCode, amount, balance, message }) => {
   emitWalletUpdate(userId, balance);
   sendRealtimeNotification(userId, {
     title: 'Đã hoàn tiền vào ví ảo 💰',
-    message: `Đơn #${orderCode || orderId} đã hủy. Số tiền ${amount.toLocaleString('vi-VN')}đ đã được hoàn vào ví ảo của bạn.`,
+    message:
+      message ||
+      `Đơn #${orderCode || orderId} đã hủy. Số tiền ${amount.toLocaleString('vi-VN')}đ đã được hoàn vào ví ảo của bạn.`,
     type: 'wallet',
     link: '/wallet',
   }).catch(() => {});
@@ -92,6 +97,41 @@ export const creditWalletRefund = async ({
   }
 
   return { updatedUser, transaction };
+};
+
+/**
+ * Fine of a complaint / delivery issue taken from a customer wallet: at most the current balance (the wallet
+ * never goes below 0). Run inside the caller's transaction; the caller emits the new balance once committed.
+ * @returns {Promise<{ collected: number, balance: number | null }>}
+ */
+export const deductCustomerFine = async ({ userId, amount, orderId, description, session }) => {
+  const user = await User.findById(userId).select('walletBalance').session(session).lean();
+  const collected = Math.min(amount, Math.max(0, user?.walletBalance || 0));
+  if (collected <= 0) return { collected: 0, balance: null };
+
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: userId, walletBalance: { $gte: collected } },
+    { $inc: { walletBalance: -collected } },
+    { returnDocument: 'after', runValidators: true, session },
+  );
+  if (!updatedUser) {
+    throw new ApiError(409, 'Số dư ví của khách vừa thay đổi, vui lòng thử lại');
+  }
+  await WalletTransaction.create(
+    [
+      {
+        user: userId,
+        type: 'penalty',
+        amount: -collected,
+        balanceAfter: updatedUser.walletBalance,
+        order: orderId,
+        status: 'completed',
+        description,
+      },
+    ],
+    { session },
+  );
+  return { collected, balance: updatedUser.walletBalance };
 };
 
 const ensureCustomerWalletUser = async (userId, select = 'role walletBalance fullName email phone') => {
@@ -552,19 +592,24 @@ const weekOf = (today) => {
   return { from, to: addDays(from, 6), resetsOn: addDays(from, 7) };
 };
 
+// Money the owner can withdraw: credited earnings - withdrawals (processing / succeeded) - fines
+const availableOf = (earnings, wallet) =>
+  Math.max(0, earnings.credited - wallet.withdrawnTotal - (wallet.penaltyTotal || 0));
+
 const usedInWeek = (wallet, week) => (wallet.weekStart === week.from ? wallet.weekCount : 0);
 
 
-const getOrCreateWallet = async (restaurantId) => {
+// Inside a transaction, pass its session: a write outside it would conflict with the transaction's own update
+const getOrCreateWallet = async (restaurantId, session = null) => {
   try {
     return await RestaurantWallet.findOneAndUpdate(
       { restaurant: restaurantId },
       { $setOnInsert: { restaurant: restaurantId } },
-      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, session },
     ).lean();
   } catch (error) {
     // Two first requests at once: the unique index lets one insert, the other reads it
-    if (error.code === 11000) return RestaurantWallet.findOne({ restaurant: restaurantId }).lean();
+    if (error.code === 11000) return RestaurantWallet.findOne({ restaurant: restaurantId }).session(session).lean();
     throw error;
   }
 };
@@ -632,7 +677,7 @@ export const getWallet = async (restaurant) => {
     getWalletEarnings(restaurant._id, today),
     sumByStatus(restaurant._id),
   ]);
-  const available = Math.max(0, earnings.credited - wallet.withdrawnTotal);
+  const available = availableOf(earnings, wallet);
   const used = usedInWeek(wallet, week);
   const blockedReason = getBlockedReason(restaurant, available, used, week);
 
@@ -642,6 +687,7 @@ export const getWallet = async (restaurant) => {
       pendingSettlement: earnings.pending, // today's delivered orders, credited after the end-of-day reconciliation
       processing: sums.processing,
       withdrawn: sums.succeeded,
+      penalties: wallet.penaltyTotal || 0, // fines of complaints / delivery issues
       totalEarned: earnings.credited + earnings.pending,
     },
     limits: {
@@ -660,6 +706,29 @@ export const getWallet = async (restaurant) => {
     canWithdraw: !blockedReason,
     blockedReason,
   };
+};
+
+/**
+ * Fine of a complaint / delivery issue taken from a restaurant wallet: at most the available balance.
+ * Compare-and-set on `version` like a withdrawal, so a fine and a withdrawal at the same time can never
+ * spend the same money twice. Run inside the caller's transaction.
+ * @returns {Promise<{ collected: number }>}
+ */
+export const deductRestaurantFine = async ({ restaurantId, amount, session }) => {
+  const wallet = await getOrCreateWallet(restaurantId, session);
+  const earnings = await getWalletEarnings(restaurantId, vietnamDateString());
+  const collected = Math.min(amount, availableOf(earnings, wallet));
+  if (collected <= 0) return { collected: 0 };
+
+  const updated = await RestaurantWallet.updateOne(
+    { _id: wallet._id, version: wallet.version },
+    { $inc: { penaltyTotal: collected, version: 1 } },
+    { session },
+  );
+  if (!updated.modifiedCount) {
+    throw new ApiError(409, 'Ví của nhà hàng vừa có giao dịch khác, vui lòng thử lại');
+  }
+  return { collected };
 };
 
 // ---------- Restaurant bank accounts (rules shared with customers / shippers: payoutAccountService)
@@ -809,7 +878,7 @@ export const requestRestaurantWithdrawal = async (restaurant, ownerId, { amount,
   const week = weekOf(today);
   const wallet = await getOrCreateWallet(restaurantId);
   const earnings = await getWalletEarnings(restaurantId, today);
-  const available = Math.max(0, earnings.credited - wallet.withdrawnTotal);
+  const available = availableOf(earnings, wallet);
   const used = usedInWeek(wallet, week);
 
   const blockedReason = getBlockedReason(restaurant, available, used, week);

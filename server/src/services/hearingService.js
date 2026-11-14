@@ -305,7 +305,17 @@ export const assertHearingEndedForPenalty = (caseDoc) => {
 // ---------- Notifications: outcome and reminder ----------
 
 const penaltyText = (penalty) => {
-  const fine = penalty.action === 'fine' ? ` ${penalty.fineAmount.toLocaleString('vi-VN')}đ` : '';
+  let fine = '';
+  if (penalty.action === 'fine') {
+    const collected = penalty.fineCollected || 0;
+    const taken =
+      collected >= penalty.fineAmount
+        ? ', đã trừ vào ví'
+        : collected > 0
+          ? `, đã trừ ${collected.toLocaleString('vi-VN')}đ vào ví (số dư không đủ)`
+          : ', chưa trừ được do ví không có số dư';
+    fine = ` ${penalty.fineAmount.toLocaleString('vi-VN')}đ${taken}`;
+  }
   const auto = penalty.autoSuspended ? ', kèm tự động đình chỉ do đạt ngưỡng vi phạm' : '';
   return `${PENALTY_ACTION_TEXT[penalty.action]}${fine}${auto}`;
 };

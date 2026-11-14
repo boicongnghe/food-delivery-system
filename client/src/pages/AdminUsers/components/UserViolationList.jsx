@@ -1,7 +1,6 @@
 import AdminBadge from '../../../components/AdminBadge/AdminBadge.jsx'
 import AdminSection from '../../../components/AdminSection/AdminSection.jsx'
-import { PENALTY_ACTION_LABELS } from '../../../utils/deliveryIssueLabels.js'
-import { formatCurrency } from '../../../utils/formatCurrency.js'
+import { penaltyBadgeText } from '../../../utils/deliveryIssueLabels.js'
 import { formatDate } from '../../../utils/formatDate.js'
 import { HEARING_CASE_LABELS } from '../../../utils/hearingLabels.js'
 
@@ -27,8 +26,7 @@ export default function UserViolationList({ violations }) {
                   </p>
                   <div className="flex flex-wrap gap-1">
                     <AdminBadge tone={penalty.action === 'warning' ? 'amber' : 'red'}>
-                      {PENALTY_ACTION_LABELS[penalty.action]}
-                      {penalty.action === 'fine' && ` ${formatCurrency(penalty.fineAmount)}`}
+                      {penaltyBadgeText(penalty)}
                     </AdminBadge>
                     {penalty.autoSuspended && <AdminBadge tone="red">Tự động đình chỉ</AdminBadge>}
                   </div>

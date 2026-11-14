@@ -10,7 +10,7 @@ Tài liệu nghiệp vụ cho nhóm. Màn hình: **Thống kê → Ví & rút ti
 
 | Số trên màn hình | Ý nghĩa |
 | --- | --- |
-| Số dư khả dụng | Đã vào ví − (lệnh rút đang xử lý + lệnh rút thành công) |
+| Số dư khả dụng | Đã vào ví − (lệnh rút đang xử lý + lệnh rút thành công) − tiền phạt (`penaltyTotal`, admin trừ khi xử phạt khiếu nại / sự cố, xem [post-delivery-admin.md](post-delivery-admin.md)) |
 | Chờ đối soát | Thực nhận của đơn hoàn thành hôm nay |
 | Đang xử lý | Lệnh rút đã gửi, đang chờ ngân hàng |
 | Đã rút | Tổng lệnh rút thành công |

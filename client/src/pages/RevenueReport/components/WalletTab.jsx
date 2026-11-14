@@ -76,6 +76,12 @@ export default function WalletTab() {
             <Figure label="Đã rút" value={formatCurrency(balance.withdrawn)} tone="text-emerald-700" />
             <Figure label="Tổng thu nhập" value={formatCurrency(balance.totalEarned)} hint="Thực nhận từ đơn hoàn thành" />
           </div>
+          {balance.penalties > 0 && (
+            <p className="text-sm text-red-700">
+              Đã trừ <strong className="tabular-nums">{formatCurrency(balance.penalties)}</strong> tiền phạt (khiếu nại, sự cố giao
+              hàng) khỏi số dư khả dụng.
+            </p>
+          )}
           <p className="flex items-start gap-1.5 text-xs text-slate-500">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             Thực nhận mỗi đơn hoàn thành = tiền món + phí đóng gói − phí nền tảng (tỉ lệ hoa hồng của ngày đặt đơn). Tiền được cộng

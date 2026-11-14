@@ -49,7 +49,7 @@ export default function MyComplaintCard({ complaint }) {
           </p>
           <p className="mt-1 text-slate-700">{resolution.note}</p>
           {resolution.refundAmount > 0 && (
-            <p className="mt-1 font-semibold text-emerald-700">Hoàn tiền: {formatCurrency(resolution.refundAmount)}</p>
+            <p className="mt-1 font-semibold text-emerald-700">Đã hoàn {formatCurrency(resolution.refundAmount)} vào ví ảo</p>
           )}
         </div>
       )}
