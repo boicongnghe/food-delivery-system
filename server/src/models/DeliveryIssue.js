@@ -12,9 +12,10 @@ export const DELIVERY_ISSUE_TYPES = [
 // open -> resolved (handled, optional penalty) | dismissed (report not valid)
 export const DELIVERY_ISSUE_STATUSES = ['open', 'resolved', 'dismissed'];
 export const PENALTY_TARGETS = ['shipper', 'restaurant', 'customer'];
-// warning, fine: recorded only (fine is simulated) | suspend: restaurant -> "suspended", shipper/customer -> account locked
+// warning: recorded only | fine: taken from the wallet of the penalized party (up to its balance)
+// suspend: restaurant -> "suspended", shipper/customer -> account locked
 export const PENALTY_ACTIONS = ['warning', 'fine', 'suspend'];
-// Simulated fine (VND), shared by delivery issues and complaints
+// Fine (VND), shared by delivery issues and complaints
 export const PENALTY_FINE_LIMITS = { min: 10000, max: 5000000 };
 // none: the shipper keeps the order; release: back to the pool (not picked up yet); cancel: cancel + refund
 export const ISSUE_ORDER_ACTIONS = ['none', 'release', 'cancel'];
@@ -28,6 +29,8 @@ export const penaltySchema = new mongoose.Schema(
     targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // account penalized
     action: { type: String, enum: PENALTY_ACTIONS, required: true },
     fineAmount: { type: Number, min: 0, default: 0 },
+    // Part of the fine actually taken from the wallet: less than fineAmount when the balance was too low
+    fineCollected: { type: Number, min: 0, default: 0 },
     // This penalty reached the violation threshold (ViolationSetting), so the account was suspended as well
     autoSuspended: { type: Boolean, default: false },
   },

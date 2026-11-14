@@ -1,3 +1,5 @@
+import { formatCurrency } from './formatCurrency.js'
+
 // Delivery issue reports (UC34 / UC45): same values as server/src/models/DeliveryIssue.js
 
 export const DELIVERY_ISSUE_TYPE_LABELS = {
@@ -49,4 +51,17 @@ export const PENALTY_ACTION_LABELS = {
   warning: 'Cảnh cáo',
   fine: 'Phạt tiền',
   suspend: 'Đình chỉ hoạt động',
+}
+
+/**
+ * Badge text of a saved penalty. A fine also says what was really taken from the wallet (fineCollected), which is
+ * lower than the fine when the balance was too low. Fines saved before wallets were charged have no fineCollected.
+ */
+export const penaltyBadgeText = (penalty) => {
+  const label = PENALTY_ACTION_LABELS[penalty.action]
+  if (penalty.action !== 'fine') return label
+  const fine = `${label} ${formatCurrency(penalty.fineAmount)}`
+  if (penalty.fineCollected == null) return fine
+  if (penalty.fineCollected >= penalty.fineAmount) return `${fine} · đã trừ ví`
+  return `${fine} · trừ được ${formatCurrency(penalty.fineCollected)}`
 }

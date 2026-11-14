@@ -1,9 +1,10 @@
+import mongoose from 'mongoose';
 import DeliveryIssue, { DELIVERY_ISSUE_STATUSES } from '../models/DeliveryIssue.js';
 import Order from '../models/Order.js';
 import ApiError from '../utils/ApiError.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toPage } from '../utils/pagination.js';
-import { sendRealtimeNotification } from '../socket.js';
+import { emitWalletUpdate, sendRealtimeNotification } from '../socket.js';
 import { getNextSequence } from './counterService.js';
 import {
   assertHearingEndedForPenalty,
@@ -16,6 +17,7 @@ import {
   applySuspension,
   assertShipperCanBeLocked,
   buildPenaltyRecord,
+  collectFine,
   getViolationSummary,
 } from './violationService.js';
 import {
@@ -228,7 +230,8 @@ export const applyIssueOrderAction = async (adminId, issueId, { orderAction, not
 
 /**
  * Decision on the report. Dismissing it, or upholding it without a penalty, is possible at any time;
- * a penalty needs a hearing (shipper, customer, restaurant) that has ended.
+ * a penalty needs a hearing (shipper, customer, restaurant) that has ended. A fine is taken from the wallet of
+ * the penalized party in the same transaction that saves the decision.
  */
 export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, penalty = null }) => {
   const issue = await DeliveryIssue.findById(issueId).populate('restaurant', 'owner').lean();
@@ -245,23 +248,41 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
     'Hãy hủy hoặc trả đơn về hàng chờ ở mục "Xử lý đơn hàng" trước khi khóa tài khoản',
   );
 
-  // Dotted paths keep the order action recorded earlier
-  const resolved = await DeliveryIssue.findOneAndUpdate(
-    { _id: issueId, status: 'open' },
-    {
-      $set: {
-        status: decision,
-        'resolution.note': note,
-        'resolution.penalty': penaltyRecord,
-        'resolution.by': adminId,
-        'resolution.at': new Date(),
-      },
-    },
-    { returnDocument: 'after', runValidators: true },
-  );
-  if (!resolved) {
-    throw new ApiError(409, 'Báo cáo vừa được xử lý bởi người khác, vui lòng tải lại');
+  let customerBalance = null;
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      // Only an open report can be concluded: two admins at once cannot both win
+      const claimed = await DeliveryIssue.findOneAndUpdate(
+        { _id: issueId, status: 'open' },
+        { $set: { status: decision } },
+        { returnDocument: 'after', runValidators: true, session },
+      );
+      if (!claimed) {
+        throw new ApiError(409, 'Báo cáo vừa được xử lý bởi người khác, vui lòng tải lại');
+      }
+      ({ customerBalance } = await collectFine(issue, penaltyRecord, {
+        caseLabel: `sự cố giao hàng ${issue.code}`,
+        session,
+      }));
+      // Dotted paths keep the order action recorded earlier
+      await DeliveryIssue.updateOne(
+        { _id: issueId },
+        {
+          $set: {
+            'resolution.note': note,
+            'resolution.penalty': penaltyRecord,
+            'resolution.by': adminId,
+            'resolution.at': new Date(),
+          },
+        },
+        { runValidators: true, session },
+      );
+    });
+  } finally {
+    await session.endSession();
   }
+  if (customerBalance !== null) emitWalletUpdate(issue.customer, customerBalance);
 
   await applySuspension(adminId, issue, penaltyRecord, { threshold, caseLabel: `sự cố giao hàng ${issue.code}` });
   const hasOpenIssue = await DeliveryIssue.exists({ order: issue.order, status: 'open' });

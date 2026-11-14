@@ -7,6 +7,8 @@ import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import { SHIPPER_ACTIVE_STATUSES } from './orderAssignmentService.js';
 import { getViolationPolicy } from './settingService.js';
+import { deductShipperFine } from './shipperWalletService.js';
+import { deductCustomerFine, deductRestaurantFine } from './walletService.js';
 
 // Penalties of the platform. Two kinds of case can penalize a party once its hearing has ended:
 // delivery issue reports (UC45) and complaints (UC42). Both store `resolution.penalty` the same way, so one
@@ -137,6 +139,7 @@ export const buildPenaltyRecord = async (caseDoc, penalty) => {
     targetUser,
     action: penalty.action,
     fineAmount: penalty.action === 'fine' ? penalty.fineAmount : 0,
+    fineCollected: 0, // set by collectFine when the case is saved
     autoSuspended: false,
   };
   if (record.action !== 'suspend' && threshold > 0) {
@@ -178,4 +181,37 @@ export const applySuspension = async (adminId, caseDoc, record, { threshold, cas
     return;
   }
   await User.updateOne({ _id: record.targetUser, role: { $ne: 'admin' } }, { isActive: false });
+};
+
+/**
+ * Takes the fine of a penalty from the wallet of the penalized party, inside the transaction that saves the case:
+ * customer -> virtual wallet, shipper -> shipper wallet, restaurant -> restaurant wallet (lowers the available
+ * balance). Never more than the balance: the part that could not be taken is not owed later.
+ * Sets `record.fineCollected`. Returns the new customer balance to emit after the commit (null otherwise).
+ * @param {object} caseDoc - `restaurant` populated with `owner`
+ * @param {string} caseLabel - e.g. "khiếu nại KN-0001"
+ */
+export const collectFine = async (caseDoc, record, { caseLabel, session }) => {
+  if (record) record.fineCollected = 0;
+  if (record?.action !== 'fine' || !(record.fineAmount > 0)) return { customerBalance: null };
+
+  const orderId = caseDoc.order?._id ?? caseDoc.order;
+  const description = `Phạt ${caseLabel} (đơn #${caseDoc.orderCode})`;
+  if (record.target === 'customer') {
+    const { collected, balance } = await deductCustomerFine({
+      userId: record.targetUser,
+      amount: record.fineAmount,
+      orderId,
+      description,
+      session,
+    });
+    record.fineCollected = collected;
+    return { customerBalance: balance };
+  }
+  const { collected } =
+    record.target === 'shipper'
+      ? await deductShipperFine({ shipperId: record.targetUser, amount: record.fineAmount, orderId, description, session })
+      : await deductRestaurantFine({ restaurantId: caseDoc.restaurant._id, amount: record.fineAmount, session });
+  record.fineCollected = collected;
+  return { customerBalance: null };
 };

@@ -112,7 +112,7 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
 
 - **Đánh giá (UC17):** chỉ đơn `delivered`, trong 7 ngày kể từ lúc giao, mỗi đơn một lần. Đơn có shipper thì bắt buộc chấm sao shipper.
 - **Kiểm duyệt (UC43):** ẩn đánh giá phải chọn lý do (`spam`, `offensive`, `irrelevant`, `personal_info`, `other` kèm ghi chú). Ẩn hoặc hiện lại đều tính lại điểm nhà hàng và shipper. Khách vẫn thấy đánh giá của mình kèm lý do bị ẩn.
-- **Khiếu nại (UC18 → UC42):** đơn `delivered` hoặc `cancelled`, trong 7 ngày, mỗi đơn một lần, tối đa 3 ảnh. Không khiếu nại được đơn online chưa từng thanh toán (khách hủy ở trang thanh toán). Admin chấp nhận (có thể hoàn tiền) hoặc từ chối, luôn kèm phản hồi cho khách. Số tiền hoàn ≤ số khách đã trả (`payment.status` là `paid`/`refunded`) trừ phần đã hoàn khi hủy. Hoàn tiền hiện là **mô phỏng**.
+- **Khiếu nại (UC18 → UC42):** đơn `delivered` hoặc `cancelled`, trong 7 ngày, mỗi đơn một lần, tối đa 3 ảnh. Không khiếu nại được đơn online chưa từng thanh toán (khách hủy ở trang thanh toán). Admin chấp nhận (có thể hoàn tiền) hoặc từ chối, luôn kèm phản hồi cho khách. Số tiền hoàn ≤ số khách đã trả (`payment.status` là `paid`/`refunded`) trừ phần đã hoàn khi hủy. Tiền hoàn được **cộng ngay vào ví ảo của khách** (giao dịch `refund`) trong cùng transaction với quyết định, do nền tảng chi trả (không trừ vào ví của quán).
   - Chấp nhận, hoàn tiền hoặc từ chối mà **không xử phạt**: làm được ngay, không cần đối chất.
   - Muốn **xử phạt** một bên (nhà hàng, shipper nếu đơn có shipper, hoặc khách khi khiếu nại sai sự thật), admin phải mở **đối chất** giữa khách, chủ quán và shipper và chờ phiên kết thúc. Xử phạt dùng được với cả quyết định chấp nhận lẫn từ chối. Quy tắc đối chất và xử phạt dùng chung với sự cố, xem mục "Đối chất & xử phạt" bên dưới.
 - **Sự cố (UC34 → UC45):** shipper chỉ báo cáo được khi đơn mình đang giữ ở `preparing`/`ready_for_pickup`/`delivering`; đơn đã kết thúc thì không báo được nữa. Mỗi đơn có tối đa một báo cáo đang chờ xử lý. Admin xử lý theo 3 bước tách rời:
@@ -132,7 +132,8 @@ Realtime qua Socket.io (room `user:<id>` của các bên và `role:admin`): `hea
     - Phiên đã kết thúc có thể mở lại (thời hạn mới, giữ tin nhắn cũ) khi vụ việc còn mở. Không mở 2 phiên cùng lúc (409).
     - Mỗi bên chỉ thấy tên các bên và nội dung, không thấy số điện thoại hay lịch sử vi phạm.
   - **Xử phạt** một bên chỉ khi phiên đối chất **đã kết thúc** (chưa mở hoặc đang diễn ra → 409):
-    - `warning`, `fine` (10.000–5.000.000đ, mô phỏng): chỉ ghi nhận vào lịch sử vi phạm.
+    - `warning`: chỉ ghi nhận vào lịch sử vi phạm.
+    - `fine` (10.000–5.000.000đ): ghi nhận và **trừ ngay vào ví của bên bị phạt**, trong cùng transaction với kết luận: khách → ví ảo, shipper → ví thu nhập (`DriverDashboard.walletBalance`), nhà hàng → số dư khả dụng (`RestaurantWallet.penaltyTotal`). Chỉ trừ tối đa bằng số dư hiện có, phần thiếu không truy thu; số tiền đã trừ thực tế lưu ở `penalty.fineCollected`. Khách và shipper có thêm giao dịch `penalty` trong `wallet_transactions`.
     - `suspend`: nhà hàng chuyển `suspended` (không nhận đơn mới, vẫn hoàn tất được đơn đang có); shipper hoặc khách bị **khóa tài khoản**, mở lại ở UC37.
     - Phạt bên không có trong đơn (shipper của đơn không có shipper) → 400.
     - Khóa shipper (`suspend` hoặc tự động) khi shipper còn giữ bất kỳ đơn nào đang giao bị từ chối (409).

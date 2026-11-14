@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-export const TRANSACTION_TYPES = ['refund', 'withdraw', 'withdraw_rejected', 'deposit', 'payment'];
+// penalty: fine of a complaint / delivery issue taken from the wallet
+export const TRANSACTION_TYPES = ['refund', 'withdraw', 'withdraw_rejected', 'deposit', 'payment', 'penalty'];
 export const TRANSACTION_STATUSES = ['completed', 'pending', 'rejected'];
 
 const walletTransactionSchema = new mongoose.Schema(

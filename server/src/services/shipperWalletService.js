@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import DriverDashboard from '../models/DriverDashboard.js';
 import ShipperWithdrawal from '../models/ShipperWithdrawal.js';
+import WalletTransaction from '../models/WalletTransaction.js';
 import ApiError from '../utils/ApiError.js';
 import { addDays, startOfVietnamDay, vietnamDateString } from '../utils/date.js';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
@@ -85,4 +86,40 @@ export const requestWithdrawal = async (shipperId, amount) => {
     withdrawal: withdrawal.toObject(),
     walletBalance: (await DriverDashboard.findOne({ userId: shipperId }).select('walletBalance').lean()).walletBalance,
   };
+};
+
+/**
+ * Fine of a complaint / delivery issue taken from the shipper wallet (DriverDashboard.walletBalance, the only
+ * balance of a shipper): at most the current balance, which never goes below 0. Run inside the caller's
+ * transaction. The deduction is also written to the wallet ledger for the audit trail.
+ * @returns {Promise<{ collected: number }>}
+ */
+export const deductShipperFine = async ({ shipperId, amount, orderId, description, session }) => {
+  const dashboard = await DriverDashboard.findOne({ userId: shipperId }).select('walletBalance').session(session).lean();
+  const collected = Math.min(amount, Math.max(0, dashboard?.walletBalance || 0));
+  if (collected <= 0) return { collected: 0 };
+
+  const updated = await DriverDashboard.findOneAndUpdate(
+    { userId: shipperId, walletBalance: { $gte: collected } },
+    { $inc: { walletBalance: -collected } },
+    { returnDocument: 'after', session },
+  ).lean();
+  if (!updated) {
+    throw new ApiError(409, 'Số dư ví của shipper vừa thay đổi, vui lòng thử lại');
+  }
+  await WalletTransaction.create(
+    [
+      {
+        user: shipperId,
+        type: 'penalty',
+        amount: -collected,
+        balanceAfter: updated.walletBalance,
+        order: orderId,
+        status: 'completed',
+        description,
+      },
+    ],
+    { session },
+  );
+  return { collected };
 };

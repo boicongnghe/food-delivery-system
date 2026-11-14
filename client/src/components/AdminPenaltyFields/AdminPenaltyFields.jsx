@@ -123,7 +123,7 @@ export default function AdminPenaltyFields({
                 placeholder={`${formatNumber(PENALTY_FINE_LIMITS.min)} - ${formatNumber(PENALTY_FINE_LIMITS.max)}`}
                 className={`${ADMIN_INPUT} sm:w-1/2`}
               />
-              <p className="mt-1 text-xs text-slate-500">Phạt tiền hiện được ghi nhận (mô phỏng), chưa trừ tiền thật.</p>
+              <p className="mt-1 text-xs text-slate-500">Trừ ngay vào ví của bên bị phạt khi lưu, tối đa bằng số dư hiện có (khách: ví ảo, shipper: ví thu nhập, nhà hàng: số dư khả dụng). Phần thiếu không bị truy thu.</p>
               <AdminFieldError message={errors['penalty.fineAmount']} />
             </div>
           )}
