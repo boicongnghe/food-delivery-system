@@ -11,7 +11,7 @@ import { confirmToast } from '../../../utils/confirmToast.jsx'
 
 const ACTIONS = {
   cancel: {
-    confirm: 'Hủy đơn này thay khách hàng? Khách đã thanh toán sẽ có yêu cầu hoàn tiền.',
+    confirm: 'Hủy đơn này thay khách hàng? Khách đã thanh toán được hoàn ngay toàn bộ vào ví ảo.',
     request: adminOrderApi.cancelOrder,
     fallbackError: 'Không hủy được đơn',
   },

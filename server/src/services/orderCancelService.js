@@ -8,8 +8,8 @@ import { creditWalletRefund } from './walletService.js';
 /**
  * Cancel an order on behalf of the platform: timeout rules (TO-03, TO-07) and the admin (TO-05).
  * Conditional on the status and payment already read (+ extraFilter), so it never cancels an order that
- * moved on meanwhile (e.g. the kitchen accepted it a second ago). A paid order gets a refund request,
- * completed later by an admin (R06); an unpaid one has nothing to give back.
+ * moved on meanwhile (e.g. the kitchen accepted it a second ago). A paid order is refunded in full to the
+ * customer wallet right away (R06, refund.status = succeeded); an unpaid one has nothing to give back.
  * @param {object} order - lean order with _id, status, payment, total / totalPrice
  * @returns {Promise<{ order: object, isPaid: boolean, amount: number } | null>} null when it lost the race
  */

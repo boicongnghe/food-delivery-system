@@ -193,7 +193,7 @@ const findPlacedOrder = async (orderId) => {
 /**
  * TO-05 (decision D3) - the admin cancels for the customer, e.g. a kitchen far past its preparation time,
  * or a shipper who accepted the order and never came. Same cancellation as the timeout rules: by "system",
- * refund request when paid, restaurant not compensated. The shipper (if any) is freed for a new order.
+ * full refund to the customer wallet when paid, restaurant not compensated. The shipper (if any) is freed for a new order.
  */
 export const cancelOrderAsAdmin = async (adminId, orderId, { note }) => {
   const order = await findPlacedOrder(orderId);
