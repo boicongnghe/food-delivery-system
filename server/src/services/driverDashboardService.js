@@ -43,6 +43,7 @@ const getWithdrawalLimits = async (shipperId) => {
       $match: {
         shipper: new mongoose.Types.ObjectId(shipperId),
         createdAt: { $gte: startOfVietnamDay(day), $lt: startOfVietnamDay(addDays(day, 1)) },
+        status: { $ne: 'rejected' }, // a rejected request gave its money back
       },
     },
     { $group: { _id: null, amount: { $sum: '$amount' } } },

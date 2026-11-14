@@ -93,6 +93,43 @@ export const createDeliveryIssue = async (
   return issue;
 };
 
+// ---------- Shipper: the reports it sent and how they ended ----------
+
+const ISSUE_OUTCOME_TEXT = { resolved: 'Báo cáo đã được xác nhận và xử lý', dismissed: 'Báo cáo không được chấp nhận' };
+const MY_ISSUE_FIELDS = 'code order orderCode type description status hearing resolution createdAt updatedAt';
+
+/**
+ * Reports sent by the shipper, newest first: status, what was done with the order, the conclusion and the hearing
+ * state. A penalty is shown only when it targets this shipper (the other parties' penalties stay private).
+ */
+export const listMyDeliveryIssues = async (shipperId, { page, limit }) => {
+  const filter = { shipper: shipperId };
+  const [items, totalItems] = await Promise.all([
+    DeliveryIssue.find(filter)
+      .select(MY_ISSUE_FIELDS)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    DeliveryIssue.countDocuments(filter),
+  ]);
+  const view = items.map(({ resolution = {}, hearing, ...issue }) => {
+    const ownPenalty = resolution.penalty && String(resolution.penalty.targetUser) === String(shipperId);
+    return {
+      ...issue,
+      hearingState: getHearingState({ ...issue, hearing }),
+      resolution: {
+        orderAction: resolution.orderAction || 'none',
+        orderActionAt: resolution.orderActionAt || null,
+        note: resolution.note || '',
+        at: resolution.at || null,
+        penalty: ownPenalty ? resolution.penalty : null,
+      },
+    };
+  });
+  return toPage(view, { page, limit }, totalItems);
+};
+
 // ---------- Admin (UC45) ----------
 
 export const listDeliveryIssues = async ({ page, limit, keyword, status, type }) => {
@@ -175,6 +212,14 @@ const notifyIssueCancellation = async (issue, order, result, reasonNote) => {
       link: `/restaurant/orders?order=${order._id}`,
     });
   }
+  // The shipper who reported the issue learns what happened to the order it was holding
+  await sendRealtimeNotification(issue.shipper, {
+    title: `Đơn #${code} đã được hủy theo báo cáo ${issue.code}`,
+    message: `Bạn không cần giao tiếp đơn này. ${reasonNote}`,
+    type: 'delivery',
+    orderId: order._id,
+    link: '/shipper/reports',
+  });
 };
 
 // Cancel / release the order. Conditional on the order just read, so two admins never act on it twice.
@@ -292,5 +337,15 @@ export const resolveDeliveryIssue = async (adminId, issueId, { decision, note, p
   );
   notifyHearingUpdated('delivery_issue', issue);
   await notifyHearingOutcome('delivery_issue', issue, { status: decision, note, penalty: penaltyRecord });
+  // With a hearing every party was told above; without one, the shipper who sent the report still gets the answer
+  if (!issue.hearing) {
+    await sendRealtimeNotification(issue.shipper, {
+      title: `Kết luận báo cáo sự cố ${issue.code}`,
+      message: `${ISSUE_OUTCOME_TEXT[decision]}. Kết luận: ${note}`,
+      type: 'delivery',
+      orderId: issue.order,
+      link: '/shipper/reports',
+    });
+  }
   return getDeliveryIssueDetail(issueId);
 };

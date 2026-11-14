@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { MIN_WITHDRAWAL_AMOUNT } from '../models/RestaurantWithdrawal.js';
+import { SHIPPER_WITHDRAWAL_STATUSES } from '../models/ShipperWithdrawal.js';
 import { WITHDRAWAL_STATUSES } from '../models/WithdrawalRequest.js';
 import { pageQueryKeys } from './commonValidation.js';
 
@@ -80,4 +81,14 @@ export const rejectWithdrawalSchema = Joi.object({
     'string.max': 'Lý do từ chối tối đa 300 ký tự',
     'any.required': 'Vui lòng nhập lý do từ chối yêu cầu rút tiền',
   }),
+});
+
+// GET /api/admin/shipper-withdrawals
+export const adminShipperWithdrawalQuerySchema = Joi.object({
+  status: Joi.string()
+    .valid('all', ...SHIPPER_WITHDRAWAL_STATUSES)
+    .default('all')
+    .messages({ 'any.only': 'Trạng thái lọc không hợp lệ' }),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
 });

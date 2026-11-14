@@ -55,6 +55,22 @@ const walletApi = {
     return response.data
   },
 
+  // Admin: shipper withdrawal requests (same review as the customer ones)
+  getAdminShipperWithdrawals: async (params) => {
+    const response = await axiosClient.get('/admin/shipper-withdrawals', { params })
+    return response.data
+  },
+
+  approveShipperWithdrawal: async (id, data) => {
+    const response = await axiosClient.patch(`/admin/shipper-withdrawals/${id}/approve`, data)
+    return response.data
+  },
+
+  rejectShipperWithdrawal: async (id, data) => {
+    const response = await axiosClient.patch(`/admin/shipper-withdrawals/${id}/reject`, data)
+    return response.data
+  },
+
   // Admin duyệt chuyển tiền thành công
   approveWithdrawal: async (id, data) => {
     const response = await axiosClient.patch(`/admin/withdrawals/${id}/approve`, data)

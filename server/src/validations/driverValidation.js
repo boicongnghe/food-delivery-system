@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { SHIPPER_WITHDRAWAL_LIMITS } from '../utils/shipperWallet.js';
+import { pageQueryKeys } from './commonValidation.js';
 
 export const requestWithdrawalSchema = Joi.object({
   amount: Joi.number()
@@ -26,4 +27,30 @@ export const changeDriverPasswordSchema = Joi.object({
     'string.min': 'Mật khẩu mới phải có ít nhất 6 ký tự',
     'any.required': 'Vui lòng nhập mật khẩu mới',
   }),
+});
+
+// GET /api/drivers/me/withdrawals, GET /api/drivers/me/delivery-issues
+export const driverPageQuerySchema = Joi.object(pageQueryKeys);
+
+// PUT /api/drivers/me/application - same fields and rules as the shipper part of the register form
+export const shipperApplicationSchema = Joi.object({
+  dateOfBirth: Joi.string()
+    .trim()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .required()
+    .messages({ 'string.pattern.base': 'Ngày sinh không hợp lệ', 'any.required': 'Vui lòng chọn ngày sinh' }),
+  citizenId: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{9,12}$/)
+    .required()
+    .messages({ 'string.pattern.base': 'Số CCCD gồm 9-12 chữ số', 'any.required': 'Vui lòng nhập số CCCD' }),
+  vehicleInfo: Joi.string().trim().min(3).max(200).required().messages({
+    'string.empty': 'Vui lòng nhập loại xe và biển số xe',
+    'string.min': 'Thông tin xe quá ngắn',
+    'any.required': 'Vui lòng nhập loại xe và biển số xe',
+  }),
+  hasInsurance: Joi.boolean().default(false),
+  insuranceInfo: Joi.string().trim().max(200).allow('').default(''),
+  depositConfirmed: Joi.boolean().default(false),
+  depositNote: Joi.string().trim().max(200).allow('').default(''),
 });

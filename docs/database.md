@@ -212,9 +212,9 @@ Chi tiết nghiệp vụ và API xem [post-delivery-admin.md](post-delivery-admi
 | Vai trò (`User.role`) | Nguồn số dư duy nhất | Lịch sử & Lệnh rút | API ví & Chốt quyền |
 | --- | --- | --- | --- |
 | `customer` | `users.walletBalance` | `wallettransactions`, `withdrawalrequests` | `/api/wallet/my-wallet`, `/withdraw`, `/deposit/*` (`authorize('customer')`, service và SePay `NAP VI` webhook chặn role khác) |
-| `shipper` | **`driverdashboards.walletBalance`** | `shipperwithdrawals` (trừ trực tiếp từ `DriverDashboard.walletBalance`, cộng thu nhập tại `completeDelivery`) | `/api/drivers/me/dashboard`, `/api/drivers/me/withdrawals` (`authorize('shipper')`); dùng chung danh sách tài khoản ngân hàng nhận tiền ở `users.payoutAccounts` qua `/api/wallet/payout-accounts` (`authorize('customer', 'shipper')`). **Không** dùng `users.walletBalance` và **không** dùng trường cũ `driverdashboards.periods.*.walletBalance`. |
+| `shipper` | **`driverdashboards.walletBalance`** | `shipperwithdrawals` (`requested → completed | rejected`; trừ trực tiếp từ `DriverDashboard.walletBalance` khi gửi, cộng lại khi admin từ chối; cộng thu nhập tại `completeDelivery`) | `/api/drivers/me/dashboard`, `/api/drivers/me/withdrawals` (`authorize('shipper')`); dùng chung danh sách tài khoản ngân hàng nhận tiền ở `users.payoutAccounts` qua `/api/wallet/payout-accounts` (`authorize('customer', 'shipper')`). **Không** dùng `users.walletBalance` và **không** dùng trường cũ `driverdashboards.periods.*.walletBalance`. |
 | `restaurant_owner` | `restaurant_wallets` (`withdrawnTotal` & doanh thu đơn) | `restaurant_withdrawals` | `/api/restaurants/me/wallet/*` (`authorize('restaurant_owner')`) |
-| `admin` | Không có ví giao dịch riêng | — | Chỉ có quyền duyệt rút tiền khách (`/api/admin/withdrawals*`), không có ví cá nhân trên `users.walletBalance` |
+| `admin` | Không có ví giao dịch riêng | — | Duyệt rút tiền của khách (`/api/admin/withdrawals*`) và của shipper (`/api/admin/shipper-withdrawals*`), không có ví cá nhân trên `users.walletBalance` |
 
 ## 7. `platform_settings`
 

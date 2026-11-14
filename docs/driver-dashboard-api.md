@@ -16,7 +16,13 @@ upload endpoint.
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `GET /api/drivers/me/dashboard?period=today|week|month`
-- `POST /api/drivers/me/withdrawals` with `{ "amount": 10000 }`
+- `POST /api/drivers/me/withdrawals` with `{ "amount": 10000 }` (status `requested`; the admin then completes it
+  with the transfer reference, or rejects it and the amount goes back to the wallet)
+- `GET /api/drivers/me/withdrawals?page=1&limit=10` (own requests with their status, reference or rejection reason)
+- `GET /api/drivers/me/application` (profile under review: status, the admin's reason, checklist)
+- `PUT /api/drivers/me/application` with `{ dateOfBirth, citizenId, vehicleInfo, hasInsurance, insuranceInfo,
+  depositConfirmed, depositNote }` (only while `pending` or `rejected`; a rejected profile goes back to `pending`)
+- `GET /api/drivers/me/delivery-issues?page=1&limit=10` (own delivery issue reports and their outcome)
 - `GET /api/drivers/me/settings`
 - `PATCH /api/drivers/me/settings`
 - `PATCH /api/drivers/me/password`
@@ -45,9 +51,9 @@ in the wallet tab (`/api/wallet/payout-accounts`, shared with customers): up to
 5 accounts, one default; a withdrawal goes to the default account and keeps a
 copy of it (`shipperwithdrawals.bankAccount`). A bank entered in the old
 settings form is moved into that list once, as the default account.
-Verified identity and vehicle information are read-only after registration; the
-settings endpoint returns only a masked citizen ID and the submitted vehicle
-details. Completed delivery fees are credited to the shipper's virtual wallet.
+Identity and vehicle information are read-only once the profile is approved; until then
+(pending or rejected) the shipper fixes them through `/api/drivers/me/application`. The
+settings endpoint returns only a masked citizen ID and the submitted vehicle details. Completed delivery fees are credited to the shipper's virtual wallet.
 Withdrawal requests must be at least 10,000 VND, at most 2,000,000 VND each,
 and at most 5,000,000 VND per Vietnam calendar day. A request deducts the
 virtual balance and is stored in MongoDB; it does not transfer money to a bank.
