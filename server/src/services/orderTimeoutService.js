@@ -54,6 +54,53 @@ const findWaitingOrders = async (minutes, now, extraFilter = {}) => {
   return candidates.filter((order) => waitingSince(order) <= limit);
 };
 
+// TO-01: Cancel unpaid banking orders after payTimeout minutes
+const findUnpaidBankingOrders = async (minutes, now) => {
+  const limit = minutesBefore(now, minutes);
+  return Order.find({
+    status: 'pending',
+    $or: [
+      { 'payment.method': 'banking', 'payment.status': { $in: ['unpaid', 'pending'] } },
+      { paymentMethod: 'banking', paymentStatus: 'pending' },
+    ],
+    createdAt: { $lte: limit },
+  })
+    .select('orderCode orderNumber status customer createdAt payment total totalPrice promotion restaurantVoucher')
+    .sort({ createdAt: 1 })
+    .limit(BATCH_LIMIT)
+    .lean();
+};
+
+const cancelUnpaidBankingOrders = async (settings, now) => {
+  const timeoutMinutes = settings.payTimeout || 15;
+  const orders = await findUnpaidBankingOrders(timeoutMinutes, now);
+  let count = 0;
+  for (const order of orders) {
+    const result = await cancelOrderBySystem(order, {
+      reason: 'payment_timeout',
+      note: `Hết thời gian thanh toán chuyển khoản (${timeoutMinutes} phút)`,
+      action: 'Tự hủy: quá hạn chuyển khoản',
+      extraFilter: {
+        $or: [
+          { 'payment.status': { $in: ['unpaid', 'pending'] } },
+          { paymentStatus: 'pending' },
+        ],
+      },
+    });
+    if (!result) continue;
+
+    await sendRealtimeNotification(order.customer, {
+      title: 'Đơn hàng tự động hủy do hết hạn thanh toán ⏰',
+      message: `Đơn #${codeOf(order)} đã tự hủy do không nhận được thanh toán chuyển khoản trong ${timeoutMinutes} phút.`,
+      type: 'order',
+      orderId: order._id,
+      link: `/orders/${order._id}`,
+    });
+    count += 1;
+  }
+  return count;
+};
+
 // TO-02
 const remindRestaurants = async (settings, now) => {
   const orders = await findWaitingOrders(settings.acceptRemind, now, { 'timeouts.acceptRemindedAt': null });
@@ -273,6 +320,7 @@ const alertStalledPickups = async (settings, now) => {
 
 // Reminders before the automatic actions they announce
 const STEPS = {
+  cancelUnpaidBankingOrders,
   remindRestaurants,
   cancelUnacceptedOrders,
   warnSlowKitchens,

@@ -439,7 +439,11 @@ function Checkout() {
         return
       }
 
+      // m3: Idempotency Key to protect against double orders from network latency/retry
+      const idempotencyKey = `idemp_${user?._id || 'guest'}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+
       const payload = {
+        idempotencyKey,
         restaurantId: orderRestaurantId,
         items: cart.items.map((item) => ({
           menuItemId: item.food?._id || item.food?.id,

@@ -110,7 +110,8 @@ const statusHistorySchema = new mongoose.Schema(
 const orderSchema = new mongoose.Schema(
   {
     orderCode: { type: String, index: true },
-    orderNumber: { type: String, index: true },
+    orderNumber: { type: String, unique: true, sparse: true, index: true },
+    idempotencyKey: { type: String, index: true, sparse: true, default: null },
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', required: true },
     shipper: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

@@ -1,5 +1,6 @@
 import Order from '../models/Order.js';
 import Payment from '../models/Payment.js';
+import PromotionRule from '../models/PromotionRule.js';
 import { legacyCancellationFromCanonical, legacyPaymentFromCanonical } from '../utils/orderFieldSync.js';
 import { recordStatusChange } from './orderHistoryService.js';
 import { refundRequestFields } from './orderPolicy.js';
@@ -52,6 +53,14 @@ export const cancelOrderBySystem = async (order, { reason, note, action, extraFi
       amount,
     });
     await Payment.updateMany({ order: cancelled._id, status: 'success' }, { $set: { status: 'refunded' } });
+  }
+
+  // Rollback promo usage count if order had a platform promotion
+  if (cancelled.promotion?.code) {
+    await PromotionRule.updateOne(
+      { code: cancelled.promotion.code, usedCount: { $gt: 0 } },
+      { $inc: { usedCount: -1 } },
+    ).catch(() => {});
   }
 
   await recordStatusChange({
