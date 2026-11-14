@@ -9,11 +9,11 @@ import { formatDateTime } from '../../../utils/formatDate.js'
 
 const ORDER_ACTION_HINTS = {
   release: 'Shipper không còn giữ đơn; đơn quay lại danh sách chờ để shipper khác nhận. Bếp giữ nguyên trạng thái.',
-  cancel: 'Đơn bị hủy, không tính lỗi cho quán; khách đã thanh toán sẽ có yêu cầu hoàn tiền (tab "Chờ hoàn tiền").',
+  cancel: 'Đơn bị hủy, không tính lỗi cho quán; khách đã thanh toán được hoàn ngay toàn bộ vào ví ảo.',
 }
 const CONFIRM_MESSAGES = {
   release: 'Đơn hàng sẽ được trả về hàng chờ cho shipper khác ngay. Bạn chắc chắn chứ?',
-  cancel: 'Đơn hàng sẽ bị hủy ngay (khách đã thanh toán sẽ có yêu cầu hoàn tiền). Bạn chắc chắn chứ?',
+  cancel: 'Đơn hàng sẽ bị hủy ngay (khách đã thanh toán được hoàn tiền vào ví ảo). Bạn chắc chắn chứ?',
 }
 const choiceClass = (checked, danger) =>
   `flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${

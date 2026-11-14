@@ -158,10 +158,11 @@ const notifyIssueCancellation = async (issue, order, result, reasonNote) => {
   const code = order.orderCode || order.orderNumber;
   await sendRealtimeNotification(order.customer, {
     title: 'Đơn hàng đã bị hủy',
-    message: `Đơn #${code} đã được hủy do sự cố giao hàng: ${reasonNote}.${result.isPaid ? ' Yêu cầu hoàn tiền đã được tạo.' : ''}`,
+    message: `Đơn #${code} đã được hủy do sự cố giao hàng: ${reasonNote}.${result.isPaid ? ' Tiền hoàn đã được cộng vào ví ảo của bạn.' : ''}`,
     type: 'order',
     orderId: order._id,
-    link: `/orders/${order._id}`,
+    // Same as the admin cancellation: a paid order sends the customer to the refunded wallet
+    link: result.isPaid ? '/wallet' : `/orders/${order._id}`,
   });
   if (issue.restaurant?.owner) {
     await sendRealtimeNotification(issue.restaurant.owner, {

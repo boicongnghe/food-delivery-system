@@ -75,7 +75,7 @@ export const releaseOrderToPool = async (order, { note }) => {
 
 /**
  * Cancel an order a shipper holds (preparing, ready_for_pickup or delivering) on behalf of the platform.
- * Paid orders get a refund request (R06); the shipper's slot is freed.
+ * Paid orders are refunded to the customer wallet right away (R06); the shipper's slot is freed.
  * @returns {Promise<{ order, isPaid, amount } | null>} null when it lost the race
  */
 export const cancelAssignedOrder = async (order, { reason, note, action }) => {

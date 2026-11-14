@@ -10,7 +10,7 @@ Bộ rule do BA chốt sau khi benchmark ShopeeFood, GrabFood và SePay. Mã `TO
 | --- | --- | --- | --- | --- | --- |
 | TO-01 | Khách chưa chuyển khoản sau `payTimeout` | Đơn hết hạn thanh toán, QR hết hiệu lực | Hệ thống | Không có | Module thanh toán |
 | TO-02 | Quán chưa nhận đơn sau `acceptRemind` | Nhắc quán: thông báo, chuông và đếm ngược trên bảng bếp | Hệ thống | – | **Đã làm** |
-| TO-03 | Quán chưa nhận đơn sau `acceptTimeout` | Tự hủy, báo khách và quán, tính vào tỉ lệ từ chối của quán | Hệ thống | Hoàn 100% (tạo yêu cầu hoàn tiền) | **Đã làm** |
+| TO-03 | Quán chưa nhận đơn sau `acceptTimeout` | Tự hủy, báo khách và quán, tính vào tỉ lệ từ chối của quán | Hệ thống | Hoàn 100% vào ví ảo của khách | **Đã làm** |
 | TO-04 | Quán nấu quá `prepTime` đã khai báo | Cảnh báo quán, báo khách món sẽ chậm | Hệ thống | – | **Đã làm** |
 | TO-05 | Quá `prepTime + prepGrace` | Không tự hủy. Chuyển cho admin (tab "Cần xử lý"); admin hủy thay khách nếu cần (D3) | Admin | Nếu hủy: hoàn khách 100%, quán không được bù | **Đã làm** |
 | TO-06 | Chưa có shipper sau `shipperRemind` (tính từ lúc quán nhận đơn) | Báo admin để điều phối | Admin | – | **Đã làm** |
@@ -26,7 +26,7 @@ Bộ rule do BA chốt sau khi benchmark ShopeeFood, GrabFood và SePay. Mã `TO
 | TO-15 | Giao dịch không có hoặc sai mã đơn | Đưa vào "Giao dịch chưa khớp" để đối soát | Admin | Hoàn sau khi xác minh | Module thanh toán |
 | TO-16 | Webhook bị mất hoặc trùng | Chống trùng theo id giao dịch; cron đối soát mỗi `reconInterval` | Hệ thống | – | Module thanh toán (làm cùng R01) |
 
-Hoàn tiền dùng luồng có sẵn (R06, xem [database.md](database.md)): hủy đơn đã trả tiền → `refund.status = pending` → admin chuyển trả rồi xác nhận kèm mã giao dịch. Luồng này hỗ trợ số tiền bất kỳ, dùng được cho TO-13 và TO-14.
+Hoàn tiền (R06, xem [database.md](database.md)): hủy đơn đã trả tiền (khách, quán, hệ thống hay admin) thì server **cộng ngay toàn bộ số tiền vào ví ảo của khách** (`refund.status = succeeded`, `payment.status = refunded`, giao dịch ví loại `refund`), admin không cần xác nhận. Việc admin ghi kết quả chuyển trả (`PATCH /api/admin/orders/:id/refund`, tab "Chờ hoàn tiền") chỉ còn cho các khoản `refund.status = pending` / `failed` của đơn cũ. Luồng này nhận số tiền bất kỳ nên có thể dùng cho TO-13 và TO-14 khi module thanh toán làm hai luật này.
 
 ## Tham số (Assumptions của SRS)
 
